@@ -1,7 +1,7 @@
 # Spine — to-do list
 
 ## Next up (planned)
-- Nothing queued: suggest something!
+- **Movies & TV** section (TMDB details and posters, seasons/episodes, plays in mpv/VLC). Plan in HANDOFF.md.
 
 ## Waiting on accounts
 - **ScreenScraper developer key** (requested on their forum): turns on names
