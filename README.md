@@ -13,7 +13,7 @@ covers and favorites in that folder, so it's fully portable. It updates itself:
 when a new version is out, Settings → Updates offers it.
 
 Windows 10 or 11. Your emulators can live anywhere common (an `Emulators`
-folder next to your ROMs, ES-DE's `Emulators` folder, Program Files, AppData).
+folder next to your ROMs, Program Files, AppData).
 
 ## What it does
 
