@@ -387,6 +387,7 @@ fn fetch_media(handle: AppHandle) {
         spine_core::extras::fetch_extras(&lib, &media, creds.steamgriddb_key.as_deref(), &|d, t, title| emit("art", d, t, title));
         let metas = spine_core::meta::build(&lib, &media, None, &|d, t, title| emit("categories", d, t, title));
         spine_core::meta::save(&media, &metas);
+        spine_core::meta::fetch_pc_details(&lib, &media, &|d, t, title| emit("details", d, t, title));
         if creds.screenscraper_ready() {
             screenscraper::fetch_details(&lib, &media, &creds, &|d, t, title| emit("details", d, t, title));
         }

@@ -1,6 +1,6 @@
 ## What's new
-- Interface sounds: soft clicks and chimes as you move around, open games, favorite, spin for a random game, and come back from playing. Settings → Sounds: Off, Soft or Normal.
-- Spine for Linux (since 0.4.0): one AppImage that adds itself to your app menu and updates itself, plus a .deb.
+- PC games now get descriptions, release years, genres and developers from Steam's store, like console games get from ScreenScraper.
+- Interface sounds (since 0.4.1): Settings → Sounds.
 
 ---
 

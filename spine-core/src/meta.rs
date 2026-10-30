@@ -248,3 +248,119 @@ mod tests {
         assert_eq!(m.developer.as_deref(), Some("Zeekerss"));
     }
 }
+
+// ---------------------------------------------------------------------------
+// PC games: descriptions from Steam's store (ScreenScraper matches console ROM
+// files, which PC shortcuts and store games aren't).
+// ---------------------------------------------------------------------------
+
+/// Plain text from Steam's HTML-ish text: tags removed, entities decoded, spaces tidied.
+pub fn plain_text(html: &str) -> String {
+    let mut out = String::new();
+    let mut in_tag = false;
+    for c in html.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => {
+                in_tag = false;
+                out.push(' ');
+            }
+            _ if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    let out = out.replace("&quot;", "\"").replace("&#39;", "'").replace("&apos;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ").replace("&amp;", "&");
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Details for one game from Steam's appdetails answer.
+pub fn parse_steam_details(json: &[u8], app: u32) -> Option<crate::screenscraper::GameInfo> {
+    let v: serde_json::Value = serde_json::from_slice(json).ok()?;
+    let d = &v[app.to_string()];
+    if d["success"].as_bool() != Some(true) {
+        return None;
+    }
+    let d = &d["data"];
+    let short = plain_text(d["short_description"].as_str().unwrap_or(""));
+    let description = if short.len() >= 40 {
+        short
+    } else {
+        // No short blurb: the start of the full "About this game", cut at a sentence.
+        let long = plain_text(d["about_the_game"].as_str().unwrap_or(""));
+        let cut: String = long.chars().take(600).collect();
+        match cut.rfind(". ") {
+            Some(i) if long.chars().count() > 600 => cut[..=i].to_string(),
+            _ => cut,
+        }
+    };
+    let year = d["release_date"]["date"].as_str().and_then(|s| {
+        let digits: Vec<String> = s.split(|c: char| !c.is_ascii_digit()).filter(|w| w.len() == 4).map(String::from).collect();
+        digits.last().cloned()
+    });
+    let genre = d["genres"].as_array().map(|g| g.iter().filter_map(|x| x["description"].as_str()).filter(|g| !SKIP_TAGS.contains(g)).take(3).collect::<Vec<_>>().join(", ")).filter(|s| !s.is_empty());
+    let developer = d["developers"].as_array().and_then(|a| a.first()).and_then(|x| x.as_str()).map(String::from);
+    let info = crate::screenscraper::GameInfo { description: (!description.is_empty()).then_some(description), year, genre, developer, ..Default::default() };
+    (info.description.is_some() || info.developer.is_some()).then_some(info)
+}
+
+/// Fetch Steam descriptions for PC games that have none yet. Returns how many were found.
+pub fn fetch_pc_details(lib: &Library, media: &Path, progress: &dyn Fn(usize, usize, &str)) -> usize {
+    use crate::screenscraper::{info_path, load_info, GameInfo};
+    let Some(pc) = lib.systems.iter().find(|s| s.id == "pc") else { return 0 };
+    let now = || SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let todo: Vec<&crate::scan::Game> = pc
+        .games
+        .iter()
+        .filter(|g| match load_info(media, &g.id) {
+            None => true,
+            Some(i) => i.not_found_at.map_or(false, |t| now().saturating_sub(t) > 30 * 24 * 3600),
+        })
+        .collect();
+    let agent = covers::agent();
+    let mut found = 0;
+    for (n, g) in todo.iter().enumerate() {
+        progress(n + 1, todo.len(), &g.title);
+        let app = covers::steam_app_id(&g.path).or_else(|| {
+            let mut names = vec![g.title.clone()];
+            if g.format == "lnk" {
+                if let Some(f) = covers::lnk_folder_name(&g.path) {
+                    names.insert(0, f);
+                }
+            }
+            covers::steam_search_pub(&agent, &names).ok()
+        });
+        let info = app.and_then(|app| {
+            let url = format!("https://store.steampowered.com/api/appdetails?appids={app}&l=english&cc=us");
+            covers::get_text_any(&agent, &url).ok().and_then(|body| parse_steam_details(body.as_bytes(), app))
+        });
+        let path = info_path(media, &g.id);
+        let _ = fs::create_dir_all(path.parent().unwrap());
+        let record = match info {
+            Some(i) => {
+                found += 1;
+                i
+            }
+            None => GameInfo { not_found_at: Some(now()), ..Default::default() },
+        };
+        let _ = fs::write(&path, serde_json::to_string_pretty(&record).unwrap_or_default());
+        std::thread::sleep(Duration::from_millis(350)); // Steam's store allows ~200 requests per 5 minutes
+    }
+    found
+}
+
+#[cfg(test)]
+mod steam_details_tests {
+    use super::*;
+
+    #[test]
+    fn reads_steam_details() {
+        let j = br#"{"1942280":{"success":true,"data":{"short_description":"Brotato is a top-down arena shooter roguelite where you play a potato wielding up to 6 weapons at a time to fight off hordes of aliens. Choose from a variety of traits &amp; items.","release_date":{"coming_soon":false,"date":"23 Jun, 2023"},"genres":[{"id":"1","description":"Action"},{"id":"23","description":"Indie"},{"id":"3","description":"RPG"}],"developers":["Blobfish"]}}}"#;
+        let i = parse_steam_details(j, 1942280).unwrap();
+        assert!(i.description.as_deref().unwrap().ends_with("traits & items."));
+        assert_eq!(i.year.as_deref(), Some("2023"));
+        assert_eq!(i.genre.as_deref(), Some("Action, RPG"));
+        assert_eq!(i.developer.as_deref(), Some("Blobfish"));
+        assert!(parse_steam_details(br#"{"5":{"success":false}}"#, 5).is_none());
+        assert_eq!(plain_text("<h2 class=\"x\">Hi</h2><p>Tom&#39;s <b>game</b></p>"), "Hi Tom's game");
+    }
+}
