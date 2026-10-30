@@ -47,11 +47,6 @@ builds a command-line tool, `spine-scan`.
 
 ## Releasing
 
-Bump `version` in `spine-app/Cargo.toml`, commit, then push a matching tag:
-
-```
-git tag v0.3.0
-git push origin v0.3.0
-```
-
-GitHub Actions builds Spine.exe, fingerprints it, and publishes the release.
+Bump `version` in `spine-app/Cargo.toml` (and `spine-core/Cargo.toml` and
+`spine-app/tauri.conf.json` to match) and push to `main`. GitHub Actions
+builds Spine.exe, fingerprints it, and publishes release `v<version>`.
