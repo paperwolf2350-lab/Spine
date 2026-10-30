@@ -881,6 +881,7 @@ function render() {
   app.querySelectorAll('.scroll').forEach((el) => { if (el.id) scrollers[el.id] = el.scrollTop; });
   const screens = { welcome, scanning, home, games, detail, loading: () => '' };
   app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + emulatorPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
+  silenceDetached();
   Object.entries(scrollers).forEach(([id, top]) => { const el = document.getElementById(id); if (el) el.scrollTop = top; });
   const car = document.getElementById('carousel');
   if (car) {
@@ -910,6 +911,7 @@ function startPreview() {
   if (!v || S.playing || S.panel) return;
   previewTimer = setTimeout(() => {
     if (!document.body.contains(v)) return;
+    liveMedia.add(v);
     v.muted = !soundOn();
     v.src = v.dataset.src;
     v.addEventListener('playing', () => {
@@ -943,7 +945,8 @@ function startBackdrop(v) {
 function syncAudio() {
   const v = document.getElementById('preview');
   const a = document.getElementById('previewAudio');
-  if (!v || !a) return;
+  if (!v || !a || !document.body.contains(a)) return;
+  liveMedia.add(a);
   if (!a.src) a.src = a.dataset.src;
   const on = soundOn() && !v.paused;
   if (!on) { a.pause(); return; }
@@ -953,9 +956,24 @@ function syncAudio() {
     v.dataset.synced = '1';
     v.addEventListener('timeupdate', () => { if (!a.paused && Math.abs(a.currentTime - v.currentTime) > 0.35) a.currentTime = v.currentTime; });
     v.addEventListener('pause', () => a.pause());
-    v.addEventListener('playing', () => { if (soundOn()) { a.currentTime = v.currentTime; a.play().catch(() => {}); } });
+    v.addEventListener('playing', () => { if (soundOn() && document.body.contains(a)) { a.currentTime = v.currentTime; a.play().catch(() => {}); } });
   }
 }
+// Every video/sound a game page started. Media taken off the screen keeps playing
+// unless it's stopped, so anything no longer on screen gets silenced after each render.
+const liveMedia = new Set();
+function silenceDetached() {
+  for (const m of liveMedia) {
+    if (document.body.contains(m)) continue;
+    try { m.pause(); m.muted = true; m.removeAttribute('src'); m.load(); } catch (e) { /* already gone */ }
+    liveMedia.delete(m);
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { for (const m of liveMedia) { try { m.pause(); } catch (e) {} } return; }
+  const v = document.getElementById('preview');
+  if (v && liveMedia.has(v) && !S.playing && !S.panel) v.play().then(syncAudio).catch(() => {});
+});
 function stopPreview() {
   clearTimeout(previewTimer);
   clearInterval(bdTimer);

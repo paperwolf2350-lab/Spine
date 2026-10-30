@@ -1,7 +1,7 @@
 ## What's new
+- Fixed: a trailer's sound could keep playing after leaving a game page, until Spine was closed.
+- Videos pause while Spine is minimized and pick up again when you come back.
 - After an update, the old Spine window always closes, so only the new version is left open.
-- Update notes in Settings now read cleanly.
-- Game pages: wide banners and real game logos, a screenshot strip with a full-size viewer, and colors taken from each cover.
 
 ---
 
