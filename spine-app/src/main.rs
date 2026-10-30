@@ -848,6 +848,8 @@ struct Accounts {
     screenscraper_password: bool,
     screenscraper_devid: Option<String>,
     screenscraper_devpassword: bool,
+    /// This copy of Spine has the developer key built in (official releases).
+    screenscraper_builtin: bool,
     retroachievements_user: Option<String>,
     retroachievements_key: Option<String>,
 }
@@ -868,6 +870,7 @@ fn get_accounts(app: State<App>) -> Accounts {
         screenscraper_password: c.ss_password.is_some(),
         screenscraper_devid: c.ss_devid.clone(),
         screenscraper_devpassword: c.ss_devpassword.is_some(),
+        screenscraper_builtin: spine_core::config::builtin_dev_key().is_some(),
         retroachievements_user: c.ra_user.clone(),
         retroachievements_key: hint(&c.ra_key),
     }

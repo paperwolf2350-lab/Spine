@@ -244,8 +244,8 @@ pub fn fetch_details(lib: &Library, media: &Path, creds: &Credentials, progress:
     let (user, pass, devid, devpw) = (
         creds.ss_user.clone().unwrap_or_default(),
         creds.ss_password.clone().unwrap_or_default(),
-        creds.ss_devid.clone().unwrap_or_default(),
-        creds.ss_devpassword.clone().unwrap_or_default(),
+        creds.dev_key().map(|k| k.0).unwrap_or_default(),
+        creds.dev_key().map(|k| k.1).unwrap_or_default(),
     );
 
     for (n, (sys, game)) in todo.into_iter().enumerate() {
@@ -254,7 +254,9 @@ pub fn fetch_details(lib: &Library, media: &Path, creds: &Credentials, progress:
         let file_name = covers::strip_rank(&game.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default());
         let size = fs::metadata(&game.path).map(|m| m.len()).unwrap_or(0);
         let crc = file_crc32(&game.path).map(|c| format!("&crc={c}")).unwrap_or_default();
-        let auth = format!("devid={}&devpassword={}&softname={SOFTNAME}&output=json&ssid={}&sspassword={}&systemeid={}", enc(&devid), enc(&devpw), enc(&user), enc(&pass), system_id(sys).unwrap());
+        // The user's own account is optional: without one, ScreenScraper still answers, more slowly.
+        let account = if user.is_empty() || pass.is_empty() { String::new() } else { format!("&ssid={}&sspassword={}", enc(&user), enc(&pass)) };
+        let auth = format!("devid={}&devpassword={}&softname={SOFTNAME}&output=json{account}&systemeid={}", enc(&devid), enc(&devpw), system_id(sys).unwrap());
         let by_file = format!("{API}/jeuInfos.php?{auth}&romtype=rom&romnom={}&romtaille={size}{crc}", enc(&file_name));
         let by_name = format!("{API}/jeuRecherche.php?{auth}&recherche={}", enc(&game.title));
         report.looked_up += 1;

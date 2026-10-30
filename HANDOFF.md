@@ -79,10 +79,11 @@ Gotchas learned the hard way:
   misses). Result on the owner's PC: 682 of 683 games have details. The one
   miss is "Horizon Chase Turbo" (a PC shortcut Steam search didn't match).
 
+- ScreenScraper developer key is built into official releases from repository
+  secrets SCREENSCRAPER_DEVID / SCREENSCRAPER_DEVPASSWORD (`config::builtin_dev_key`,
+  via `option_env!` at build time). Users only add their own optional account.
+
 Ideas already discussed (not started):
-- Build the ScreenScraper developer credentials into releases as a GitHub
-  Actions secret (owner adds the secret himself), so friends only need their own
-  free ScreenScraper account.
 - List Spine on Flathub for one-click Linux installs.
 
 ## Next feature: Movies & TV

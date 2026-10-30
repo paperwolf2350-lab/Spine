@@ -49,6 +49,9 @@ jobs:
         working-directory: spine-app
         env:
           SPINE_REPO: ${{ github.repository }}
+          # Spine's ScreenScraper developer key (repository secrets; never in the code).
+          SPINE_SS_DEVID: ${{ secrets.SCREENSCRAPER_DEVID }}
+          SPINE_SS_DEVPASSWORD: ${{ secrets.SCREENSCRAPER_DEVPASSWORD }}
         run: npx --yes @tauri-apps/cli@2.12.4 build --bundles nsis
       - name: Package
         shell: pwsh
@@ -84,6 +87,9 @@ jobs:
         working-directory: spine-app
         env:
           SPINE_REPO: ${{ github.repository }}
+          # Spine's ScreenScraper developer key (repository secrets; never in the code).
+          SPINE_SS_DEVID: ${{ secrets.SCREENSCRAPER_DEVID }}
+          SPINE_SS_DEVPASSWORD: ${{ secrets.SCREENSCRAPER_DEVPASSWORD }}
         run: npx --yes @tauri-apps/cli@2.12.4 build --bundles appimage,deb
       - name: Package
         run: |

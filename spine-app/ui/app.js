@@ -630,12 +630,14 @@ function scrapersPanel() {
       ${field('sgdb', 'API key', 'password', '', a.steamgriddb_key ? `Saved (${a.steamgriddb_key}). Type to replace.` : 'Paste your key')}
       ${a.steamgriddb_key ? `<button class="link" data-nav data-key="clr-sgdb" data-act="clearacc" data-f="steamgriddb_key">Remove key</button>` : ''}</div>
     <div class="grp"><span class="k">ScreenScraper · names, details, covers</span>
-      <span class="note">Your screenscraper.fr account, plus the developer key the ScreenScraper team sends you for Spine.</span>
+      <span class="note">${a.screenscraper_builtin ? 'Already on: this copy of Spine has its ScreenScraper access built in. Add your free screenscraper.fr account for faster lookups and a bigger daily allowance.' : 'Your screenscraper.fr account, plus the developer key the ScreenScraper team sends you for Spine.'}</span>
       ${field('ssuser', 'Username', 'text', a.screenscraper_user, 'Username')}
       ${field('sspass', 'Password', 'password', '', a.screenscraper_password ? 'Saved. Type to replace.' : 'Password')}
-      ${field('ssdev', 'Developer ID', 'text', a.screenscraper_devid, 'From the ScreenScraper team')}
-      ${field('ssdevpw', 'Developer password', 'password', '', a.screenscraper_devpassword ? 'Saved. Type to replace.' : 'From the ScreenScraper team')}
-      <span class="note">${a.screenscraper_user && a.screenscraper_password && a.screenscraper_devid && a.screenscraper_devpassword ? 'All set.' : 'ScreenScraper turns on once all four are filled in.'}</span></div>
+      ${a.screenscraper_builtin ? '' : `${field('ssdev', 'Developer ID', 'text', a.screenscraper_devid, 'From the ScreenScraper team')}
+      ${field('ssdevpw', 'Developer password', 'password', '', a.screenscraper_devpassword ? 'Saved. Type to replace.' : 'From the ScreenScraper team')}`}
+      <span class="note">${a.screenscraper_builtin
+        ? (a.screenscraper_user && a.screenscraper_password ? 'All set, using your account.' : a.screenscraper_user ? 'Add your password to use your account.' : 'Working without an account.')
+        : (a.screenscraper_user && a.screenscraper_password && a.screenscraper_devid && a.screenscraper_devpassword ? 'All set.' : 'ScreenScraper turns on once all four are filled in.')}</span></div>
     <div class="grp"><span class="k">RetroAchievements · trophies</span>
       <span class="note">Free. Sign in at retroachievements.org, open Settings → Authentication, and copy your Web API key. Game pages then show your achievements.</span>
       ${field('rauser', 'Username', 'text', a.retroachievements_user, 'Username')}

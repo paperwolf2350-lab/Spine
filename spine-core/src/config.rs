@@ -28,6 +28,14 @@ retroachievements_user =
 retroachievements_key =
 ";
 
+/// Spine's own ScreenScraper developer key, built into official releases by
+/// GitHub Actions (secrets SCREENSCRAPER_DEVID / SCREENSCRAPER_DEVPASSWORD).
+pub fn builtin_dev_key() -> Option<(&'static str, &'static str)> {
+    let id = option_env!("SPINE_SS_DEVID").filter(|s| !s.trim().is_empty())?;
+    let pw = option_env!("SPINE_SS_DEVPASSWORD").filter(|s| !s.trim().is_empty())?;
+    Some((id.trim(), pw.trim()))
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct Credentials {
     pub steamgriddb_key: Option<String>,
@@ -66,9 +74,19 @@ impl Credentials {
         }
     }
 
-    /// Everything ScreenScraper needs is filled in.
+    /// The developer key to use: the one typed in Settings, else the one built into
+    /// official releases (from the repository's secrets; never in the source code).
+    pub fn dev_key(&self) -> Option<(String, String)> {
+        match (&self.ss_devid, &self.ss_devpassword) {
+            (Some(i), Some(p)) => Some((i.clone(), p.clone())),
+            _ => builtin_dev_key().map(|(i, p)| (i.to_string(), p.to_string())),
+        }
+    }
+
+    /// ScreenScraper can be used: a developer key is available. A user account
+    /// (username + password) is optional but gives a bigger daily allowance.
     pub fn screenscraper_ready(&self) -> bool {
-        self.ss_user.is_some() && self.ss_password.is_some() && self.ss_devid.is_some() && self.ss_devpassword.is_some()
+        self.dev_key().is_some() && (self.ss_user.is_some() == self.ss_password.is_some())
     }
 
     /// Save all fields back to the file (keeps the explanatory comments).
