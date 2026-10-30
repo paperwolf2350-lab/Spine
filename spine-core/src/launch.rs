@@ -449,7 +449,7 @@ pub fn flathub_pages() -> &'static [(&'static str, &'static str)] {
     ]
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod linux_tests {
     use super::*;
     use crate::systems::system_by_id;

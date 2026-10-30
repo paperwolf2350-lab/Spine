@@ -245,6 +245,7 @@ fn one_of(names: &[&str]) -> String {
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
     #[test]
     fn flatpak_pcsx2_bios_folder() {
         let p = plan(Path::new("flatpak"), &["run", "net.pcsx2.PCSX2", "-batch", "--", "x.iso"]);
