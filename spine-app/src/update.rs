@@ -135,6 +135,9 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 /// Download, check and put the new Spine.exe in place. Returns the new exe's path
 /// (the caller restarts into it).
 pub fn install(app_dir: &Path, exe: &Path) -> Result<std::path::PathBuf, String> {
+    if exe.file_name().map_or(false, |n| n.to_string_lossy().eq_ignore_ascii_case("Spine.old.exe")) {
+        return Err("This window is the old Spine from before the last update. Close it and open Spine again: it's already up to date.".into());
+    }
     let repo = repo(app_dir).ok_or("Updates aren't set up for this copy of Spine.")?;
     let rel = latest(&repo)?.ok_or("No release found.")?;
     if !newer(&rel.version, CURRENT) {
@@ -159,10 +162,28 @@ pub fn install(app_dir: &Path, exe: &Path) -> Result<std::path::PathBuf, String>
     Ok(exe.to_path_buf())
 }
 
-/// After an update: tidy up the previous version.
+/// After an update: make sure the previous version has closed, then tidy it away.
+/// (Versions before 0.3.2 could leave their window open after updating.)
 pub fn cleanup(exe: &Path) {
-    let _ = fs::remove_file(exe.with_file_name("Spine.old.exe"));
+    let old = exe.with_file_name("Spine.old.exe");
     let _ = fs::remove_file(exe.with_file_name("Spine.new.exe"));
+    if !old.exists() || exe.file_name().map_or(false, |n| n.to_string_lossy().eq_ignore_ascii_case("Spine.old.exe")) {
+        return;
+    }
+    for i in 0..40 {
+        if fs::remove_file(&old).is_ok() || !old.exists() {
+            return;
+        }
+        if i == 10 {
+            // Still running after a few seconds: it's a leftover window, so close it.
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                let _ = std::process::Command::new("taskkill").args(["/IM", "Spine.old.exe", "/F"]).creation_flags(0x0800_0000).output();
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
 }
 
 #[cfg(test)]

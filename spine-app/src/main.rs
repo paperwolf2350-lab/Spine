@@ -622,7 +622,10 @@ async fn install_update(handle: AppHandle) -> Result<(), String> {
     let new_exe = tauri::async_runtime::spawn_blocking(move || update::install(&dir, &exe)).await.map_err(|e| e.to_string())??;
     app.save();
     std::process::Command::new(&new_exe).current_dir(&app.dir).spawn().map_err(|e| format!("Updated, but couldn't restart Spine ({e}). Start it again yourself."))?;
+    // Leave right away so only the new Spine is open (everything is already saved).
     handle.exit(0);
+    std::process::exit(0);
+    #[allow(unreachable_code)]
     Ok(())
 }
 
