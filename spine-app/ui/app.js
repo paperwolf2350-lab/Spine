@@ -11,6 +11,14 @@ const api = T
   ? { call: (cmd, args) => T.core.invoke(cmd, args), on: (ev, cb) => T.event.listen(ev, (e) => cb(e.payload)) }
   : window.__SPINE_MOCK__; // only used when previewing the UI outside the app
 const MEDIA = navigator.userAgent.includes('Windows') ? 'http://spine.localhost/' : 'spine://localhost/';
+const OS_NAME = navigator.userAgent.includes('Windows') ? 'Windows' : navigator.userAgent.includes('Mac') ? 'macOS' : 'Linux';
+// What opens a PC game: its store's launcher, or the system itself.
+function opener(g) {
+  if (g.format === 'steam') return 'Steam';
+  if ((g.file || '').startsWith('Installed with Heroic')) return 'Heroic';
+  if (g.format === 'epic') return 'Epic Games';
+  return OS_NAME;
+}
 const mediaUrl = (rel) => {
   const [path, query] = rel.split('?');
   return (window.__SPINE_MEDIA__ || MEDIA) + path.split('/').map(encodeURIComponent).join('/') + (query ? '?' + query : '');
@@ -299,7 +307,7 @@ function home() {
   const fan = src.filter((_, i) => i % step === 0).slice(0, 5);
   let status, cta;
   if (t.kind === 'sys') {
-    status = `${t.count.toLocaleString()} games · ` + (t.sys.blocked ? `<span class="warn">${esc(t.sys.blocked)}</span>` : `launches with ${esc(t.sys.emulator === 'system' ? 'Windows' : t.sys.emulator)}`)
+    status = `${t.count.toLocaleString()} games · ` + (t.sys.blocked ? `<span class="warn">${esc(t.sys.blocked)}</span>` : (t.sys.emulator === 'system' ? 'opens with their store or your PC' : `launches with ${esc(t.sys.emulator)}`))
       + (t.sys.bios && !t.sys.blocked ? `<br><span class="warn">${esc(t.sys.bios.message)}</span>` : '');
     cta = 'Open library';
   } else if (t.kind === 'coll') {
@@ -459,7 +467,7 @@ function games() {
       <div class="seg" role="group" aria-label="Layout">${lay('tiles', 'Tiles')}${lay('list', 'List')}${lay('cards', 'Cards')}${lay('shelf', 'Shelf')}</div>
     </div>
     <div class="games-wrap"><nav class="rail" aria-label="Jump to letter">${rail}</nav><div class="games scroll" id="gamesscroll">${body}</div></div>
-  </main>` + hints(`${s.kind === 'cat' ? 'Across your whole library · LT / RT letter' : (isColl ? 'Every console' : L.emulator === 'system' ? 'Opens with Windows' : 'Launches with ' + L.emulator) + ' · LB / RB console · LT / RT letter'}`, [['A', 'Open'], ['B', 'Back'], ['Y', 'Favorite'], ['R3', 'Random'], ['Select', 'Layout']]);
+  </main>` + hints(`${s.kind === 'cat' ? 'Across your whole library · LT / RT letter' : (isColl ? 'Every console' : L.emulator === 'system' ? 'Opens with their store or your PC' : 'Launches with ' + L.emulator) + ' · LB / RB console · LT / RT letter'}`, [['A', 'Open'], ['B', 'Back'], ['Y', 'Favorite'], ['R3', 'Random'], ['Select', 'Layout']]);
 }
 
 function moreRow(title, items, key) {
@@ -529,11 +537,11 @@ function detail() {
         <button class="btn" data-nav data-key="addlist" data-act="lists" data-id="${esc(g.id)}">${ICON.list} ${Object.values(S.boot.collections || {}).some((l) => l.includes(g.id)) ? 'In your lists' : 'Add to list'}</button>
         ${S.spun === g.id ? `<button class="btn" data-nav data-key="spin" data-act="random" data-scope="${esc(S.spinScope || 'all')}">${ICON.dice} Spin again</button>` : ''}
       </div>
-      ${s.blocked && !g.launcher ? `<div class="warning"><b>Can't play yet:</b> ${esc(s.blocked)} ${s.download ? `<button class="link" data-nav data-key="getemu" data-act="openurl" data-u="${esc(s.download)}">Open the download page</button> <span class="note">Put it in your Emulators folder, and Spine finds it next time it starts.</span>` : ''}</div>` : ''}
+      ${s.blocked && !g.launcher ? `<div class="warning"><b>Can't play yet:</b> ${esc(s.blocked)} ${s.download ? `<button class="link" data-nav data-key="getemu" data-act="openurl" data-u="${esc(s.download)}">${s.download.includes('flathub.org') ? 'Get it from Flathub' : 'Open the download page'}</button> <span class="note">${s.download.includes('flathub.org') ? 'Install it from your software center (Discover, GNOME Software) or Flathub, then reopen Spine.' : 'Put it in your Emulators folder, and Spine finds it next time it starts.'}</span>` : ''}</div>` : ''}
       ${g.offline ? `<div class="warning"><b>Drive not connected.</b> Plug in the drive this game is on to play it.</div>` : ''}
       ${s.bios && !s.blocked && !g.launcher ? `<div class="warning"><b>Missing file:</b> ${esc(s.bios.message)} <span class="path">${esc(s.bios.folder)}</span> <button class="link" data-nav data-key="biosdir" data-act="biosdir" data-s="${esc(s.id)}">Open that folder</button></div>` : ''}
       <div class="facts">
-        <div class="fact"><span class="k">${s.id === 'pc' ? 'Opens with' : 'Emulator'}</span><span class="v">${esc(g.launcher || (s.emulator === 'system' ? 'Windows' : s.emulator))}</span>
+        <div class="fact"><span class="k">${s.id === 'pc' ? 'Opens with' : 'Emulator'}</span><span class="v">${esc(g.launcher || (s.emulator === 'system' ? opener(g) : s.emulator))}</span>
           ${s.id === 'pc' ? '<span class="n">Your PC</span>' : `<span class="n">${g.launcher ? 'Chosen for this game' : 'Console default'}</span><button class="link" data-nav data-key="chemu" data-act="emu" data-id="${esc(g.id)}">Change for this game</button>`}</div>
         <div class="fact"><span class="k">Playtime</span><span class="v">${fmtTime(pt)}</span><span class="n">${lp ? 'Last played ' + ago(lp) : (g.format === 'steam' || g.format === 'epic') ? `${g.format === 'steam' ? 'Steam' : 'Epic'} keeps this one` : 'Tracked automatically'}</span></div>
         <div class="fact"><span class="k">File</span><span class="v">${esc(g.format.toUpperCase())}${g.region ? ' · ' + esc(g.region) : ''}</span><span class="n" title="${esc(g.file)}">${esc(g.file)}</span>${extras.length ? `<span class="n">${esc(extras.join(' · '))}</span>` : ''}${isFav(g.id) ? `<span class="n" style="color:var(--accent);font-weight:600">${ICON.check} Favorite</span>` : ''}</div>
@@ -553,7 +561,7 @@ function playingOverlay() {
     ${p.error ? '' : '<div class="spinner"></div>'}
     <p style="font-size:15px;font-weight:600;letter-spacing:.08em;text-transform:uppercase">${p.error ? "Couldn't start" : p.started ? 'Playing' : 'Launching'}</p>
     <h2>${esc(p.title)}</h2>
-    ${p.error ? `<p class="err">${esc(p.error)}</p>` : `<p>${esc(p.emulator === 'system' ? 'Opening with Windows' : p.emulator)}</p><p style="font-size:15px">${p.closing ? 'Closing the game…' : exitComboOn() ? `Hold ${glyph('SELECT')} + ${glyph('START')} on your controller, or quit the game, to come back.` : 'Quit the game to come back here.'}</p>`}
+    ${p.error ? `<p class="err">${esc(p.error)}</p>` : `<p>${esc(p.emulator === 'system' ? `Opening with ${p.opener || OS_NAME}` : p.emulator)}</p><p style="font-size:15px">${p.closing ? 'Closing the game…' : exitComboOn() ? `Hold ${glyph('SELECT')} + ${glyph('START')} on your controller, or quit the game, to come back.` : 'Quit the game to come back here.'}</p>`}
     ${p.error || p.emulator === 'system' ? `<button class="btn" data-nav data-key="closeplay" data-act="closeplay">${glyph('B')}Back to library</button>` : ''}
   </div></div>`;
 }
@@ -1333,7 +1341,7 @@ const ACT = {
     const found = findGame(d.id);
     if (!found) return;
     stopPreview();
-    S.playing = { title: found.g.title, emulator: found.s.emulator };
+    S.playing = { title: found.g.title, emulator: found.s.emulator, opener: opener(found.g) };
     render();
     try {
       const emu = await api.call('play', { id: d.id });

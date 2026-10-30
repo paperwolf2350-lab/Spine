@@ -19,6 +19,8 @@ use tauri_plugin_dialog::DialogExt;
 
 mod pad;
 mod update;
+#[cfg(target_os = "linux")]
+mod linux;
 
 // ---------------------------------------------------------------------------
 // Saved state
@@ -95,8 +97,14 @@ fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
+/// Where Spine keeps its settings, covers and favorites: next to Spine.exe on
+/// Windows (portable), ~/.local/share/spine on Linux.
 fn app_dir() -> PathBuf {
-    std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf)).unwrap_or_else(|| PathBuf::from("."))
+    let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf)).unwrap_or_else(|| PathBuf::from("."));
+    #[cfg(target_os = "linux")]
+    return linux::data_dir(&exe_dir);
+    #[cfg(not(target_os = "linux"))]
+    exe_dir
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +237,8 @@ fn view(app: &App) -> Boot {
                                 format: g.format.clone(),
                                 file: match g.format.as_str() {
                                     "steam" => "Installed on Steam".into(),
+                                    "epic" if g.path.to_string_lossy().starts_with("heroic://") => "Installed with Heroic (Epic Games)".into(),
+                                    "gog" if g.path.to_string_lossy().starts_with("heroic://") => "Installed with Heroic (GOG)".into(),
                                     "epic" => "Installed on Epic Games".into(),
                                     "gog" => format!("Installed from GOG · {}", g.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default()),
                                     _ => g.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default(),
@@ -588,7 +598,7 @@ async fn achievements(id: String, handle: AppHandle) -> Result<Option<spine_core
 /// Open a link in the browser (only RetroAchievements and emulator download pages).
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
-    let ok = ["https://retroachievements.org/", "https://www.retroachievements.org/"].iter().any(|p| url.starts_with(p)) || launch::download_pages().iter().any(|(_, u)| *u == url);
+    let ok = ["https://retroachievements.org/", "https://www.retroachievements.org/"].iter().any(|p| url.starts_with(p)) || launch::download_pages().iter().chain(launch::flathub_pages()).any(|(_, u)| *u == url);
     if !ok || url.contains(['"', '\'', ' ', '&', '|', '^', '<', '>']) {
         return Err("Spine only opens links it knows.".into());
     }
@@ -1126,6 +1136,8 @@ fn main() {
     if let Ok(exe) = std::env::current_exe() {
         update::cleanup(&exe);
     }
+    #[cfg(target_os = "linux")]
+    linux::ensure_menu_entry();
     let saved: Saved = fs::read_to_string(dir.join("spine-state.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
     let media = dir.join("media");
     let mut saved = saved;

@@ -106,6 +106,98 @@ mod xinput {
     }
 }
 
+/// Linux: controllers through the kernel's input devices. Desktop Linux lets the
+/// signed-in user read game controllers (not keyboards), and every controller
+/// driver (Xbox, PlayStation, Switch Pro, 8BitDo...) reports Select/Back and
+/// Start with the same two codes, so no button mapping is needed.
+#[cfg(target_os = "linux")]
+mod evdev {
+    use super::{BACK, START};
+    use std::fs::File;
+    use std::io::Read;
+    use std::os::unix::fs::OpenOptionsExt;
+    use std::time::{Duration, Instant};
+
+    const EV_KEY: u16 = 1;
+    const BTN_SELECT: u16 = 0x13a;
+    const BTN_START: u16 = 0x13b;
+    const O_NONBLOCK: i32 = 0o4000;
+    /// struct input_event on 64-bit Linux: 16-byte time, u16 type, u16 code, i32 value.
+    const EVENT: usize = 24;
+
+    pub struct Pads {
+        devs: Vec<(std::path::PathBuf, File, u16)>,
+        scanned: Instant,
+    }
+
+    /// Turn raw events into held buttons (BACK/START bits).
+    pub fn apply(mut held: u16, buf: &[u8]) -> u16 {
+        for ev in buf.chunks_exact(EVENT) {
+            let ty = u16::from_ne_bytes([ev[16], ev[17]]);
+            let code = u16::from_ne_bytes([ev[18], ev[19]]);
+            let value = i32::from_ne_bytes([ev[20], ev[21], ev[22], ev[23]]);
+            if ty != EV_KEY {
+                continue;
+            }
+            let bit = match code {
+                BTN_SELECT => BACK,
+                BTN_START => START,
+                _ => continue,
+            };
+            if value != 0 { held |= bit } else { held &= !bit }
+        }
+        held
+    }
+
+    impl Pads {
+        pub fn open() -> Self {
+            let mut p = Pads { devs: vec![], scanned: Instant::now() };
+            p.rescan();
+            p
+        }
+        fn rescan(&mut self) {
+            self.scanned = Instant::now();
+            let Ok(rd) = std::fs::read_dir("/dev/input") else { return };
+            for e in rd.flatten() {
+                let path = e.path();
+                if !e.file_name().to_string_lossy().starts_with("event") || self.devs.iter().any(|(p, _, _)| *p == path) {
+                    continue;
+                }
+                if let Ok(f) = std::fs::OpenOptions::new().read(true).custom_flags(O_NONBLOCK).open(&path) {
+                    self.devs.push((path, f, 0));
+                }
+            }
+        }
+        /// Buttons held on any controller, combined (controllers plugged in later are found too).
+        pub fn buttons(&mut self) -> u16 {
+            if self.scanned.elapsed() > Duration::from_secs(3) {
+                self.rescan();
+            }
+            let mut all = 0;
+            let mut gone = vec![];
+            for (i, (_, f, held)) in self.devs.iter_mut().enumerate() {
+                let mut buf = [0u8; EVENT * 32];
+                loop {
+                    match f.read(&mut buf) {
+                        Ok(0) => break,
+                        Ok(n) => *held = apply(*held, &buf[..n - n % EVENT]),
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                        Err(_) => {
+                            gone.push(i); // unplugged
+                            break;
+                        }
+                    }
+                }
+                all |= *held;
+            }
+            for i in gone.into_iter().rev() {
+                self.devs.remove(i);
+            }
+            all
+        }
+    }
+}
+
 /// Close a process tree the polite way first (like clicking X), then for good.
 pub fn close_game(pid: u32, still_running: &dyn Fn() -> bool) {
     #[cfg(windows)]
@@ -131,13 +223,15 @@ pub fn close_game(pid: u32, still_running: &dyn Fn() -> bool) {
     }
     #[cfg(not(windows))]
     {
-        let _ = std::process::Command::new("kill").arg(pid.to_string()).status();
+        // Games start in their own process group, so this reaches everything they started.
+        let group = format!("-{pid}");
+        let _ = std::process::Command::new("kill").args(["-TERM", "--", &group]).status();
         let start = Instant::now();
         while start.elapsed() < Duration::from_secs(5) && still_running() {
             std::thread::sleep(Duration::from_millis(200));
         }
         if still_running() {
-            let _ = std::process::Command::new("kill").args(["-9", &pid.to_string()]).status();
+            let _ = std::process::Command::new("kill").args(["-KILL", "--", &group]).status();
         }
     }
 }
@@ -161,7 +255,22 @@ pub fn watch(done: Arc<AtomicBool>, on_combo: impl FnOnce() + Send + 'static) {
                 std::thread::sleep(Duration::from_millis(40));
             }
         }
-        #[cfg(not(windows))]
+        #[cfg(target_os = "linux")]
+        {
+            let mut pads = evdev::Pads::open();
+            let mut combo = Combo::new(HOLD);
+            while !done.load(Ordering::Relaxed) && pads.buttons() & (BACK | START) != 0 {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            while !done.load(Ordering::Relaxed) {
+                if combo.update(pads.buttons(), Instant::now()) {
+                    on_combo();
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(40));
+            }
+        }
+        #[cfg(not(any(windows, target_os = "linux")))]
         {
             let _ = (done, on_combo);
         }
@@ -171,6 +280,23 @@ pub fn watch(done: Arc<AtomicBool>, on_combo: impl FnOnce() + Send + 'static) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_input_events() {
+        let ev = |code: u16, value: i32| {
+            let mut b = vec![0u8; 16];
+            b.extend(1u16.to_ne_bytes());
+            b.extend(code.to_ne_bytes());
+            b.extend(value.to_ne_bytes());
+            b
+        };
+        let mut buf = ev(0x13a, 1);
+        buf.extend(ev(0x13b, 1));
+        buf.extend(ev(0x130, 1)); // A: ignored
+        assert_eq!(evdev::apply(0, &buf), BACK | START);
+        assert_eq!(evdev::apply(BACK | START, &ev(0x13a, 0)), START);
+    }
 
     #[test]
     fn combo_needs_both_buttons_held() {
@@ -184,5 +310,27 @@ mod tests {
         assert!(!c.update(BACK | START, t0 + Duration::from_millis(1900)));
         assert!(c.update(BACK | START, t0 + Duration::from_millis(2100)));
         assert!(!Combo::new(HOLD).update(BACK, t0));
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod close_tests {
+    use super::*;
+    use std::os::unix::process::CommandExt;
+
+    #[test]
+    fn closes_the_whole_game() {
+        // A "game" that starts a helper of its own, like flatpak run does.
+        let mut child = std::process::Command::new("sh").args(["-c", "sleep 300 & echo $! > /tmp/spine-close-test.pid; wait"]).process_group(0).spawn().unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        let helper: u32 = std::fs::read_to_string("/tmp/spine-close-test.pid").unwrap().trim().parse().unwrap();
+        let pid = child.id();
+        let start = Instant::now();
+        close_game(pid, &|| std::path::Path::new(&format!("/proc/{pid}")).exists() && !std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap_or_default().contains(") Z"));
+        let _ = child.wait();
+        assert!(start.elapsed() < Duration::from_secs(4), "closed politely, no 5 s wait");
+        std::thread::sleep(Duration::from_millis(200));
+        let alive = std::fs::read_to_string(format!("/proc/{helper}/stat")).map(|s| !s.contains(") Z")).unwrap_or(false);
+        assert!(!alive, "the game's helper process was closed too");
     }
 }

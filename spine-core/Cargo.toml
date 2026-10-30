@@ -1,6 +1,6 @@
 [package]
 name = "spine-core"
-version = "0.3.3"
+version = "0.4.0"
 edition = "2024"
 
 [dependencies]
@@ -13,3 +13,7 @@ unicode-normalization = "0.1.26"
 [[bin]]
 name = "spine-scan"
 path = "src/main.rs"
+
+# Linux: a built-in downloader for systems without the curl command.
+[target.'cfg(target_os = "linux")'.dependencies]
+ureq = { version = "2.12", features = ["native-certs"] }

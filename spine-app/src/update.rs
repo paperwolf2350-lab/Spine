@@ -65,6 +65,12 @@ pub fn clean_notes(body: &str) -> String {
         .join("\n")
 }
 
+/// The release file this copy of Spine updates from.
+#[cfg(not(target_os = "linux"))]
+pub const ASSET: &str = "Spine.exe";
+#[cfg(target_os = "linux")]
+pub const ASSET: &str = "Spine-x86_64.AppImage";
+
 /// Read GitHub's "latest release" answer.
 pub fn parse_release(json: &[u8]) -> Option<Release> {
     let v: serde_json::Value = serde_json::from_slice(json).ok()?;
@@ -73,8 +79,8 @@ pub fn parse_release(json: &[u8]) -> Option<Release> {
     }
     let assets = v["assets"].as_array()?;
     let find = |name: &str| assets.iter().find(|a| a["name"].as_str().map_or(false, |n| n.eq_ignore_ascii_case(name)));
-    let exe = find("Spine.exe")?;
-    let sha = find("Spine.exe.sha256")?;
+    let exe = find(ASSET)?;
+    let sha = find(&format!("{ASSET}.sha256"))?;
     Some(Release {
         version: v["tag_name"].as_str()?.trim_start_matches('v').to_string(),
         notes: clean_notes(v["body"].as_str().unwrap_or("")),
@@ -85,23 +91,11 @@ pub fn parse_release(json: &[u8]) -> Option<Release> {
 }
 
 fn curl(url: &str, out: Option<&Path>) -> Result<Vec<u8>, String> {
-    let mut cmd = std::process::Command::new("curl");
-    cmd.args(["-sSL", "--fail", "--connect-timeout", "15", "--max-time", "300", "-A", "Spine-updater", "-H", "Accept: application/vnd.github+json"]);
+    let b = spine_core::covers::curl(url, true, &["Accept: application/vnd.github+json".to_string()])?;
     if let Some(p) = out {
-        cmd.arg("-o").arg(p);
+        fs::write(p, &b).map_err(|e| e.to_string())?;
     }
-    cmd.arg(url);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000);
-    }
-    let o = cmd.output().map_err(|e| format!("couldn't run curl: {e}"))?;
-    if o.status.success() {
-        Ok(o.stdout)
-    } else {
-        Err(String::from_utf8_lossy(&o.stderr).trim().to_string())
-    }
+    Ok(b)
 }
 
 pub fn latest(repo: &str) -> Result<Option<Release>, String> {
@@ -132,8 +126,39 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// Linux: download, check and swap the AppImage file. Linux lets a running file be
+/// replaced, so this is a single rename. Returns the AppImage to restart into.
+#[cfg(target_os = "linux")]
+pub fn install(app_dir: &Path, _exe: &Path) -> Result<std::path::PathBuf, String> {
+    use std::os::unix::fs::PermissionsExt;
+    let Some(target) = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from).filter(|p| p.is_file()) else {
+        return Err("This copy of Spine was installed as a package. Get the new version from the Releases page on GitHub.".into());
+    };
+    let repo = repo(app_dir).ok_or("Updates aren't set up for this copy of Spine.")?;
+    let rel = latest(&repo)?.ok_or("No release found.")?;
+    if !newer(&rel.version, CURRENT) {
+        return Err("You already have the newest Spine.".into());
+    }
+    let new = target.with_file_name(".Spine.new.AppImage");
+    let _ = fs::remove_file(&new);
+    curl(&rel.exe_url, Some(&new)).map_err(|e| format!("Download failed ({e})."))?;
+    let bytes = fs::read(&new).map_err(|e| e.to_string())?;
+    let want = parse_sha_file(&String::from_utf8_lossy(&curl(&rel.sha_url, None)?)).ok_or("The release's fingerprint file is missing or damaged.")?;
+    if !bytes.starts_with(b"\x7fELF") || (rel.exe_size > 0 && bytes.len() as u64 != rel.exe_size) || sha256_hex(&bytes) != want {
+        let _ = fs::remove_file(&new);
+        return Err("The download didn't match its fingerprint, so Spine didn't install it. Try again later.".into());
+    }
+    fs::set_permissions(&new, fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
+    fs::rename(&new, &target).map_err(|e| {
+        let _ = fs::remove_file(&new);
+        format!("Couldn't put the new Spine in place ({e}). Is the folder it's in read-only?")
+    })?;
+    Ok(target)
+}
+
 /// Download, check and put the new Spine.exe in place. Returns the new exe's path
 /// (the caller restarts into it).
+#[cfg(not(target_os = "linux"))]
 pub fn install(app_dir: &Path, exe: &Path) -> Result<std::path::PathBuf, String> {
     if exe.file_name().map_or(false, |n| n.to_string_lossy().eq_ignore_ascii_case("Spine.old.exe")) {
         return Err("This window is the old Spine from before the last update. Close it and open Spine again: it's already up to date.".into());
@@ -165,6 +190,10 @@ pub fn install(app_dir: &Path, exe: &Path) -> Result<std::path::PathBuf, String>
 /// After an update: make sure the previous version has closed, then tidy it away.
 /// (Versions before 0.3.2 could leave their window open after updating.)
 pub fn cleanup(exe: &Path) {
+    #[cfg(target_os = "linux")]
+    if let Some(a) = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from) {
+        let _ = fs::remove_file(a.with_file_name(".Spine.new.AppImage"));
+    }
     let old = exe.with_file_name("Spine.old.exe");
     let _ = fs::remove_file(exe.with_file_name("Spine.new.exe"));
     if !old.exists() || exe.file_name().map_or(false, |n| n.to_string_lossy().eq_ignore_ascii_case("Spine.old.exe")) {
@@ -196,12 +225,16 @@ mod tests {
         assert!(newer("1.0.0", "0.9.12"));
         assert!(!newer("v0.2.0", "0.2.0"));
         assert!(!newer("0.1.9", "0.2.0"));
-        let j = br#"{"tag_name":"v0.3.0","body":"New stuff","draft":false,"prerelease":false,"assets":[
-            {"name":"Spine.exe","size":123,"browser_download_url":"https://github.com/a/spine/releases/download/v0.3.0/Spine.exe"},
-            {"name":"Spine.exe.sha256","size":80,"browser_download_url":"https://github.com/a/spine/releases/download/v0.3.0/Spine.exe.sha256"}]}"#;
+        let j = format!(r#"{{"tag_name":"v0.3.0","body":"New stuff","draft":false,"prerelease":false,"assets":[
+            {{"name":"Spine.exe","size":123,"browser_download_url":"https://github.com/a/spine/releases/download/v0.3.0/Spine.exe"}},
+            {{"name":"Spine.exe.sha256","size":80,"browser_download_url":"https://github.com/a/spine/releases/download/v0.3.0/Spine.exe.sha256"}},
+            {{"name":"Spine-x86_64.AppImage","size":123,"browser_download_url":"https://github.com/a/spine/releases/download/v0.3.0/Spine-x86_64.AppImage"}},
+            {{"name":"Spine-x86_64.AppImage.sha256","size":80,"browser_download_url":"https://github.com/a/spine/releases/download/v0.3.0/Spine-x86_64.AppImage.sha256"}}]}}"#);
+        let j = j.as_bytes();
         let r = parse_release(j).unwrap();
         assert_eq!(r.version, "0.3.0");
         assert_eq!(r.exe_size, 123);
+        assert!(r.exe_url.ends_with(ASSET));
         assert!(parse_release(br#"{"tag_name":"v1","assets":[]}"#).is_none());
         assert!(valid_repo("someone/spine"));
         assert!(!valid_repo("someone/spine/x"));

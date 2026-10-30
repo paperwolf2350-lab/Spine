@@ -39,10 +39,58 @@ pub fn emulator(id: &str) -> Option<&'static EmulatorDef> {
     EMULATORS.iter().find(|e| e.id == id)
 }
 
-/// Emulators found on this computer: id -> executable path.
+/// Emulators found on this computer: id -> executable path, plus (on Linux)
+/// emulators installed as Flatpaks: id -> Flatpak app id.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Installed {
     pub found: BTreeMap<String, PathBuf>,
+    pub flatpak: BTreeMap<String, String>,
+}
+
+/// Flathub app ids of the emulators Spine knows.
+pub const FLATPAKS: &[(&str, &str)] = &[
+    ("retroarch", "org.libretro.RetroArch"),
+    ("pcsx2", "net.pcsx2.PCSX2"),
+    ("dolphin", "org.DolphinEmu.dolphin-emu"),
+    ("cemu", "info.cemu.Cemu"),
+    ("ppsspp", "org.ppsspp.PPSSPP"),
+    ("azahar", "org.azahar_emu.Azahar"),
+    ("duckstation", "org.duckstation.DuckStation"),
+    ("rpcs3", "net.rpcs3.RPCS3"),
+    ("melonds", "net.kuribo64.melonDS"),
+    ("xemu", "app.xemu.xemu"),
+    ("mgba", "io.mgba.mGBA"),
+    ("rmg", "com.github.Rosalie241.RMG"),
+    ("simple64", "io.github.simple64.simple64"),
+    ("ryujinx", "io.github.ryubing.Ryujinx"),
+    ("vita3k", "org.vita3k.Vita3K"),
+];
+
+pub fn flatpak_id(emulator: &str) -> Option<&'static str> {
+    FLATPAKS.iter().find(|(e, _)| *e == emulator).map(|(_, f)| *f)
+}
+
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from)
+}
+
+/// Flatpaks installed system-wide or for this user (checked on disk, no commands run).
+fn installed_flatpaks(roots: &[PathBuf]) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for (emu, id) in FLATPAKS {
+        if roots.iter().any(|r| r.join(id).join("current").exists()) {
+            out.insert(emu.to_string(), id.to_string());
+        }
+    }
+    out
+}
+
+pub fn flatpak_roots() -> Vec<PathBuf> {
+    let mut v = vec![PathBuf::from("/var/lib/flatpak/app")];
+    if let Some(h) = home_dir() {
+        v.push(h.join(".local/share/flatpak/app"));
+    }
+    v
 }
 
 impl Installed {
@@ -53,7 +101,19 @@ impl Installed {
         for dir in search {
             visit(dir, 0, &mut found);
         }
-        Installed { found }
+        let flatpak = if cfg!(target_os = "linux") { installed_flatpaks(&flatpak_roots()) } else { BTreeMap::new() };
+        Installed { found, flatpak }
+    }
+
+    /// For tests: Flatpaks under the given folders.
+    pub fn detect_with_flatpaks(search: &[PathBuf], flatpak_dirs: &[PathBuf]) -> Self {
+        let mut i = Self::detect(search);
+        i.flatpak = installed_flatpaks(flatpak_dirs);
+        i
+    }
+
+    pub fn has(&self, id: &str) -> bool {
+        self.found.contains_key(id) || self.flatpak.contains_key(id)
     }
 
     pub fn path(&self, id: &str) -> Option<&PathBuf> {
@@ -74,7 +134,10 @@ fn visit(dir: &Path, depth: usize, found: &mut BTreeMap<String, PathBuf>) {
         }
         let name = e.file_name().to_string_lossy().to_lowercase();
         for emu in EMULATORS {
-            if emu.exes.contains(&name.as_str()) {
+            // Exact program names, or any AppImage named after the emulator
+            // ("pcsx2-Qt.AppImage", "Cemu-2.6-x86_64.AppImage").
+            let appimage = name.ends_with(".appimage") && (name.starts_with(emu.id) || (emu.id == "eden" && (name.starts_with("citron") || name.starts_with("sudachi"))));
+            if emu.exes.contains(&name.as_str()) || appimage {
                 found.entry(emu.id.to_string()).or_insert(p.clone());
             }
         }
@@ -101,7 +164,19 @@ pub fn default_search_paths(rom_root: &Path) -> Vec<PathBuf> {
         v.push(home.join("Emulation").join("tools"));
         v.push(home.join("Applications"));
     }
-    v.push(PathBuf::from("/usr/bin"));
+    if cfg!(target_os = "linux") {
+        if let Some(h) = home_dir() {
+            v.push(h.join(".local/bin"));
+            v.push(h.join("Applications")); // EmuDeck and most AppImage users
+            v.push(h.join("AppImages"));
+            v.push(h.join("Emulation").join("tools").join("launchers"));
+        }
+        for d in ["/usr/bin", "/usr/games", "/usr/local/bin", "/opt"] {
+            v.push(PathBuf::from(d));
+        }
+    } else {
+        v.push(PathBuf::from("/usr/bin"));
+    }
     v
 }
 
@@ -175,24 +250,31 @@ fn plan_with(l: &Launcher, game: &Game, installed: &Installed) -> LaunchPlan {
         Launcher::ShellOpen => LaunchPlan { emulator: "system".into(), program: game.path.clone(), args: vec![], blocked: None },
         Launcher::RetroArch(core) => {
             let def = emulator("retroarch").unwrap();
-            let Some(exe) = installed.path("retroarch") else {
+            let file = if cfg!(windows) { format!("{core}_libretro.dll") } else { format!("{core}_libretro.so") };
+            let (program, prefix, dirs) = if let Some(exe) = installed.path("retroarch") {
+                (exe.clone(), vec![], retroarch_core_dirs(Some(exe)))
+            } else if let Some(fp) = installed.flatpak.get("retroarch") {
+                (PathBuf::from("flatpak"), vec!["run".to_string(), fp.clone()], retroarch_core_dirs(None))
+            } else {
                 return LaunchPlan { emulator: format!("RetroArch · {core}"), program: PathBuf::from(def.exes[0]), args: vec![], blocked: Some("Install RetroArch.".into()) };
             };
-            let core_file = exe.parent().unwrap_or(Path::new(".")).join("cores").join(if cfg!(windows) { format!("{core}_libretro.dll") } else { format!("{core}_libretro.so") });
+            let core_file = dirs.iter().map(|d| d.join(&file)).find(|p| p.exists()).unwrap_or_else(|| dirs[0].join(&file));
             let blocked = (!core_file.exists()).then(|| format!("Download the \"{core}\" core in RetroArch (Main Menu → Online Updater → Core Downloader)."));
-            let args = def.args.iter().map(|a| a.replace("{core}", &core_file.to_string_lossy()).replace("{rom}", &rom)).collect();
-            LaunchPlan { emulator: format!("RetroArch · {core}"), program: exe.clone(), args, blocked }
+            let args = prefix.into_iter().chain(def.args.iter().map(|a| a.replace("{core}", &core_file.to_string_lossy()).replace("{rom}", &rom))).collect();
+            LaunchPlan { emulator: format!("RetroArch · {core}"), program, args, blocked }
         }
         Launcher::Standalone(id) => {
             let def = emulator(id).expect("unknown emulator id");
-            let Some(exe) = installed.path(id) else {
-                return LaunchPlan { emulator: def.name.into(), program: PathBuf::from(def.exes[0]), args: vec![], blocked: Some(format!("Install {}.", def.name)) };
+            let (exe, prefix) = match (installed.path(id), installed.flatpak.get(*id)) {
+                (Some(exe), _) => (exe.clone(), vec![]),
+                (None, Some(fp)) => (PathBuf::from("flatpak"), vec!["run".to_string(), fp.clone()]),
+                (None, None) => return LaunchPlan { emulator: def.name.into(), program: PathBuf::from(def.exes[0]), args: vec![], blocked: Some(format!("Install {}.", def.name)) },
             };
             let needs_id = def.args.iter().any(|a| a.contains("{title_id}"));
             let blocked = (needs_id && game.title_id.is_none()).then(|| format!("{} needs this game's title id first.", def.name));
             let tid = game.title_id.clone().unwrap_or_default();
-            let args = def.args.iter().map(|a| a.replace("{rom}", &rom).replace("{title_id}", &tid)).collect();
-            LaunchPlan { emulator: def.name.into(), program: exe.clone(), args, blocked }
+            let args = prefix.into_iter().chain(def.args.iter().map(|a| a.replace("{rom}", &rom).replace("{title_id}", &tid))).collect();
+            LaunchPlan { emulator: def.name.into(), program: exe, args, blocked }
         }
     }
 }
@@ -239,10 +321,74 @@ pub fn launch(plan: &LaunchPlan) -> std::io::Result<std::process::Child> {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // no stray console window behind the emulator
     }
-    if let Some(dir) = plan.program.parent() {
+    if let Some(dir) = plan.program.parent().filter(|d| d.is_dir()) {
         cmd.current_dir(dir); // Several emulators expect to run from their own folder.
     }
+    #[cfg(unix)]
+    {
+        // Its own process group, so "close the game" reaches everything it started.
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
     cmd.spawn()
+}
+
+/// Where RetroArch keeps its cores: next to a portable retroarch(.exe), in the
+/// user's config (cores from the Online Updater), the Flatpak's folder, or the
+/// distribution's libretro folder.
+pub fn retroarch_core_dirs(exe: Option<&PathBuf>) -> Vec<PathBuf> {
+    let mut v = Vec::new();
+    let home = home_dir().unwrap_or_default();
+    match exe {
+        Some(exe) => {
+            let dir = exe.parent().unwrap_or(Path::new(".")).to_path_buf();
+            v.push(dir.join("cores"));
+            if cfg!(target_os = "linux") {
+                v.push(home.join(".config/retroarch/cores"));
+                for d in ["/usr/lib/x86_64-linux-gnu/libretro", "/usr/lib/libretro", "/usr/lib64/libretro", "/usr/local/lib/libretro"] {
+                    v.push(PathBuf::from(d));
+                }
+            }
+            // A cores folder set in retroarch.cfg wins.
+            for cfg in [dir.join("retroarch.cfg"), home.join(".config/retroarch/retroarch.cfg")] {
+                if let Some(d) = cfg_path(&cfg, "libretro_directory", &dir) {
+                    v.insert(0, d);
+                    break;
+                }
+            }
+        }
+        None => {
+            let base = home.join(".var/app/org.libretro.RetroArch/config/retroarch");
+            if let Some(d) = cfg_path(&base.join("retroarch.cfg"), "libretro_directory", &base) {
+                v.push(d);
+            }
+            v.push(base.join("cores"));
+        }
+    }
+    v
+}
+
+/// A folder setting from retroarch.cfg: "default" means unset, ":/x" or ":\\x" is
+/// relative to RetroArch's folder, "~/" is the home folder.
+pub fn cfg_path(cfg: &Path, key: &str, ra_dir: &Path) -> Option<PathBuf> {
+    let text = fs::read_to_string(cfg).ok()?;
+    for line in text.lines() {
+        let Some(rest) = line.trim().strip_prefix(key) else { continue };
+        let rest = rest.trim_start();
+        let Some(v) = rest.strip_prefix('=') else { continue };
+        let v = v.trim().trim_matches('"');
+        if v.is_empty() || v == "default" {
+            return None;
+        }
+        if let Some(rel) = v.strip_prefix(":\\").or_else(|| v.strip_prefix(":/")) {
+            return Some(ra_dir.join(rel));
+        }
+        if let Some(rel) = v.strip_prefix("~/") {
+            return home_dir().map(|h| h.join(rel));
+        }
+        return Some(PathBuf::from(v));
+    }
+    None
 }
 
 /// Official download pages for the emulators Spine can set up a console with.
@@ -269,9 +415,75 @@ pub fn download_pages() -> &'static [(&'static str, &'static str)] {
 pub fn download_for(plan: &LaunchPlan) -> Option<&'static str> {
     let why = plan.blocked.as_deref()?;
     if why.starts_with("Install RetroArch") {
+        if cfg!(target_os = "linux") {
+            return flathub_pages().first().map(|(_, u)| *u);
+        }
         return download_pages().iter().find(|(id, _)| *id == "retroarch").map(|(_, u)| *u);
     }
     let name = why.strip_prefix("Install ")?.trim_end_matches('.');
     let id = EMULATORS.iter().find(|e| e.name == name)?.id;
+    if cfg!(target_os = "linux") {
+        // On Linux the easy way is the app store: Flathub (Discover / GNOME Software).
+        if let Some(url) = flathub_pages().iter().find(|(i, _)| *i == id).map(|(_, u)| *u) {
+            return Some(url);
+        }
+    }
     download_pages().iter().find(|(i, _)| *i == id).map(|(_, u)| *u)
+}
+
+/// Flathub pages (one click to install from the desktop's software center).
+pub fn flathub_pages() -> &'static [(&'static str, &'static str)] {
+    &[
+        ("retroarch", "https://flathub.org/apps/org.libretro.RetroArch"),
+        ("pcsx2", "https://flathub.org/apps/net.pcsx2.PCSX2"),
+        ("dolphin", "https://flathub.org/apps/org.DolphinEmu.dolphin-emu"),
+        ("cemu", "https://flathub.org/apps/info.cemu.Cemu"),
+        ("ppsspp", "https://flathub.org/apps/org.ppsspp.PPSSPP"),
+        ("azahar", "https://flathub.org/apps/org.azahar_emu.Azahar"),
+        ("rpcs3", "https://flathub.org/apps/net.rpcs3.RPCS3"),
+        ("melonds", "https://flathub.org/apps/net.kuribo64.melonDS"),
+        ("xemu", "https://flathub.org/apps/app.xemu.xemu"),
+        ("mgba", "https://flathub.org/apps/io.mgba.mGBA"),
+        ("rmg", "https://flathub.org/apps/com.github.Rosalie241.RMG"),
+        ("simple64", "https://flathub.org/apps/io.github.simple64.simple64"),
+    ]
+}
+
+#[cfg(test)]
+mod linux_tests {
+    use super::*;
+    use crate::systems::system_by_id;
+
+    fn game(path: &str) -> Game {
+        Game { id: "gba/x".into(), title: "X".into(), sort_key: "x".into(), letter: 'X', path: PathBuf::from(path), format: "gba".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![] }
+    }
+
+    #[test]
+    fn flatpak_emulators_and_appimages() {
+        let base = std::env::temp_dir().join(format!("spine-fp-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(base.join("flatpak/net.pcsx2.PCSX2/current")).unwrap();
+        fs::create_dir_all(base.join("apps")).unwrap();
+        fs::write(base.join("apps/Cemu-2.6-x86_64.AppImage"), b"").unwrap();
+        let inst = Installed::detect_with_flatpaks(&[base.join("apps")], &[base.join("flatpak")]);
+        assert_eq!(inst.flatpak.get("pcsx2").map(String::as_str), Some("net.pcsx2.PCSX2"));
+        assert!(inst.path("cemu").is_some());
+        // PS2 through the Flatpak: "flatpak run net.pcsx2.PCSX2 -batch ... game.iso"
+        let p = plan(system_by_id("ps2").unwrap(), &game("/roms/ps2/Okami.iso"), &inst);
+        assert_eq!(p.program, PathBuf::from("flatpak"));
+        assert_eq!(&p.args[..2], &["run".to_string(), "net.pcsx2.PCSX2".to_string()]);
+        assert_eq!(p.args.last().map(String::as_str), Some("/roms/ps2/Okami.iso"));
+        assert!(p.blocked.is_none());
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn retroarch_cfg_paths() {
+        let base = std::env::temp_dir().join(format!("spine-racfg-{}", std::process::id()));
+        let _ = fs::create_dir_all(&base);
+        fs::write(base.join("retroarch.cfg"), "libretro_directory = \":/mycores\"\nsystem_directory = \"default\"\n").unwrap();
+        assert_eq!(cfg_path(&base.join("retroarch.cfg"), "libretro_directory", &base), Some(base.join("mycores")));
+        assert_eq!(cfg_path(&base.join("retroarch.cfg"), "system_directory", &base), None);
+        let _ = fs::remove_dir_all(&base);
+    }
 }

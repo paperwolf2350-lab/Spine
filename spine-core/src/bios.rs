@@ -6,7 +6,7 @@
 //! where. It never blocks a launch on this, because people sometimes point an
 //! emulator somewhere unusual.
 
-use crate::launch::{LaunchPlan, EMULATORS};
+use crate::launch::{cfg_path, LaunchPlan, EMULATORS, FLATPAKS};
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -19,10 +19,20 @@ pub struct BiosIssue {
     pub folder: String,
 }
 
+/// The Flatpak app a plan runs, if it's "flatpak run <id> ...".
+fn plan_flatpak(plan: &LaunchPlan) -> Option<&str> {
+    (plan.program.file_name()?.to_str()? == "flatpak" && plan.args.first().map(String::as_str) == Some("run")).then(|| plan.args.get(1).map(String::as_str))?
+}
+
 /// Which emulator a plan uses, as an id ("pcsx2") or "retroarch:<core>".
 pub fn plan_key(plan: &LaunchPlan) -> Option<String> {
     let exe = plan.program.file_name()?.to_string_lossy().to_lowercase();
-    let emu = EMULATORS.iter().find(|e| e.exes.contains(&exe.as_str()))?;
+    let id = if let Some(fp) = plan_flatpak(plan) {
+        FLATPAKS.iter().find(|(_, f)| *f == fp)?.0
+    } else {
+        EMULATORS.iter().find(|e| e.exes.contains(&exe.as_str()) || (exe.ends_with(".appimage") && exe.starts_with(e.id)))?.id
+    };
+    let emu = EMULATORS.iter().find(|e| e.id == id)?;
     if emu.id == "retroarch" {
         let i = plan.args.iter().position(|a| a == "-L")?;
         let core = Path::new(plan.args.get(i + 1)?).file_stem()?.to_string_lossy().to_lowercase();
@@ -34,6 +44,14 @@ pub fn plan_key(plan: &LaunchPlan) -> Option<String> {
 fn home() -> Option<PathBuf> {
     std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")).map(PathBuf::from)
 }
+/// Linux folders under the home folder; a Flatpak keeps its own under ~/.var/app/<id>.
+fn linux_dir(flatpak: Option<&str>, native: &str, in_flatpak: &str) -> Option<PathBuf> {
+    let h = home()?;
+    Some(match flatpak {
+        Some(id) => h.join(".var/app").join(id).join(in_flatpak),
+        None => h.join(native),
+    })
+}
 fn env_dir(var: &str) -> Option<PathBuf> {
     std::env::var_os(var).map(PathBuf::from)
 }
@@ -41,23 +59,21 @@ fn documents() -> Option<PathBuf> {
     home().map(|h| h.join("Documents"))
 }
 
-/// RetroArch's "system" folder: from retroarch.cfg if set, else next to retroarch.exe.
+/// RetroArch's "system" folder: from retroarch.cfg if set, else its default. A
+/// portable RetroArch keeps its config next to the program; on Linux an installed
+/// one uses ~/.config/retroarch, and the Flatpak its own copy of that.
 pub fn retroarch_system_dir(exe: &Path) -> PathBuf {
-    let dir = exe.parent().unwrap_or(Path::new("."));
-    let cfg = fs::read_to_string(dir.join("retroarch.cfg")).unwrap_or_default();
-    for line in cfg.lines() {
-        let Some(rest) = line.trim().strip_prefix("system_directory") else { continue };
-        let v = rest.trim_start().trim_start_matches('=').trim().trim_matches('"');
-        if v.is_empty() || v == "default" {
-            break;
-        }
-        // ":\system" means "relative to RetroArch's folder".
-        if let Some(rel) = v.strip_prefix(":\\").or_else(|| v.strip_prefix(":/")) {
-            return dir.join(rel);
-        }
-        return PathBuf::from(v);
-    }
-    dir.join("system")
+    retroarch_system_dir_for(exe, None)
+}
+
+fn retroarch_system_dir_for(exe: &Path, flatpak: Option<&str>) -> PathBuf {
+    let exe_dir = exe.parent().unwrap_or(Path::new(".")).to_path_buf();
+    let config = if flatpak.is_some() || (cfg!(target_os = "linux") && !exe_dir.join("retroarch.cfg").exists() && !exe_dir.join("system").is_dir()) {
+        linux_dir(flatpak, ".config/retroarch", "config/retroarch").unwrap_or(exe_dir.clone())
+    } else {
+        exe_dir.clone()
+    };
+    cfg_path(&config.join("retroarch.cfg"), "system_directory", &exe_dir).unwrap_or_else(|| config.join("system"))
 }
 
 fn has_any(dir: &Path, names: &[&str]) -> bool {
@@ -116,9 +132,11 @@ pub fn check(system: &str, plan: &LaunchPlan) -> Option<BiosIssue> {
         return None;
     }
     let key = plan_key(plan)?;
+    let fp = plan_flatpak(plan);
+    let linux = cfg!(target_os = "linux") || fp.is_some();
     let exe_dir = plan.program.parent()?.to_path_buf();
     let ra = |names: &[&str], what: &str, sub: Option<&str>| -> Option<BiosIssue> {
-        let mut dir = retroarch_system_dir(&plan.program);
+        let mut dir = retroarch_system_dir_for(&plan.program, fp);
         if let Some(s) = sub {
             dir = dir.join(s);
         }
@@ -129,8 +147,10 @@ pub fn check(system: &str, plan: &LaunchPlan) -> Option<BiosIssue> {
     };
     match (system, key.as_str()) {
         ("psx", "duckstation") => {
-            let mut data = vec![exe_dir.clone()];
-            if !is_portable(&exe_dir) {
+            let mut data = if fp.is_some() { vec![] } else { vec![exe_dir.clone()] };
+            if linux && !is_portable(&exe_dir) {
+                data.extend(linux_dir(fp, ".local/share/duckstation", "data/duckstation"));
+            } else if !is_portable(&exe_dir) {
                 data.extend(documents().map(|d| d.join("DuckStation")));
                 data.extend(env_dir("LOCALAPPDATA").map(|d| d.join("DuckStation")));
             }
@@ -139,13 +159,15 @@ pub fn check(system: &str, plan: &LaunchPlan) -> Option<BiosIssue> {
             if dirs.iter().any(|d| has_big_file(d, 500_000)) {
                 return None;
             }
-            let shown = dirs.first().cloned().filter(|_| dirs.len() > data.len()).unwrap_or_else(|| data.get(1).unwrap_or(&data[0]).join("bios"));
+            let shown = dirs.first().cloned().filter(|_| dirs.len() > data.len()).unwrap_or_else(|| data.last().unwrap_or(&exe_dir).join("bios"));
             issue("DuckStation needs a PlayStation BIOS (for example scph5501.bin) dumped from your console. Put it in this folder.".into(), &shown)
         }
         ("psx", k) if k.starts_with("retroarch:") => ra(&["scph5501.bin", "scph5500.bin", "scph5502.bin", "scph1001.bin", "scph7001.bin", "scph101.bin", "psxonpsp660.bin"], "PlayStation", None),
         ("ps2", "pcsx2") => {
-            let mut data = vec![exe_dir.clone()];
-            if !is_portable(&exe_dir) {
+            let mut data = if fp.is_some() { vec![] } else { vec![exe_dir.clone()] };
+            if linux && !is_portable(&exe_dir) {
+                data.extend(linux_dir(fp, ".config/PCSX2", "config/PCSX2"));
+            } else if !is_portable(&exe_dir) {
                 data.extend(documents().map(|d| d.join("PCSX2")));
             }
             let mut dirs: Vec<PathBuf> = data.iter().filter_map(|d| ini_folder(&d.join("inis").join("PCSX2.ini"), "Folders", "Bios", d)).collect();
@@ -153,11 +175,11 @@ pub fn check(system: &str, plan: &LaunchPlan) -> Option<BiosIssue> {
             if dirs.iter().any(|d| has_big_file(d, 1_000_000)) {
                 return None;
             }
-            let shown = dirs.first().cloned().filter(|_| dirs.len() > data.len()).unwrap_or_else(|| data.get(1).unwrap_or(&data[0]).join("bios"));
+            let shown = dirs.first().cloned().filter(|_| dirs.len() > data.len()).unwrap_or_else(|| data.last().unwrap_or(&exe_dir).join("bios"));
             issue("PCSX2 needs a PlayStation 2 BIOS dumped from your console (a file around 4 MB, like SCPH-70012.bin). Put it in this folder.".into(), &shown)
         }
         ("ps2", "retroarch:pcsx2") => {
-            let dir = retroarch_system_dir(&plan.program).join("pcsx2").join("bios");
+            let dir = retroarch_system_dir_for(&plan.program, fp).join("pcsx2").join("bios");
             if has_big_file(&dir, 1_000_000) {
                 return None;
             }
@@ -167,9 +189,14 @@ pub fn check(system: &str, plan: &LaunchPlan) -> Option<BiosIssue> {
         ("saturn", "retroarch:mednafen_saturn") => ra(&["sega_101.bin", "mpr-17933.bin"], "Sega Saturn", None),
         ("pcenginecd", _) => ra(&["syscard3.pce"], "PC Engine CD", None),
         ("switch", "eden") => {
-            let name = plan.program.file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_else(|| "eden".into());
+            let stem = plan.program.file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_else(|| "eden".into());
+            let name = ["citron", "sudachi"].into_iter().find(|n| stem.starts_with(n)).unwrap_or(if stem.starts_with("eden") { "eden" } else { stem.as_str() }).to_string();
             let mut dirs = vec![exe_dir.join("user").join("keys")];
-            dirs.extend(env_dir("APPDATA").map(|d| d.join(&name).join("keys")));
+            if linux {
+                dirs.extend(home().map(|h| h.join(".local/share").join(&name).join("keys")));
+            } else {
+                dirs.extend(env_dir("APPDATA").map(|d| d.join(&name).join("keys")));
+            }
             if dirs.iter().any(|d| d.join("prod.keys").is_file()) {
                 return None;
             }
@@ -178,7 +205,11 @@ pub fn check(system: &str, plan: &LaunchPlan) -> Option<BiosIssue> {
         }
         ("switch", "ryujinx") => {
             let mut dirs = vec![exe_dir.join("portable").join("system")];
-            dirs.extend(env_dir("APPDATA").map(|d| d.join("Ryujinx").join("system")));
+            if linux {
+                dirs.extend(linux_dir(fp, ".config/Ryujinx/system", "config/Ryujinx/system"));
+            } else {
+                dirs.extend(env_dir("APPDATA").map(|d| d.join("Ryujinx").join("system")));
+            }
             if dirs.iter().any(|d| d.join("prod.keys").is_file()) {
                 return None;
             }
@@ -187,11 +218,15 @@ pub fn check(system: &str, plan: &LaunchPlan) -> Option<BiosIssue> {
         }
         ("ps3", "rpcs3") => {
             let mut dirs = vec![exe_dir.join("dev_flash")];
-            dirs.extend(env_dir("APPDATA").map(|d| d.join("rpcs3").join("dev_flash")));
+            if linux {
+                dirs.extend(linux_dir(fp, ".config/rpcs3/dev_flash", "config/rpcs3/dev_flash"));
+            } else {
+                dirs.extend(env_dir("APPDATA").map(|d| d.join("rpcs3").join("dev_flash")));
+            }
             if dirs.iter().any(|d| d.join("vsh").join("module").is_dir()) {
                 return None;
             }
-            issue("RPCS3 needs the PlayStation 3 system software installed. Download PS3UPDAT.PUP from Sony, then in RPCS3 choose File → Install Firmware.".into(), &exe_dir)
+            issue("RPCS3 needs the PlayStation 3 system software installed. Download PS3UPDAT.PUP from Sony, then in RPCS3 choose File → Install Firmware.".into(), dirs.last().unwrap_or(&exe_dir))
         }
         _ => None,
     }
@@ -209,6 +244,20 @@ fn one_of(names: &[&str]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn flatpak_pcsx2_bios_folder() {
+        let p = plan(Path::new("flatpak"), &["run", "net.pcsx2.PCSX2", "-batch", "--", "x.iso"]);
+        assert_eq!(plan_key(&p).as_deref(), Some("pcsx2"));
+        let home = std::env::var("HOME").unwrap();
+        let bios = PathBuf::from(&home).join(".var/app/net.pcsx2.PCSX2/config/PCSX2/bios");
+        if !bios.exists() {
+            assert_eq!(check("ps2", &p).unwrap().folder, bios.display().to_string());
+        }
+        let ra = plan(Path::new("flatpak"), &["run", "org.libretro.RetroArch", "-f", "-L", "/x/genesis_plus_gx_libretro.so", "g.chd"]);
+        assert_eq!(plan_key(&ra).as_deref(), Some("retroarch:genesis_plus_gx"));
+        assert!(check("segacd", &ra).unwrap().folder.ends_with(".var/app/org.libretro.RetroArch/config/retroarch/system"));
+    }
 
     fn plan(program: &Path, args: &[&str]) -> LaunchPlan {
         LaunchPlan { emulator: "x".into(), program: program.to_path_buf(), args: args.iter().map(|s| s.to_string()).collect(), blocked: None }

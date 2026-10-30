@@ -301,7 +301,7 @@ pub fn agent() -> Agent {
 
 pub(crate) const PATH_SEG: &AsciiSet = &NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(b'.').remove(b'~');
 
-pub(crate) fn curl(url: &str, fail_on_http_error: bool, headers: &[String]) -> Result<Vec<u8>, String> {
+pub fn curl(url: &str, fail_on_http_error: bool, headers: &[String]) -> Result<Vec<u8>, String> {
     let mut cmd = std::process::Command::new("curl");
     cmd.args(["-sSL", "--connect-timeout", "15", "--max-time", "90", "--retry", "2", "-A", "Spine/0.1 (game library frontend)"]);
     if fail_on_http_error {
@@ -316,13 +316,44 @@ pub(crate) fn curl(url: &str, fail_on_http_error: bool, headers: &[String]) -> R
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW: no console flashes
     }
-    let out = cmd.output().map_err(|e| format!("couldn't run curl: {e}"))?;
+    let out = match cmd.output() {
+        Ok(o) => o,
+        // Some Linux systems have no curl: use the built-in downloader instead.
+        #[cfg(target_os = "linux")]
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return builtin_get(url, fail_on_http_error, headers),
+        Err(e) => return Err(format!("couldn't run curl: {e}")),
+    };
     if out.status.success() {
         Ok(out.stdout)
     } else {
         let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
         Err(if err.is_empty() { format!("curl exit {}", out.status) } else { err })
     }
+}
+
+#[cfg(target_os = "linux")]
+pub fn builtin_get(url: &str, fail_on_http_error: bool, headers: &[String]) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    let agent = ureq::AgentBuilder::new().timeout_connect(Duration::from_secs(15)).timeout(Duration::from_secs(300)).user_agent("Spine/0.1 (game library frontend)").build();
+    let mut req = agent.get(url);
+    for h in headers {
+        if let Some((k, v)) = h.split_once(':') {
+            req = req.set(k.trim(), v.trim());
+        }
+    }
+    let resp = match req.call() {
+        Ok(r) => r,
+        Err(ureq::Error::Status(code, r)) => {
+            if fail_on_http_error {
+                return Err(format!("The requested URL returned error: {code}"));
+            }
+            r
+        }
+        Err(e) => return Err(e.to_string()),
+    };
+    let mut buf = Vec::new();
+    resp.into_reader().take(1 << 30).read_to_end(&mut buf).map_err(|e| e.to_string())?;
+    Ok(buf)
 }
 
 pub(crate) fn get_bytes(_agent: &Agent, url: &str) -> Result<Vec<u8>, String> {
@@ -1094,5 +1125,17 @@ mod choice_tests {
         assert!(rank_names(&names, "", 5).is_empty());
         assert!(allowed_cover_url("https://cdn2.steamgriddb.com/grid/abc.png"));
         assert!(!allowed_cover_url("https://evil.example/x.png"));
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod builtin_net {
+    /// cargo test --lib builtin_net -- --ignored
+    #[test]
+    #[ignore]
+    fn downloads_without_curl() {
+        let b = super::builtin_get("https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Game_Boy_Advance/master/Named_Snaps/Golden%20Sun%20%28USA%2C%20Europe%29.png", true, &[]).unwrap();
+        assert!(b.starts_with(&[0x89, b'P', b'N', b'G']));
+        assert!(super::builtin_get("https://raw.githubusercontent.com/libretro-thumbnails/nope/master/x.png", true, &[]).unwrap_err().contains("404"));
     }
 }

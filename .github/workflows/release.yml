@@ -1,9 +1,9 @@
-# Publishing a new Spine: bump `version` in spine-app/Cargo.toml and push to
-# main. If no release exists for that version yet, GitHub builds Spine.exe,
-# fingerprints it and publishes release v<version>; every Spine with updates
-# turned on offers it the next time it starts. Write what changed in
-# release-notes.md first: Spine shows the part above the --- line in Settings. Pushes that don't change the
-# version just run the tests.
+# Publishing a new Spine: write what changed in release-notes.md (Spine shows the
+# part above the --- line in Settings), bump `version` in spine-app/Cargo.toml,
+# and push to main. If no release exists for that version yet, GitHub builds the
+# Windows and Linux versions and publishes release v<version> with all of them.
+# Every Spine with updates turned on offers it the next time it starts.
+# Pushes that don't change the version just run the tests.
 name: Release
 
 on:
@@ -15,57 +15,102 @@ permissions:
   contents: write
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  check:
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      new: ${{ steps.ver.outputs.new }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Version and whether it's already released
         id: ver
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $v = (Select-String -Path spine-app/Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
-          "version=$v" >> $env:GITHUB_OUTPUT
-          gh release view "v$v" --repo "${{ github.repository }}" *> $null
-          if ($LASTEXITCODE -eq 0) { "new=false" >> $env:GITHUB_OUTPUT } else { "new=true" >> $env:GITHUB_OUTPUT }
-          exit 0
-
+          v=$(grep -m1 '^version = ' spine-app/Cargo.toml | cut -d'"' -f2)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if gh release view "v$v" --repo "${{ github.repository }}" >/dev/null 2>&1; then echo "new=false" >> "$GITHUB_OUTPUT"; else echo "new=true" >> "$GITHUB_OUTPUT"; fi
       - uses: dtolnay/rust-toolchain@stable
-
-      - name: Test
+      - name: Test (Linux)
         working-directory: spine-core
         run: cargo test
 
+  windows:
+    needs: check
+    if: needs.check.outputs.new == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test (Windows)
+        working-directory: spine-core
+        run: cargo test
       - name: Build Spine.exe and the installer
-        if: steps.ver.outputs.new == 'true'
         working-directory: spine-app
         env:
           SPINE_REPO: ${{ github.repository }}
         run: npx --yes @tauri-apps/cli@2.12.4 build --bundles nsis
-
       - name: Package
-        if: steps.ver.outputs.new == 'true'
         shell: pwsh
         run: |
-          Copy-Item spine-app/target/release/Spine.exe Spine.exe
+          New-Item -ItemType Directory dist | Out-Null
+          Copy-Item spine-app/target/release/Spine.exe dist/Spine.exe
           $setup = Get-ChildItem spine-app/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
-          Copy-Item $setup.FullName Spine-Setup.exe
+          Copy-Item $setup.FullName dist/Spine-Setup.exe
           foreach ($f in 'Spine.exe', 'Spine-Setup.exe') {
-            $h = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower()
-            Set-Content -Path "$f.sha256" -Value "$h  $f" -NoNewline
+            $h = (Get-FileHash "dist/$f" -Algorithm SHA256).Hash.ToLower()
+            Set-Content -Path "dist/$f.sha256" -Value "$h  $f" -NoNewline
           }
-
-      - uses: softprops/action-gh-release@v2
-        if: steps.ver.outputs.new == 'true'
+      - uses: actions/upload-artifact@v4
         with:
-          tag_name: v${{ steps.ver.outputs.version }}
-          name: Spine ${{ steps.ver.outputs.version }}
+          name: windows
+          path: dist/*
+
+  linux:
+    needs: check
+    if: needs.check.outputs.new == 'true'
+    # The oldest supported Ubuntu, so the AppImage runs on as many distributions as possible.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential file libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev patchelf \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
+      - name: Build the AppImage and .deb
+        working-directory: spine-app
+        env:
+          SPINE_REPO: ${{ github.repository }}
+        run: npx --yes @tauri-apps/cli@2.12.4 build --bundles appimage,deb
+      - name: Package
+        run: |
+          mkdir dist
+          cp spine-app/target/release/bundle/appimage/*.AppImage dist/Spine-x86_64.AppImage
+          cp spine-app/target/release/bundle/deb/*.deb dist/Spine-amd64.deb
+          chmod +x dist/Spine-x86_64.AppImage
+          cd dist && for f in Spine-x86_64.AppImage Spine-amd64.deb; do printf '%s  %s' "$(sha256sum "$f" | cut -d' ' -f1)" "$f" > "$f.sha256"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+
+  publish:
+    needs: [check, windows, linux]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: ls -la dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check.outputs.version }}
+          name: Spine ${{ needs.check.outputs.version }}
           target_commitish: ${{ github.sha }}
-          files: |
-            Spine-Setup.exe
-            Spine-Setup.exe.sha256
-            Spine.exe
-            Spine.exe.sha256
           body_path: release-notes.md
+          files: dist/*

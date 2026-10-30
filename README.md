@@ -7,22 +7,37 @@ games show up too. Everything works with a controller.
 
 ## Get it
 
-Download **Spine-Setup.exe** from the latest release on this page and run it.
-No admin rights needed; Spine gets a Start menu entry and a desktop shortcut.
-It updates itself: when a new version is out, Settings → Updates offers it.
+**Windows:** download **Spine-Setup.exe** from the latest release on this page
+and run it. No admin rights needed; Spine gets a Start menu entry and a desktop
+shortcut. (Prefer no installer? Take **Spine.exe** instead and put it in its own
+folder. Spine keeps its settings, covers and favorites next to the program.)
+Windows 10 or 11.
 
-Prefer no installer? Download **Spine.exe** instead and put it in its own folder
-(for example `Documents\Spine`). Spine keeps its settings, covers and favorites
-next to the program, so that folder is all it needs.
+**Linux:** paste this into a terminal:
 
-Windows 10 or 11. Your emulators can live anywhere common (an `Emulators`
-folder next to your ROMs, Program Files, AppData).
+```
+curl -fsSL https://raw.githubusercontent.com/paperwolf2350-lab/spine/main/install.sh | sh
+```
+
+That's it: Spine appears in your app menu. Rather click than type? Download
+**Spine-x86_64.AppImage**, then right-click it → Properties →
+Permissions → *Allow executing file as program* (or `chmod +x Spine-x86_64.AppImage`),
+and double-click it. Spine adds itself to your app menu the first time it runs.
+Works on most distributions, including SteamOS and Bazzite. Debian and Ubuntu
+users can install **Spine-amd64.deb** instead. Settings and covers live in
+`~/.local/share/spine`.
+
+Both update themselves: when a new version is out, Settings → Updates offers it.
+
+Your emulators can be anywhere common: an `Emulators` folder next to your ROMs,
+Program Files or AppData on Windows; Flatpaks (Flathub), your distribution's
+packages, or AppImages in `~/Applications` (EmuDeck's layout) on Linux.
 
 ## What it does
 
 - **Organizes everything:** consoles from folder names, clean titles, duplicates
   merged, updates and DLC attached, several ROM folders and drives, unplugged
-  drives remembered.
+  drives remembered. Steam, Epic and GOG games join in (on Linux through Steam and Heroic).
 - **Looks good:** covers from libretro, Steam, SteamGridDB and ScreenScraper,
   trailers on game pages, four layouts, themes, a moving cover wall per console.
 - **Plays:** the right emulator per console, a different one per game if you

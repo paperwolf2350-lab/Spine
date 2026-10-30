@@ -133,7 +133,8 @@ pub fn steam_root() -> Option<PathBuf> {
     #[cfg(not(windows))]
     {
         let home = std::env::var_os("HOME").map(PathBuf::from)?;
-        [".local/share/Steam", ".steam/steam"].iter().map(|p| home.join(p)).find(|p| p.exists())
+        // Native Steam, then the Flatpak (Steam's own folder lives inside its sandbox home).
+        [".local/share/Steam", ".steam/steam", ".steam/debian-installation", ".var/app/com.valvesoftware.Steam/.local/share/Steam"].iter().map(|p| home.join(p)).find(|p| p.join("steamapps").is_dir())
     }
 }
 
@@ -296,7 +297,79 @@ pub fn installed() -> Vec<StoreGame> {
     }
     all.extend(epic_games(&epic_manifest_dir()));
     all.extend(gog_games());
+    #[cfg(target_os = "linux")]
+    for dir in heroic_dirs() {
+        for g in heroic_games(&dir) {
+            if !all.iter().any(|a| a.launch == g.launch) {
+                all.push(g);
+            }
+        }
+    }
     all
+}
+
+// ---------------------------------------------------------------------------
+// Heroic (Epic and GOG on Linux)
+// ---------------------------------------------------------------------------
+
+/// Heroic's settings folders: installed normally, or as a Flatpak.
+pub fn heroic_dirs() -> Vec<PathBuf> {
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else { return vec![] };
+    [".config/heroic", ".var/app/com.heroicgameslauncher.hgl/config/heroic"].iter().map(|p| home.join(p)).filter(|p| p.is_dir()).collect()
+}
+
+fn heroic_launch(app: &str, runner: &str) -> String {
+    let safe: String = app.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')).collect();
+    format!("heroic://launch?appName={safe}&runner={runner}")
+}
+
+/// Epic games Heroic installed (legendary's installed.json: app name -> details).
+pub fn parse_legendary_installed(json: &[u8]) -> Vec<StoreGame> {
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(json) else { return vec![] };
+    let mut out: Vec<StoreGame> = v
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter(|(_, g)| g["is_dlc"].as_bool() != Some(true))
+        .filter_map(|(key, g)| {
+            let app = g["app_name"].as_str().unwrap_or(key);
+            let title = g["title"].as_str().filter(|t| !t.trim().is_empty())?;
+            Some(StoreGame { store: "epic", name: tidy_name(title), launch: heroic_launch(app, "legendary"), install_dir: g["install_path"].as_str().map(PathBuf::from) })
+        })
+        .collect();
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    out
+}
+
+/// GOG games Heroic installed; names come from Heroic's GOG library cache.
+pub fn parse_heroic_gog(installed: &[u8], library: &[u8]) -> Vec<StoreGame> {
+    let Ok(inst) = serde_json::from_slice::<serde_json::Value>(installed) else { return vec![] };
+    let lib: serde_json::Value = serde_json::from_slice(library).unwrap_or_default();
+    let title_of = |app: &str| -> Option<String> {
+        lib["games"].as_array()?.iter().find(|g| g["app_name"].as_str() == Some(app)).and_then(|g| g["title"].as_str()).map(String::from)
+    };
+    let mut out: Vec<StoreGame> = inst["installed"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|g| g["is_dlc"].as_bool() != Some(true))
+        .filter_map(|g| {
+            let app = g["appName"].as_str()?;
+            let title = title_of(app)?;
+            Some(StoreGame { store: "gog", name: tidy_name(&title), launch: heroic_launch(app, "gog"), install_dir: g["install_path"].as_str().map(PathBuf::from) })
+        })
+        .collect();
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    out
+}
+
+pub fn heroic_games(dir: &Path) -> Vec<StoreGame> {
+    let mut v = fs::read(dir.join("legendaryConfig/legendary/installed.json")).map(|b| parse_legendary_installed(&b)).unwrap_or_default();
+    if let Ok(inst) = fs::read(dir.join("gog_store/installed.json")) {
+        let lib = fs::read(dir.join("store_cache/gog_library.json")).unwrap_or_default();
+        v.extend(parse_heroic_gog(&inst, &lib));
+    }
+    v
 }
 
 /// Steam app id of a store game or shortcut path ("steam://rungameid/123").
@@ -425,6 +498,20 @@ mod tests {
         assert_eq!(g.len(), 1);
         assert_eq!(g[0].name, "Stardew Valley");
         assert_eq!(g[0].launch, r"C:\GOG Games\Stardew Valley\Stardew Valley.exe");
+    }
+
+    #[test]
+    fn heroic_libraries() {
+        let epic = br#"{"Fortnite":{"app_name":"Fortnite","title":"Fortnite","is_dlc":false,"install_path":"/games/Fortnite"},
+                        "dlc1":{"app_name":"dlc1","title":"Some DLC","is_dlc":true}}"#;
+        let g = parse_legendary_installed(epic);
+        assert_eq!(g.len(), 1);
+        assert_eq!(g[0].launch, "heroic://launch?appName=Fortnite&runner=legendary");
+        let inst = br#"{"installed":[{"appName":"1207658924","platform":"windows","install_path":"/games/SV","is_dlc":false},{"appName":"99","is_dlc":false}]}"#;
+        let lib = br#"{"games":[{"app_name":"1207658924","title":"Stardew Valley"}]}"#;
+        let g = parse_heroic_gog(inst, lib);
+        assert_eq!(g.len(), 1, "a game without a known name is left out");
+        assert_eq!((g[0].name.as_str(), g[0].launch.as_str()), ("Stardew Valley", "heroic://launch?appName=1207658924&runner=gog"));
     }
 
     #[test]

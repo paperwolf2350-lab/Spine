@@ -9,10 +9,12 @@
   categories for GameCube, PS2, Wii U, Switch, 3DS and Vita.
 
 ## Later
-- Linux build.
+- Linux: list Spine on Flathub, so it installs from Discover / GNOME Software.
+- macOS build.
 
 ## Done
 
+- Linux version: AppImage + .deb + one-line installer; Flatpak/AppImage emulators; Steam and Heroic games; controller exit combo; self-update.
 - Hero banners and logos, screenshots with a full-size viewer, colors taken from each cover.
 - One-click installer (Spine-Setup.exe) in every release.
 - Self-updating from GitHub releases.
