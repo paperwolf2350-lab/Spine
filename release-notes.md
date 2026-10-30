@@ -1,6 +1,6 @@
 ## What's new
-- PC games now get descriptions, release years, genres and developers from Steam's store, like console games get from ScreenScraper.
-- Interface sounds (since 0.4.1): Settings → Sounds.
+- Console games get many more descriptions: Spine now removes ranking numbers like "02. " from file names before asking ScreenScraper, sends each ROM's checksum, and searches by name when a file isn't recognized. Games that weren't found before are looked up again automatically.
+- PC games get descriptions, release years, genres and developers from Steam's store (since 0.4.2).
 
 ---
 

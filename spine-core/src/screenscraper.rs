@@ -59,6 +59,9 @@ pub struct GameInfo {
     /// ScreenScraper didn't know this game; unix time of the check.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub not_found_at: Option<u64>,
+    /// Which version of the lookup produced a "not found" (older ones get retried).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lookup: Option<u32>,
 }
 
 const REGIONS: &[&str] = &["us", "wor", "ss", "eu", "uk", "jp"];
@@ -120,7 +123,7 @@ pub fn parse_game(json: &Value) -> Option<GameInfo> {
             }
         }
     }
-    Some(GameInfo { name, description, year, genre, players, developer, box_url, box_format, video_url, not_found_at: None })
+    Some(GameInfo { name, description, year, genre, players, developer, box_url, box_format, video_url, not_found_at: None, lookup: None })
 }
 
 pub fn info_path(media: &Path, game_id: &str) -> PathBuf {
@@ -139,14 +142,70 @@ fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
+/// Bumped when lookups get smarter, so earlier "not found" answers are tried again.
+/// 2: ranking numbers ("02. ") removed from file names, CRC sent, search by name as a fallback.
+pub const LOOKUP_VERSION: u32 = 2;
+
 fn needs_lookup(media: &Path, game: &Game) -> bool {
     match load_info(media, &game.id) {
         None => true,
         Some(i) => match i.not_found_at {
-            Some(t) => now().saturating_sub(t) > 30 * 24 * 3600,
+            Some(t) => i.lookup.unwrap_or(1) < LOOKUP_VERSION || now().saturating_sub(t) > 30 * 24 * 3600,
             None => false,
         },
     }
+}
+
+/// CRC32 of a file (the checksum ScreenScraper indexes ROMs by). Only for cartridge-sized
+/// files: disc images are matched by name and size instead.
+pub fn file_crc32(path: &Path) -> Option<String> {
+    use std::io::Read;
+    let meta = fs::metadata(path).ok()?;
+    if !meta.is_file() || meta.len() > 64 * 1024 * 1024 {
+        return None;
+    }
+    let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    if matches!(ext.as_str(), "zip" | "7z" | "rar") {
+        return None; // the archive's checksum isn't the game's
+    }
+    let mut table = [0u32; 256];
+    for (i, t) in table.iter_mut().enumerate() {
+        let mut c = i as u32;
+        for _ in 0..8 {
+            c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
+        }
+        *t = c;
+    }
+    let mut f = fs::File::open(path).ok()?;
+    let mut buf = vec![0u8; 1 << 16];
+    let mut crc = 0xFFFF_FFFFu32;
+    loop {
+        let n = f.read(&mut buf).ok()?;
+        if n == 0 {
+            break;
+        }
+        for &b in &buf[..n] {
+            crc = table[((crc ^ b as u32) & 0xFF) as usize] ^ (crc >> 8);
+        }
+    }
+    Some(format!("{:08X}", !crc))
+}
+
+/// First game from a jeuRecherche.php (search by name) answer whose name matches.
+pub fn parse_search(json: &Value, want_title: &str) -> Option<GameInfo> {
+    let want = crate::title::match_key(want_title);
+    let games = json["response"]["jeux"].as_array()?;
+    for g in games.iter().take(10) {
+        let names: Vec<String> = g["noms"].as_array().into_iter().flatten().filter_map(|n| n["text"].as_str().map(String::from)).collect();
+        let hit = names.iter().any(|n| {
+            let k = crate::title::match_key(n);
+            k == want || (k.len() > 6 && want.len() > 6 && (k.starts_with(&want) || want.starts_with(&k)))
+        });
+        if hit {
+            return parse_game(&serde_json::json!({ "response": { "jeu": g } }));
+        }
+    }
+    None
 }
 
 /// Whether ScreenScraper's name should replace the name taken from the file.
@@ -191,34 +250,47 @@ pub fn fetch_details(lib: &Library, media: &Path, creds: &Credentials, progress:
 
     for (n, (sys, game)) in todo.into_iter().enumerate() {
         progress(n + 1, total, &game.title);
-        let file_name = game.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
+        // The file name without a ranking number ("02. Super Mario 64 (USA).z64" -> "Super Mario 64 (USA).z64").
+        let file_name = covers::strip_rank(&game.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default());
         let size = fs::metadata(&game.path).map(|m| m.len()).unwrap_or(0);
-        let url = format!(
-            "{API}/jeuInfos.php?devid={}&devpassword={}&softname={SOFTNAME}&output=json&ssid={}&sspassword={}&systemeid={}&romtype=rom&romnom={}&romtaille={}",
-            enc(&devid), enc(&devpw), enc(&user), enc(&pass), system_id(sys).unwrap(), enc(&file_name), size
-        );
+        let crc = file_crc32(&game.path).map(|c| format!("&crc={c}")).unwrap_or_default();
+        let auth = format!("devid={}&devpassword={}&softname={SOFTNAME}&output=json&ssid={}&sspassword={}&systemeid={}", enc(&devid), enc(&devpw), enc(&user), enc(&pass), system_id(sys).unwrap());
+        let by_file = format!("{API}/jeuInfos.php?{auth}&romtype=rom&romnom={}&romtaille={size}{crc}", enc(&file_name));
+        let by_name = format!("{API}/jeuRecherche.php?{auth}&recherche={}", enc(&game.title));
         report.looked_up += 1;
-        let body = match covers::get_text_any(&agent, &url) {
-            Ok(b) => b,
-            Err(e) => {
-                report.stopped = Some(format!("couldn't reach ScreenScraper ({e})"));
-                break;
-            }
-        };
-        let info = match serde_json::from_str::<Value>(&body) {
-            Ok(v) => parse_game(&v),
-            Err(_) => {
-                let msg = body.trim();
-                let low = msg.to_lowercase();
-                if low.contains("non trouv") || low.contains("not found") {
-                    None
-                } else {
-                    // Login problems, daily quota, API closed for maintenance...
-                    report.stopped = Some(translate_error(msg));
+        // Ask by file first; if ScreenScraper doesn't know the file, search by the game's name.
+        let mut info = None;
+        let mut stop = None;
+        for (i, url) in [&by_file, &by_name].into_iter().enumerate() {
+            let body = match covers::get_text_any(&agent, url) {
+                Ok(b) => b,
+                Err(e) => {
+                    stop = Some(format!("couldn't reach ScreenScraper ({e})"));
                     break;
                 }
+            };
+            match serde_json::from_str::<Value>(&body) {
+                Ok(v) => {
+                    info = if i == 0 { parse_game(&v) } else { parse_search(&v, &game.title) };
+                }
+                Err(_) => {
+                    let low = body.trim().to_lowercase();
+                    if !(low.contains("non trouv") || low.contains("not found") || low.contains("aucun")) {
+                        // Login problems, daily quota, API closed for maintenance...
+                        stop = Some(translate_error(body.trim()));
+                        break;
+                    }
+                }
             }
-        };
+            if info.is_some() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1200));
+        }
+        if let Some(why) = stop {
+            report.stopped = Some(why);
+            break;
+        }
         let path = info_path(media, &game.id);
         if let Some(d) = path.parent() {
             let _ = fs::create_dir_all(d);
@@ -248,7 +320,7 @@ pub fn fetch_details(lib: &Library, media: &Path, creds: &Credentials, progress:
             }
             None => {
                 report.not_found.push(game.title.clone());
-                let miss = GameInfo { not_found_at: Some(now()), ..Default::default() };
+                let miss = GameInfo { not_found_at: Some(now()), lookup: Some(LOOKUP_VERSION), ..Default::default() };
                 let _ = fs::write(&path, serde_json::to_string(&miss).unwrap_or_default());
             }
         }
@@ -276,6 +348,21 @@ fn translate_error(msg: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn crc_and_search() {
+        let p = std::env::temp_dir().join(format!("spine-crc-{}.gba", std::process::id()));
+        fs::write(&p, b"123456789").unwrap();
+        assert_eq!(file_crc32(&p).as_deref(), Some("CBF43926")); // the standard CRC32 check value
+        let _ = fs::remove_file(&p);
+        let v = serde_json::json!({"response": {"jeux": [
+            {"id": "1", "noms": [{"region": "us", "text": "Mario Kart: Super Circuit"}]},
+            {"id": "2", "noms": [{"region": "us", "text": "Super Mario 64"}], "synopsis": [{"langue": "en", "text": "Mario's first 3D adventure."}]}
+        ]}});
+        assert_eq!(parse_search(&v, "Super Mario 64").and_then(|i| i.description).as_deref(), Some("Mario's first 3D adventure."));
+        assert!(parse_search(&v, "Golden Sun").is_none());
+        assert_eq!(covers::strip_rank("02. Super Mario 64 (USA).z64"), "Super Mario 64 (USA).z64");
+    }
 
     #[test]
     fn parses_a_response() {

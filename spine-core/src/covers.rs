@@ -174,7 +174,7 @@ impl ArtIndex {
     }
 }
 
-fn strip_rank(s: &str) -> String {
+pub fn strip_rank(s: &str) -> String {
     let t = s.trim_start();
     let digits = t.chars().take_while(|c| c.is_ascii_digit()).count();
     if (1..=3).contains(&digits) {
