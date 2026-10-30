@@ -14,6 +14,7 @@
 
 ## Done
 
+- Interface sounds (Settings → Sounds).
 - Linux version: AppImage + .deb + one-line installer; Flatpak/AppImage emulators; Steam and Heroic games; controller exit combo; self-update.
 - Hero banners and logos, screenshots with a full-size viewer, colors taken from each cover.
 - One-click installer (Spine-Setup.exe) in every release.

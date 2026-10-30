@@ -599,6 +599,8 @@ function settingsPanel() {
       <button class="chip ${soundOn() ? 'on' : ''}" data-nav data-key="vid-sound" data-act="sound">${soundOn() ? 'Sound on' : 'Sound off'}</button></div></div>
     ${(S.boot.hidden || []).length ? `<div class="grp"><span class="k">Hidden games</span><div class="roots">${S.boot.hidden.map((h) => `<div class="root"><span></span><span class="rp">${esc(h.title)}</span><span class="rs">${esc(h.system)}</span>
       <button class="btn small" data-nav data-key="uh-${esc(h.id)}" data-act="unhide" data-id="${esc(h.id)}">Show again</button></div>`).join('')}</div></div>` : ''}
+    <div class="grp"><span class="k">Sounds</span><span class="note">Little clicks and chimes as you move around, like a console menu.</span><div class="opts">
+      ${[['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']].map(([v, l]) => `<button class="chip ${(settings().uiSounds || 'soft') === v ? 'on' : ''}" data-nav data-key="sfx-${v}" data-act="uisounds" data-v="${v}">${l}</button>`).join('')}</div></div>
     <div class="grp"><span class="k">Controller</span><span class="note">Hold Select + Start for a second during a game to close it and come back to Spine. Your game is closed the normal way, so it saves like quitting from its menu.</span><div class="opts">
       <button class="chip ${exitComboOn() ? 'on' : ''}" data-nav data-key="ex-on" data-act="exitcombo" data-v="on">Select + Start quits</button>
       <button class="chip ${!exitComboOn() ? 'on' : ''}" data-nav data-key="ex-off" data-act="exitcombo" data-v="off">Off</button></div></div>
@@ -1054,7 +1056,7 @@ function move(dir) {
     const score = Math.max(primary, 0) + cross * (overlap > 0 ? 0.3 : 2.5);
     if (score < bestScore) { bestScore = score; best = el; }
   }
-  if (best) focusEl(best);
+  if (best) { focusEl(best); SFX.play('move'); } else SFX.play('edge');
 }
 
 // ---------------------------------------------------------------------------
@@ -1247,6 +1249,7 @@ const ACT = {
     S.shot = (S.shot + +d.d + n) % n; S.focusKey = +d.d < 0 ? 'v-prev' : 'v-next'; render();
   },
   closeshot() { S.focusKey = `shot-${S.shot}`; S.shot = null; render(); },
+  async uisounds(d) { S.focusKey = `sfx-${d.v}`; await setSetting('uiSounds', d.v); SFX.play('select'); },
   exitcombo(d) { S.focusKey = `ex-${d.v}`; setSetting('exitCombo', d.v === 'on'); },
   videos(d) { S.focusKey = `vid-${d.v}`; setSetting('videos', d.v === 'on'); },
   sound() {
@@ -1332,6 +1335,7 @@ const ACT = {
   async fav(d) {
     const id = d.id || S.game;
     const on = await api.call('toggle_favorite', { id });
+    SFX.play(on ? 'favOn' : 'favOff');
     const f = new Set(S.boot.favorites || []);
     on ? f.add(id) : f.delete(id);
     S.boot.favorites = [...f];
@@ -1402,10 +1406,80 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
   if (el.classList.contains('panel') && e.target !== el) return;
+  SFX.play(actSound(el.dataset.act));
   ACT[el.dataset.act]?.(el.dataset);
 });
 document.addEventListener('mousedown', (e) => { if (e.target.closest('.rail, .cbar')) e.preventDefault(); });
 document.addEventListener('mousemove', () => document.body.classList.remove('kb'), { passive: true });
+
+// ---------------------------------------------------------------------------
+// Interface sounds: tiny tones made on the fly (no sound files), so moving
+// around Spine feels like a console menu. Settings → Sounds turns them down or off.
+// ---------------------------------------------------------------------------
+const SFX = (() => {
+  let ctx = null, master = null, last = 0;
+  const level = () => ({ off: 0, soft: 0.45, normal: 1 })[settings().uiSounds || 'soft'] ?? 0.45;
+  function out() {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC();
+      master = ctx.createGain();
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200; // keep them soft, never shrill
+      master.connect(lp); lp.connect(ctx.destination);
+    }
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    master.gain.value = level();
+    return ctx;
+  }
+  // One note: frequency (optionally gliding to f2), length, loudness, wave, start delay.
+  function note(f, { f2 = f, len = 0.06, vol = 0.05, wave = 'sine', at = 0 } = {}) {
+    const c = out(); if (!c) return;
+    const t = c.currentTime + at;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = wave;
+    o.frequency.setValueAtTime(f, t);
+    if (f2 !== f) o.frequency.exponentialRampToValueAtTime(f2, t + len * 0.8);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + len + 0.02);
+  }
+  const sounds = {
+    move: () => note(1180, { len: 0.035, vol: 0.035 }),
+    edge: () => note(240, { f2: 200, len: 0.05, vol: 0.03, wave: 'triangle' }),
+    tick: () => note(820, { len: 0.03, vol: 0.03, wave: 'triangle' }),
+    select: () => { note(780, { len: 0.05, vol: 0.045 }); note(1170, { len: 0.07, vol: 0.04, at: 0.035 }); },
+    back: () => { note(900, { len: 0.05, vol: 0.04 }); note(600, { len: 0.07, vol: 0.035, at: 0.035 }); },
+    open: () => note(520, { f2: 900, len: 0.11, vol: 0.04 }),
+    favOn: () => { note(988, { len: 0.06, vol: 0.04 }); note(1319, { len: 0.1, vol: 0.04, at: 0.06 }); },
+    favOff: () => { note(1319, { len: 0.05, vol: 0.035 }); note(988, { len: 0.08, vol: 0.03, at: 0.05 }); },
+    spin: () => [660, 740, 830, 880, 990, 1110].forEach((f, i) => note(f, { len: 0.035, vol: 0.03, wave: 'triangle', at: i * 0.045 })),
+    launch: () => [523, 659, 784, 1047].forEach((f, i) => note(f, { len: i === 3 ? 0.35 : 0.09, vol: 0.045, at: i * 0.06 })),
+    welcome: () => [784, 1047].forEach((f, i) => note(f, { len: 0.12, vol: 0.035, at: i * 0.08 })),
+  };
+  return {
+    play(name) {
+      if (!level() || S.playing && name !== 'welcome' || document.hidden) return;
+      const now = performance.now();
+      if (name === 'move' && now - last < 30) return; // fast scrolling: don't machine-gun
+      last = now;
+      try { sounds[name]?.(); } catch (e) { /* no audio device */ }
+    },
+  };
+})();
+// Which sound an action makes.
+function actSound(act) {
+  if (!act) return null;
+  if (['back', 'closepanel', 'closeshot', 'closeplay', 'scback'].includes(act)) return 'back';
+  if (['settings', 'scrapers', 'search', 'emu', 'fixgame', 'lists', 'openshot'].includes(act)) return 'open';
+  if (act === 'play') return 'launch';
+  if (act === 'random') return 'spin';
+  if (act === 'fav' || act === 'uisounds') return null; // they play their own once the result is known
+  if (['jump', 'stepshot', 'sortby', 'filter', 'layout', 'sound', 'videos'].includes(act)) return 'tick';
+  return 'select';
+}
 
 // ---------------------------------------------------------------------------
 // Keyboard & controller
@@ -1414,6 +1488,11 @@ function press(btn) {
   document.body.classList.add('kb');
   const cur = document.activeElement;
   const typing = cur && cur.tagName === 'INPUT';
+  if (btn === 'A' && cur?.dataset?.act) SFX.play(actSound(cur.dataset.act));
+  else if (btn === 'B' && (S.panel || S.screen !== 'home' || S.shot != null)) SFX.play('back');
+  else if (btn === 'START' || btn === 'X') SFX.play('open');
+  else if (btn === 'RANDOM') SFX.play('spin');
+  else if (['LB', 'RB', 'LT', 'RT', 'SELECT'].includes(btn)) SFX.play('tick');
   if (S.shot != null && S.screen === 'detail') {
     if (btn === 'left' || btn === 'LB') return ACT.stepshot({ d: -1 });
     if (btn === 'right' || btn === 'RB') return ACT.stepshot({ d: 1 });
@@ -1552,6 +1631,7 @@ api.on('library-changed', (p) => {
 });
 api.on('game-closing', () => { if (S.playing) { S.playing.closing = true; render(); } });
 api.on('game-exited', (p) => {
+  setTimeout(() => SFX.play('welcome'), 250);
   if (S.ach) delete S.ach[p.id]; // pick up anything earned while playing
   padMute = true; // buttons still held from the exit combo shouldn't press anything here
   S.boot.playtime = { ...(S.boot.playtime || {}), [p.id]: ((S.boot.playtime || {})[p.id] || 0) + (S.playing?.emulator === 'system' ? 0 : p.seconds) };
