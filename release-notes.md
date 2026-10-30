@@ -1,7 +1,6 @@
 ## What's new
-- Linux fix: Spine's AppImage no longer passes its own internal settings to the programs it starts. That stopped updates ("can't reach GitHub") and made emulators close right away on some systems, like Linux Mint.
-- Linux: downloads use Spine's built-in downloader, so they work even where the system's curl doesn't.
-- If an emulator closes right away, Spine shows what it reported (since 0.4.4).
+- ScreenScraper is now built in: console games get descriptions and gameplay videos with no setup. Adding your own free screenscraper.fr account (Settings → Scrapers) is optional and gives faster lookups.
+- Linux: Spine starts programs with your system's own settings, which fixed updates and emulators closing right away on some systems (since 0.4.5).
 
 ---
 
