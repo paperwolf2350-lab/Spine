@@ -1,0 +1,44 @@
+"AppState"
+{
+	"appid"		"2239150"
+	"Universe"		"1"
+	"LauncherPath"		"C:\\Program Files (x86)\\Steam\\steam.exe"
+	"name"		"Thronefall"
+	"StateFlags"		"4"
+	"installdir"		"Thronefall"
+	"LastUpdated"		"1790541199"
+	"LastPlayed"		"1787494604"
+	"SizeOnDisk"		"1030719609"
+	"StagingSize"		"0"
+	"buildid"		"25306299"
+	"DownloadType"		"1"
+	"UpdateResult"		"0"
+	"BytesToDownload"		"32501648"
+	"BytesDownloaded"		"32501648"
+	"BytesToStage"		"731690589"
+	"BytesStaged"		"731690589"
+	"TargetBuildID"		"25306299"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+	"InstalledDepots"
+	{
+		"2239151"
+		{
+			"manifest"		"132065699055713075"
+			"size"		"1030719609"
+		}
+	}
+	"SharedDepots"
+	{
+		"228990"		"228980"
+	}
+	"UserConfig"
+	{
+		"language"		"english"
+	}
+	"MountedConfig"
+	{
+		"language"		"english"
+	}
+}

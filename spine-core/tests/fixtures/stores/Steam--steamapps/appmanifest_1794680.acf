@@ -1,0 +1,80 @@
+"AppState"
+{
+	"appid"		"1794680"
+	"Universe"		"1"
+	"LauncherPath"		"C:\\Program Files (x86)\\Steam\\steam.exe"
+	"name"		"Vampire Survivors"
+	"StateFlags"		"4"
+	"installdir"		"Vampire Survivors"
+	"LastUpdated"		"1792228886"
+	"LastPlayed"		"1789240401"
+	"SizeOnDisk"		"1185884845"
+	"StagingSize"		"0"
+	"buildid"		"25984009"
+	"DownloadType"		"1"
+	"UpdateResult"		"0"
+	"BytesToDownload"		"109226528"
+	"BytesDownloaded"		"109226528"
+	"BytesToStage"		"1096660694"
+	"BytesStaged"		"1096660694"
+	"TargetBuildID"		"25984009"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+	"InstalledDepots"
+	{
+		"1794681"
+		{
+			"manifest"		"4460541452647837941"
+			"size"		"1185884845"
+		}
+		"2230761"
+		{
+			"manifest"		"7674937276999197104"
+			"size"		"0"
+			"dlcappid"		"2230760"
+		}
+		"2313551"
+		{
+			"manifest"		"6298930804943469542"
+			"size"		"0"
+			"dlcappid"		"2313550"
+		}
+		"2690331"
+		{
+			"manifest"		"4436524135990262943"
+			"size"		"0"
+			"dlcappid"		"2690330"
+		}
+		"2887681"
+		{
+			"manifest"		"7723457880087459442"
+			"size"		"0"
+			"dlcappid"		"2887680"
+		}
+		"3210351"
+		{
+			"manifest"		"9083880375047846634"
+			"size"		"0"
+			"dlcappid"		"3210350"
+		}
+		"4781331"
+		{
+			"manifest"		"4326968107382995632"
+			"size"		"0"
+			"dlcappid"		"4781330"
+		}
+	}
+	"SharedDepots"
+	{
+		"228989"		"228980"
+	}
+	"UserConfig"
+	{
+		"language"		"english"
+	}
+	"MountedConfig"
+	{
+		"language"		"english"
+	}
+}

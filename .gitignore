@@ -1,0 +1,19 @@
+# Build output
+target/
+*.exe
+*.pdb
+
+# Personal data Spine keeps next to Spine.exe (never upload these)
+credentials.txt
+spine-state.json
+spine-state.json.tmp
+library.json
+update-repo.txt
+media/
+*-log.txt
+scan-results.txt
+
+# Developer-only test material (a real ROM library listing and UI snapshots)
+/fixtures/
+/uitest/
+spine-app/gen/

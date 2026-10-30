@@ -1,0 +1,87 @@
+"AppState"
+{
+	"appid"		"397540"
+	"Universe"		"1"
+	"LauncherPath"		"C:\\Program Files (x86)\\Steam\\steam.exe"
+	"name"		"Borderlands 3"
+	"StateFlags"		"4"
+	"installdir"		"Borderlands 3"
+	"LastUpdated"		"1790473819"
+	"LastPlayed"		"1791641364"
+	"SizeOnDisk"		"149780746442"
+	"StagingSize"		"0"
+	"buildid"		"15245523"
+	"DownloadType"		"1"
+	"UpdateResult"		"0"
+	"BytesToDownload"		"149162769104"
+	"BytesDownloaded"		"149162769104"
+	"BytesToStage"		"149870546166"
+	"BytesStaged"		"149870546166"
+	"TargetBuildID"		"15245523"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+	"InstalledDepots"
+	{
+		"397541"
+		{
+			"manifest"		"2108173713249823877"
+			"size"		"102550879770"
+		}
+		"397542"
+		{
+			"manifest"		"1221292089630287862"
+			"size"		"116273344"
+		}
+		"1232256"
+		{
+			"manifest"		"9116600370569954686"
+			"size"		"8701437418"
+			"dlcappid"		"1232256"
+		}
+		"1232257"
+		{
+			"manifest"		"132348831915272916"
+			"size"		"5531687731"
+			"dlcappid"		"1232257"
+		}
+		"1233060"
+		{
+			"manifest"		"350750707932598048"
+			"size"		"11837635939"
+			"dlcappid"		"1233060"
+		}
+		"1233061"
+		{
+			"manifest"		"5627198090468988485"
+			"size"		"7315664559"
+			"dlcappid"		"1233061"
+		}
+		"1361830"
+		{
+			"manifest"		"988244885201248028"
+			"size"		"2128753142"
+			"dlcappid"		"1361830"
+		}
+		"1361831"
+		{
+			"manifest"		"8226097640942912719"
+			"size"		"11598414539"
+			"dlcappid"		"1361831"
+		}
+	}
+	"SharedDepots"
+	{
+		"228986"		"228980"
+		"228990"		"228980"
+		"229033"		"228980"
+	}
+	"UserConfig"
+	{
+		"language"		"english"
+	}
+	"MountedConfig"
+	{
+		"language"		"english"
+	}
+}

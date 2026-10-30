@@ -1,0 +1,15 @@
+[package]
+name = "spine-core"
+version = "0.2.0"
+edition = "2024"
+
+[dependencies]
+percent-encoding = "2.3.2"
+regex = "1.13.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+unicode-normalization = "0.1.26"
+
+[[bin]]
+name = "spine-scan"
+path = "src/main.rs"

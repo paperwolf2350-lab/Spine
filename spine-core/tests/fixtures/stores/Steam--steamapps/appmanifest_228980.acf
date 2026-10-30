@@ -1,0 +1,60 @@
+"AppState"
+{
+	"appid"		"228980"
+	"Universe"		"1"
+	"LauncherPath"		"C:\\Program Files (x86)\\Steam\\steam.exe"
+	"name"		"Steamworks Common Redistributables"
+	"StateFlags"		"4"
+	"installdir"		"Steamworks Shared"
+	"LastUpdated"		"1783463064"
+	"LastPlayed"		"0"
+	"SizeOnDisk"		"247617963"
+	"StagingSize"		"0"
+	"buildid"		"24098430"
+	"DownloadType"		"0"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+	"InstalledDepots"
+	{
+		"228986"
+		{
+			"manifest"		"8782296191957114623"
+			"size"		"29759921"
+		}
+		"228988"
+		{
+			"manifest"		"6645201662696499616"
+			"size"		"29212173"
+		}
+		"228989"
+		{
+			"manifest"		"5753583882400741046"
+			"size"		"25674515"
+		}
+		"228990"
+		{
+			"manifest"		"1829726630299308803"
+			"size"		"102931551"
+		}
+		"229033"
+		{
+			"manifest"		"2059065101492814639"
+			"size"		"60039803"
+		}
+	}
+	"InstallScripts"
+	{
+		"228986"		"_CommonRedist\\vcredist\\2015\\installscript.vdf"
+		"228988"		"_CommonRedist\\vcredist\\2019\\installscript.vdf"
+		"228989"		"_CommonRedist\\vcredist\\2022\\installscript.vdf"
+		"228990"		"_CommonRedist\\DirectX\\Jun2010\\installscript.vdf"
+		"229033"		"_CommonRedist\\PhysX\\9.14.0702\\installscript.vdf"
+	}
+	"UserConfig"
+	{
+	}
+	"MountedConfig"
+	{
+	}
+}

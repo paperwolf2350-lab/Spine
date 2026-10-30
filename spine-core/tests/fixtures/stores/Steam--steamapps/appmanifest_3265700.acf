@@ -1,0 +1,40 @@
+"AppState"
+{
+	"appid"		"3265700"
+	"Universe"		"1"
+	"LauncherPath"		"C:\\Program Files (x86)\\Steam\\steam.exe"
+	"name"		"Vampire Crawlers"
+	"StateFlags"		"4"
+	"installdir"		"Vampire Crawlers"
+	"LastUpdated"		"1792310524"
+	"LastPlayed"		"1784388805"
+	"SizeOnDisk"		"1236639445"
+	"StagingSize"		"0"
+	"buildid"		"25304267"
+	"DownloadType"		"1"
+	"UpdateResult"		"0"
+	"BytesToDownload"		"158887104"
+	"BytesDownloaded"		"158887104"
+	"BytesToStage"		"1174104657"
+	"BytesStaged"		"1174104657"
+	"TargetBuildID"		"25304267"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+	"InstalledDepots"
+	{
+		"3265701"
+		{
+			"manifest"		"2187444310832010301"
+			"size"		"1236639445"
+		}
+	}
+	"UserConfig"
+	{
+		"language"		"english"
+	}
+	"MountedConfig"
+	{
+		"language"		"english"
+	}
+}

@@ -1,0 +1,15 @@
+{
+	"DisplayName": "Brotato",
+	"AppName": "e8bbb84be35640cda646233152ff3428",
+	"CatalogNamespace": "3b391953ce4b42bb9a28a2fee249154b",
+	"CatalogItemId": "518490da62794d0a8f3695cbe2fcf0a6",
+	"InstallLocation": "C:\\Program Files\\Epic Games\\Brotato",
+	"LaunchExecutable": "Brotato.exe",
+	"AppCategories": [
+		"games",
+		"applications"
+	],
+	"bIsIncompleteInstall": false,
+	"MainGameAppName": "",
+	"FormatVersion": 0
+}

@@ -1,0 +1,44 @@
+"AppState"
+{
+	"appid"		"2768430"
+	"Universe"		"1"
+	"LauncherPath"		"C:\\Program Files (x86)\\Steam\\steam.exe"
+	"name"		"ATLYSS"
+	"StateFlags"		"4"
+	"installdir"		"ATLYSS"
+	"LastUpdated"		"1778629879"
+	"LastPlayed"		"1778947756"
+	"SizeOnDisk"		"352480193"
+	"StagingSize"		"0"
+	"buildid"		"21474249"
+	"DownloadType"		"1"
+	"UpdateResult"		"0"
+	"BytesToDownload"		"143545024"
+	"BytesDownloaded"		"143545024"
+	"BytesToStage"		"352480193"
+	"BytesStaged"		"352480193"
+	"TargetBuildID"		"21474249"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+	"InstalledDepots"
+	{
+		"2768431"
+		{
+			"manifest"		"8793353090490843916"
+			"size"		"352480193"
+		}
+	}
+	"SharedDepots"
+	{
+		"228989"		"228980"
+	}
+	"UserConfig"
+	{
+		"language"		"english"
+	}
+	"MountedConfig"
+	{
+		"language"		"english"
+	}
+}

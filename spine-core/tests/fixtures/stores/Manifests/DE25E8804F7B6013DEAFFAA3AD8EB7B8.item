@@ -1,0 +1,15 @@
+{
+	"DisplayName": "20 Minutes Till Dawn",
+	"AppName": "4656facc740742a39e265b026e13d075",
+	"CatalogNamespace": "ee9fad7056a94957b3a4d8c457000337",
+	"CatalogItemId": "9335e563c3b24fe9bad3a935f3ef5546",
+	"InstallLocation": "C:\\Program Files\\Epic Games\\MinutesTillDawnxgosd",
+	"LaunchExecutable": "MinutesTillDawn.exe",
+	"AppCategories": [
+		"games",
+		"applications"
+	],
+	"bIsIncompleteInstall": false,
+	"MainGameAppName": "",
+	"FormatVersion": 0
+}

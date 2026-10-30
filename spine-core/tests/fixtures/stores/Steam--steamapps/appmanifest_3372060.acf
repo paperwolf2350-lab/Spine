@@ -1,0 +1,40 @@
+"AppState"
+{
+	"appid"		"3372060"
+	"Universe"		"1"
+	"LauncherPath"		"C:\\Program Files (x86)\\Steam\\steam.exe"
+	"name"		"Hell Maiden"
+	"StateFlags"		"4"
+	"installdir"		"Hell Maiden"
+	"LastUpdated"		"1786789179"
+	"LastPlayed"		"1792278870"
+	"SizeOnDisk"		"3826196533"
+	"StagingSize"		"0"
+	"buildid"		"24732542"
+	"DownloadType"		"1"
+	"UpdateResult"		"0"
+	"BytesToDownload"		"651822320"
+	"BytesDownloaded"		"651822320"
+	"BytesToStage"		"1240579465"
+	"BytesStaged"		"1240579465"
+	"TargetBuildID"		"24732542"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+	"InstalledDepots"
+	{
+		"3372061"
+		{
+			"manifest"		"7040760445497638560"
+			"size"		"3826196533"
+		}
+	}
+	"UserConfig"
+	{
+		"language"		"english"
+	}
+	"MountedConfig"
+	{
+		"language"		"english"
+	}
+}

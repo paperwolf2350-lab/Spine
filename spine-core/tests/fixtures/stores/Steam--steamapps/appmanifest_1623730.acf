@@ -1,0 +1,49 @@
+"AppState"
+{
+	"appid"		"1623730"
+	"Universe"		"1"
+	"LauncherPath"		"C:\\Program Files (x86)\\Steam\\steam.exe"
+	"name"		"Palworld"
+	"StateFlags"		"4"
+	"installdir"		"Palworld"
+	"LastUpdated"		"1789756722"
+	"LastPlayed"		"1786192702"
+	"SizeOnDisk"		"39904860007"
+	"StagingSize"		"0"
+	"buildid"		"25246127"
+	"DownloadType"		"2"
+	"UpdateResult"		"0"
+	"BytesToDownload"		"12314592"
+	"BytesDownloaded"		"12314592"
+	"BytesToStage"		"12418802"
+	"BytesStaged"		"12418802"
+	"TargetBuildID"		"0"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+	"InstalledDepots"
+	{
+		"1623731"
+		{
+			"manifest"		"3164835476547629219"
+			"size"		"39904860007"
+		}
+	}
+	"InstallScripts"
+	{
+		"1623731"		"installscript.vdf"
+	}
+	"SharedDepots"
+	{
+		"228989"		"228980"
+		"228990"		"228980"
+	}
+	"UserConfig"
+	{
+		"language"		"english"
+	}
+	"MountedConfig"
+	{
+		"language"		"english"
+	}
+}

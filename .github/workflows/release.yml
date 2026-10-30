@@ -1,0 +1,50 @@
+# Publishing a new Spine: bump `version` in spine-app/Cargo.toml, then push a
+# tag with the same number (for example `git tag v0.3.0 && git push --tags`).
+# GitHub builds Spine.exe and attaches it to a release; every Spine with
+# updates turned on offers it the next time it starts.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Tag matches the app version
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path spine-app/Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          if ("v$v" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} doesn't match spine-app version $v" }
+
+      - name: Test
+        working-directory: spine-core
+        run: cargo test
+
+      - name: Build
+        working-directory: spine-app
+        env:
+          SPINE_REPO: ${{ github.repository }}
+        run: cargo build --release
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Copy-Item spine-app/target/release/spine.exe Spine.exe
+          $h = (Get-FileHash Spine.exe -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path Spine.exe.sha256 -Value "$h  Spine.exe" -NoNewline
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Spine.exe
+            Spine.exe.sha256
+          generate_release_notes: true

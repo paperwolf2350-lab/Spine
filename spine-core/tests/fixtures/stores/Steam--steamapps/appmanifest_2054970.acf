@@ -1,0 +1,60 @@
+"AppState"
+{
+	"appid"		"2054970"
+	"Universe"		"1"
+	"LauncherPath"		"C:\\Program Files (x86)\\Steam\\steam.exe"
+	"name"		"Dragon's Dogma 2"
+	"StateFlags"		"4"
+	"installdir"		"Dragons Dogma 2"
+	"LastUpdated"		"1792156449"
+	"LastPlayed"		"1791766605"
+	"SizeOnDisk"		"96465985217"
+	"StagingSize"		"0"
+	"buildid"		"25920212"
+	"DownloadType"		"1"
+	"UpdateResult"		"0"
+	"BytesToDownload"		"2416160816"
+	"BytesDownloaded"		"2416160816"
+	"BytesToStage"		"69232390414"
+	"BytesStaged"		"69232390414"
+	"TargetBuildID"		"25920212"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+	"StagingFolder"		"1"
+	"InstalledDepots"
+	{
+		"2054971"
+		{
+			"manifest"		"3438547366935427234"
+			"size"		"154689650"
+		}
+		"2054973"
+		{
+			"manifest"		"7437542638576744353"
+			"size"		"69405037806"
+		}
+		"2593290"
+		{
+			"manifest"		"3353726914325255074"
+			"size"		"26906257761"
+			"dlcappid"		"2593290"
+		}
+	}
+	"InstallScripts"
+	{
+		"2054971"		"InstallerMessage_RunlScript.vdf"
+	}
+	"SharedDepots"
+	{
+		"228988"		"228980"
+	}
+	"UserConfig"
+	{
+		"language"		"english"
+	}
+	"MountedConfig"
+	{
+		"language"		"english"
+	}
+}
