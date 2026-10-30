@@ -298,7 +298,7 @@ pub fn launch_logged(plan: &LaunchPlan, log: Option<&Path>) -> std::io::Result<s
         // A store game's own .exe (GOG): start it from its folder so it finds its files,
         // and Spine can time the session.
         if target.to_lowercase().ends_with(".exe") && !target.contains("://") {
-            let mut cmd = std::process::Command::new(&plan.program);
+            let mut cmd = crate::hostenv::command(&plan.program);
             if let Some(dir) = plan.program.parent() {
                 cmd.current_dir(dir);
             }
@@ -321,9 +321,9 @@ pub fn launch_logged(plan: &LaunchPlan, log: Option<&Path>) -> std::io::Result<s
         #[cfg(target_os = "macos")]
         return std::process::Command::new("open").arg(&plan.program).spawn();
         #[cfg(all(unix, not(target_os = "macos")))]
-        return std::process::Command::new("xdg-open").arg(&plan.program).spawn();
+        return crate::hostenv::command("xdg-open").arg(&plan.program).spawn();
     }
-    let mut cmd = std::process::Command::new(&plan.program);
+    let mut cmd = crate::hostenv::command(&plan.program);
     cmd.args(&plan.args);
     if let Some(f) = log.and_then(|p| fs::File::create(p).ok()) {
         if let Ok(f2) = f.try_clone() {

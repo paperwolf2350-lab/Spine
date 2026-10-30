@@ -225,13 +225,13 @@ pub fn close_game(pid: u32, still_running: &dyn Fn() -> bool) {
     {
         // Games start in their own process group, so this reaches everything they started.
         let group = format!("-{pid}");
-        let _ = std::process::Command::new("kill").args(["-TERM", "--", &group]).status();
+        let _ = spine_core::hostenv::command("kill").args(["-TERM", "--", &group]).status();
         let start = Instant::now();
         while start.elapsed() < Duration::from_secs(5) && still_running() {
             std::thread::sleep(Duration::from_millis(200));
         }
         if still_running() {
-            let _ = std::process::Command::new("kill").args(["-KILL", "--", &group]).status();
+            let _ = spine_core::hostenv::command("kill").args(["-KILL", "--", &group]).status();
         }
     }
 }

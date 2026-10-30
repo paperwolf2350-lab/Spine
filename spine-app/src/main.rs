@@ -628,7 +628,7 @@ fn open_url(url: String) -> Result<(), String> {
     }
     #[cfg(not(windows))]
     {
-        std::process::Command::new("xdg-open").arg(&url).spawn().map_err(|e| e.to_string())?;
+        spine_core::hostenv::command("xdg-open").arg(&url).spawn().map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -650,7 +650,7 @@ async fn install_update(handle: AppHandle) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let new_exe = tauri::async_runtime::spawn_blocking(move || update::install(&dir, &exe)).await.map_err(|e| e.to_string())??;
     app.save();
-    std::process::Command::new(&new_exe).current_dir(&app.dir).spawn().map_err(|e| format!("Updated, but couldn't restart Spine ({e}). Start it again yourself."))?;
+    spine_core::hostenv::command(&new_exe).current_dir(&app.dir).spawn().map_err(|e| format!("Updated, but couldn't restart Spine ({e}). Start it again yourself."))?;
     // Leave right away so only the new Spine is open (everything is already saved).
     handle.exit(0);
     std::process::exit(0);
@@ -681,7 +681,7 @@ fn open_bios_folder(system: String, app: State<App>) -> Result<(), String> {
     }
     #[cfg(not(windows))]
     {
-        std::process::Command::new("xdg-open").arg(&folder).spawn().map_err(|e| e.to_string())?;
+        spine_core::hostenv::command("xdg-open").arg(&folder).spawn().map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -703,7 +703,7 @@ fn open_path(which: String, app: State<App>) -> Result<(), String> {
     }
     #[cfg(not(windows))]
     {
-        std::process::Command::new("xdg-open").arg(&p).spawn().map_err(|e| e.to_string())?;
+        spine_core::hostenv::command("xdg-open").arg(&p).spawn().map_err(|e| e.to_string())?;
     }
     Ok(())
 }

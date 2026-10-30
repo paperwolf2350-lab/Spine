@@ -302,7 +302,17 @@ pub fn agent() -> Agent {
 pub(crate) const PATH_SEG: &AsciiSet = &NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(b'.').remove(b'~');
 
 pub fn curl(url: &str, fail_on_http_error: bool, headers: &[String]) -> Result<Vec<u8>, String> {
-    let mut cmd = std::process::Command::new("curl");
+    // Linux: the built-in downloader first (no outside program, so nothing about the
+    // AppImage or the system's curl can get in the way); curl only if it fails to connect.
+    #[cfg(target_os = "linux")]
+    {
+        match builtin_get(url, fail_on_http_error, headers) {
+            Ok(b) => return Ok(b),
+            Err(e) if e.contains("returned error") => return Err(e),
+            Err(_) => {}
+        }
+    }
+    let mut cmd = crate::hostenv::command("curl");
     cmd.args(["-sSL", "--connect-timeout", "15", "--max-time", "90", "--retry", "2", "-A", "Spine/0.1 (game library frontend)"]);
     if fail_on_http_error {
         cmd.arg("--fail");

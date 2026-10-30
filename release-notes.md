@@ -1,7 +1,7 @@
 ## What's new
-- Linux: emulators installed as Flatpaks (like RetroArch from the Software Manager) can now open games stored on other drives. Spine shares the game's folder with them when it starts a game.
-- If an emulator closes right away, Spine now says so and shows what the emulator reported, instead of quietly returning.
-- Console games get many more descriptions (since 0.4.3), and PC games get descriptions from Steam (since 0.4.2).
+- Linux fix: Spine's AppImage no longer passes its own internal settings to the programs it starts. That stopped updates ("can't reach GitHub") and made emulators close right away on some systems, like Linux Mint.
+- Linux: downloads use Spine's built-in downloader, so they work even where the system's curl doesn't.
+- If an emulator closes right away, Spine shows what it reported (since 0.4.4).
 
 ---
 
