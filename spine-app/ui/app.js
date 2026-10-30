@@ -659,7 +659,7 @@ function updateNote() {
   if (!u) return cur;
   if (u.busy) return u.busy;
   if (u.error) return `${cur} ${u.error}`;
-  if (u.available) return `Spine ${u.latest} is ready. Spine downloads it, checks it, and restarts.${u.notes ? ' What’s new: ' + u.notes.split('\n').filter(Boolean).slice(0, 3).join(' · ') : ''}`;
+  if (u.available) return `Spine ${u.latest} is ready. Spine downloads it, checks it, and restarts.${u.notes ? `<span class="relnotes">${u.notes.split('\n').filter(Boolean).slice(0, 5).map((l) => `<span>• ${esc(l)}</span>`).join('')}</span>` : ''}`;
   return `${cur} That's the newest.`;
 }
 async function checkUpdate(quiet) {

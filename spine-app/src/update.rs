@@ -54,6 +54,17 @@ pub fn newer(latest: &str, current: &str) -> bool {
     parse_version(latest) > parse_version(current)
 }
 
+/// The "what's new" part of release notes as plain lines: no Markdown, no install instructions.
+pub fn clean_notes(body: &str) -> String {
+    let top = body.split("\n---").next().unwrap_or("");
+    top.lines()
+        .map(|l| l.trim().trim_start_matches(['#', '-', '*', ' ']).replace("**", "").replace('`', ""))
+        .filter(|l| !l.is_empty() && !l.eq_ignore_ascii_case("what's new") && !l.starts_with("Full Changelog"))
+        .take(8)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Read GitHub's "latest release" answer.
 pub fn parse_release(json: &[u8]) -> Option<Release> {
     let v: serde_json::Value = serde_json::from_slice(json).ok()?;
@@ -66,7 +77,7 @@ pub fn parse_release(json: &[u8]) -> Option<Release> {
     let sha = find("Spine.exe.sha256")?;
     Some(Release {
         version: v["tag_name"].as_str()?.trim_start_matches('v').to_string(),
-        notes: v["body"].as_str().unwrap_or("").chars().take(4000).collect(),
+        notes: clean_notes(v["body"].as_str().unwrap_or("")),
         exe_url: exe["browser_download_url"].as_str()?.to_string(),
         exe_size: exe["size"].as_u64().unwrap_or(0),
         sha_url: sha["browser_download_url"].as_str()?.to_string(),
@@ -178,5 +189,6 @@ mod tests {
         assert_eq!(h, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
         assert_eq!(parse_sha_file(&format!("{}  Spine.exe\r\n", h.to_uppercase())), Some(h));
         assert_eq!(parse_sha_file("nope"), None);
+        assert_eq!(clean_notes("## What's new\n- **Banners** on game pages.\n- Faster.\n\n---\n\n**New to Spine?** Download it."), "Banners on game pages.\nFaster.");
     }
 }

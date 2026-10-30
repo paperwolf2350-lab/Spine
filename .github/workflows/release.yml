@@ -1,7 +1,8 @@
 # Publishing a new Spine: bump `version` in spine-app/Cargo.toml and push to
 # main. If no release exists for that version yet, GitHub builds Spine.exe,
 # fingerprints it and publishes release v<version>; every Spine with updates
-# turned on offers it the next time it starts. Pushes that don't change the
+# turned on offers it the next time it starts. Write what changed in
+# release-notes.md first: Spine shows the part above the --- line in Settings. Pushes that don't change the
 # version just run the tests.
 name: Release
 
@@ -67,7 +68,4 @@ jobs:
             Spine-Setup.exe.sha256
             Spine.exe
             Spine.exe.sha256
-          generate_release_notes: true
-          body: |
-            **New to Spine?** Download **Spine-Setup.exe** and run it. No admin rights needed.
-            Already have Spine? It updates itself: Settings → Updates.
+          body_path: release-notes.md
