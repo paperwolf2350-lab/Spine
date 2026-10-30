@@ -254,20 +254,23 @@ fn plan_with(l: &Launcher, game: &Game, installed: &Installed) -> LaunchPlan {
             let (program, prefix, dirs) = if let Some(exe) = installed.path("retroarch") {
                 (exe.clone(), vec![], retroarch_core_dirs(Some(exe)))
             } else if let Some(fp) = installed.flatpak.get("retroarch") {
-                (PathBuf::from("flatpak"), vec!["run".to_string(), fp.clone()], retroarch_core_dirs(None))
+                (PathBuf::from("flatpak"), flatpak_run(fp, game), retroarch_core_dirs(None))
             } else {
                 return LaunchPlan { emulator: format!("RetroArch · {core}"), program: PathBuf::from(def.exes[0]), args: vec![], blocked: Some("Install RetroArch.".into()) };
             };
             let core_file = dirs.iter().map(|d| d.join(&file)).find(|p| p.exists()).unwrap_or_else(|| dirs[0].join(&file));
             let blocked = (!core_file.exists()).then(|| format!("Download the \"{core}\" core in RetroArch (Main Menu → Online Updater → Core Downloader)."));
-            let args = prefix.into_iter().chain(def.args.iter().map(|a| a.replace("{core}", &core_file.to_string_lossy()).replace("{rom}", &rom))).collect();
+            // On Linux, ask RetroArch to explain itself (its messages go to Spine's log);
+            // on Windows that option opens an extra console window, so not there.
+            let verbose = cfg!(target_os = "linux").then(|| "--verbose".to_string());
+            let args = prefix.into_iter().chain(verbose).chain(def.args.iter().map(|a| a.replace("{core}", &core_file.to_string_lossy()).replace("{rom}", &rom))).collect();
             LaunchPlan { emulator: format!("RetroArch · {core}"), program, args, blocked }
         }
         Launcher::Standalone(id) => {
             let def = emulator(id).expect("unknown emulator id");
             let (exe, prefix) = match (installed.path(id), installed.flatpak.get(*id)) {
                 (Some(exe), _) => (exe.clone(), vec![]),
-                (None, Some(fp)) => (PathBuf::from("flatpak"), vec!["run".to_string(), fp.clone()]),
+                (None, Some(fp)) => (PathBuf::from("flatpak"), flatpak_run(fp, game)),
                 (None, None) => return LaunchPlan { emulator: def.name.into(), program: PathBuf::from(def.exes[0]), args: vec![], blocked: Some(format!("Install {}.", def.name)) },
             };
             let needs_id = def.args.iter().any(|a| a.contains("{title_id}"));
@@ -281,6 +284,12 @@ fn plan_with(l: &Launcher, game: &Game, installed: &Installed) -> LaunchPlan {
 
 /// Start the game. Returns the child process so the app can track playtime.
 pub fn launch(plan: &LaunchPlan) -> std::io::Result<std::process::Child> {
+    launch_logged(plan, None)
+}
+
+/// Like `launch`, writing the emulator's own messages to `log` so Spine can say
+/// why a game closed right away.
+pub fn launch_logged(plan: &LaunchPlan, log: Option<&Path>) -> std::io::Result<std::process::Child> {
     if let Some(why) = &plan.blocked {
         return Err(std::io::Error::other(why.clone()));
     }
@@ -316,6 +325,11 @@ pub fn launch(plan: &LaunchPlan) -> std::io::Result<std::process::Child> {
     }
     let mut cmd = std::process::Command::new(&plan.program);
     cmd.args(&plan.args);
+    if let Some(f) = log.and_then(|p| fs::File::create(p).ok()) {
+        if let Ok(f2) = f.try_clone() {
+            cmd.stdout(f).stderr(f2);
+        }
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -331,6 +345,23 @@ pub fn launch(plan: &LaunchPlan) -> std::io::Result<std::process::Child> {
         cmd.process_group(0);
     }
     cmd.spawn()
+}
+
+/// "flatpak run --filesystem=<game folder> <app id>": a Flatpak only sees a few folders
+/// on its own, so ROMs on another drive (/media/...) are shared with it for this run.
+fn flatpak_run(app_id: &str, game: &Game) -> Vec<String> {
+    let mut v = vec!["run".to_string()];
+    let mut dirs: Vec<PathBuf> = game.versions.iter().map(|x| x.path.clone()).chain(std::iter::once(game.path.clone())).filter_map(|p| p.parent().map(Path::to_path_buf)).collect();
+    dirs.sort();
+    dirs.dedup();
+    for d in dirs {
+        if d.as_os_str().is_empty() {
+            continue;
+        }
+        v.push(format!("--filesystem={}", d.display()));
+    }
+    v.push(app_id.to_string());
+    v
 }
 
 /// Where RetroArch keeps its cores: next to a portable retroarch(.exe), in the
@@ -471,7 +502,7 @@ mod linux_tests {
         // PS2 through the Flatpak: "flatpak run net.pcsx2.PCSX2 -batch ... game.iso"
         let p = plan(system_by_id("ps2").unwrap(), &game("/roms/ps2/Okami.iso"), &inst);
         assert_eq!(p.program, PathBuf::from("flatpak"));
-        assert_eq!(&p.args[..2], &["run".to_string(), "net.pcsx2.PCSX2".to_string()]);
+        assert_eq!(&p.args[..3], &["run".to_string(), "--filesystem=/roms/ps2".to_string(), "net.pcsx2.PCSX2".to_string()]);
         assert_eq!(p.args.last().map(String::as_str), Some("/roms/ps2/Okami.iso"));
         assert!(p.blocked.is_none());
         let _ = fs::remove_dir_all(&base);
@@ -485,5 +516,32 @@ mod linux_tests {
         assert_eq!(cfg_path(&base.join("retroarch.cfg"), "libretro_directory", &base), Some(base.join("mycores")));
         assert_eq!(cfg_path(&base.join("retroarch.cfg"), "system_directory", &base), None);
         let _ = fs::remove_dir_all(&base);
+    }
+}
+
+/// The useful end of an emulator's log: error lines first, else the last lines.
+pub fn log_reason(log: &str) -> Option<String> {
+    let lines: Vec<&str> = log.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    if lines.is_empty() {
+        return None;
+    }
+    let errors: Vec<&str> = lines.iter().copied().filter(|l| {
+        let low = l.to_lowercase();
+        low.contains("[error]") || low.contains("error:") || low.contains("failed") || low.contains("no such file") || low.contains("permission denied") || low.contains("could not")
+    }).collect();
+    let pick = if errors.is_empty() { &lines[lines.len().saturating_sub(4)..] } else { &errors[errors.len().saturating_sub(4)..] };
+    Some(pick.join("\n").chars().take(800).collect())
+}
+
+#[cfg(test)]
+mod launch_log_tests {
+    use super::*;
+
+    #[test]
+    fn picks_error_lines() {
+        let log = "[INFO] RetroArch 1.21\n[INFO] Loading content...\n[ERROR] Could not read content file \"/media/b/Roms/x.z64\".\n[ERROR] Failed to load content.\n[INFO] Exiting";
+        let r = log_reason(log).unwrap();
+        assert!(r.contains("Could not read content file") && r.contains("Failed to load content") && !r.contains("Exiting"));
+        assert_eq!(log_reason("  \n"), None);
     }
 }

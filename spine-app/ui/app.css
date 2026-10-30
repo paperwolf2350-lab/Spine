@@ -360,3 +360,4 @@ body.kb .cat.focused, body.kb .cat:focus-visible { box-shadow: 0 0 0 3px var(--b
 .viewer .vbar { position: absolute; bottom: 3vh; left: 0; right: 0; display: flex; justify-content: center; gap: 28px; color: #fff; font-size: 16px; }
 .pixel img { image-rendering: pixelated; }
 .relnotes { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; }
+.overlay .err { white-space: pre-wrap; text-align: left; max-width: 760px; max-height: 50vh; overflow: auto; font-size: 15px; line-height: 1.45; }

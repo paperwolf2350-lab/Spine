@@ -1631,6 +1631,13 @@ api.on('library-changed', (p) => {
 });
 api.on('game-closing', () => { if (S.playing) { S.playing.closing = true; render(); } });
 api.on('game-exited', (p) => {
+  if (p.error && S.playing) {
+    // The emulator closed right away: keep the overlay up with the reason.
+    S.playing = { ...S.playing, started: false, error: p.error };
+    S.focusKey = 'closeplay';
+    SFX.play('edge');
+    return render();
+  }
   setTimeout(() => SFX.play('welcome'), 250);
   if (S.ach) delete S.ach[p.id]; // pick up anything earned while playing
   padMute = true; // buttons still held from the exit combo shouldn't press anything here

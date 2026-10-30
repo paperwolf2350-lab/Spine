@@ -21,7 +21,11 @@ pub struct BiosIssue {
 
 /// The Flatpak app a plan runs, if it's "flatpak run <id> ...".
 fn plan_flatpak(plan: &LaunchPlan) -> Option<&str> {
-    (plan.program.file_name()?.to_str()? == "flatpak" && plan.args.first().map(String::as_str) == Some("run")).then(|| plan.args.get(1).map(String::as_str))?
+    if plan.program.file_name()?.to_str()? != "flatpak" || plan.args.first().map(String::as_str) != Some("run") {
+        return None;
+    }
+    // The app id is the first argument after "run" that isn't an option (--filesystem=...).
+    plan.args.iter().skip(1).map(String::as_str).find(|a| !a.starts_with('-'))
 }
 
 /// Which emulator a plan uses, as an id ("pcsx2") or "retroarch:<core>".

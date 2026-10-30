@@ -1,6 +1,7 @@
 ## What's new
-- Console games get many more descriptions: Spine now removes ranking numbers like "02. " from file names before asking ScreenScraper, sends each ROM's checksum, and searches by name when a file isn't recognized. Games that weren't found before are looked up again automatically.
-- PC games get descriptions, release years, genres and developers from Steam's store (since 0.4.2).
+- Linux: emulators installed as Flatpaks (like RetroArch from the Software Manager) can now open games stored on other drives. Spine shares the game's folder with them when it starts a game.
+- If an emulator closes right away, Spine now says so and shows what the emulator reported, instead of quietly returning.
+- Console games get many more descriptions (since 0.4.3), and PC games get descriptions from Steam (since 0.4.2).
 
 ---
 

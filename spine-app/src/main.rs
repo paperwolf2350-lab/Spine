@@ -444,7 +444,12 @@ fn play(id: String, handle: AppHandle) -> Result<String, String> {
     if let Some(why) = &plan.blocked {
         return Err(why.clone());
     }
-    let mut child = launch::launch(&plan).map_err(|e| format!("Couldn't start {}: {e}", plan.emulator))?;
+    // The emulator's own messages go to logs/last-game.log, so a game that closes
+    // right away can say why.
+    let log = app.dir.join("logs").join("last-game.log");
+    let _ = fs::create_dir_all(log.parent().unwrap());
+    let logged = (plan.emulator != "system").then_some(log.as_path());
+    let mut child = launch::launch_logged(&plan, logged).map_err(|e| format!("Couldn't start {}: {e}", plan.emulator))?;
     *app.running.lock().unwrap() = Some(title);
     {
         let mut s = app.saved.lock().unwrap();
@@ -467,9 +472,22 @@ fn play(id: String, handle: AppHandle) -> Result<String, String> {
     }
     std::thread::spawn(move || {
         let started = std::time::Instant::now();
-        let _ = child.wait();
+        let status = child.wait();
         done.store(true, std::sync::atomic::Ordering::Relaxed);
         let secs = started.elapsed().as_secs();
+        // Closed within a few seconds without the player quitting: tell them why.
+        let quick = plan.emulator != "system" && started.elapsed() < std::time::Duration::from_secs(6);
+        let failed = quick && status.as_ref().map_or(true, |s| !s.success());
+        let error = (quick && (failed || secs < 3)).then(|| {
+            let reason = fs::read_to_string(&log).ok().and_then(|t| launch::log_reason(&t));
+            let mut msg = format!("{} closed right away, so the game didn't start.", plan.emulator);
+            if let Some(r) = reason {
+                msg.push_str("\n\nWhat it said:\n");
+                msg.push_str(&r);
+            }
+            msg.push_str(&format!("\n\nFull details: {}", log.display()));
+            msg
+        });
         let app = h.state::<App>();
         // Shell-opened PC games return immediately; don't count those seconds.
         if plan.emulator != "system" || own_exe {
@@ -477,7 +495,7 @@ fn play(id: String, handle: AppHandle) -> Result<String, String> {
             app.save();
         }
         *app.running.lock().unwrap() = None;
-        let _ = h.emit("game-exited", serde_json::json!({"id": id, "seconds": secs}));
+        let _ = h.emit("game-exited", serde_json::json!({"id": id, "seconds": secs, "error": error}));
         if let Some(w) = h.get_webview_window("main") {
             let _ = w.unminimize();
             let _ = w.set_focus();
