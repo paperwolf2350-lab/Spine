@@ -58,22 +58,26 @@ Gotchas learned the hard way:
   sample JSON and verify on the owner's PC.
 - Media elements removed from the page keep playing: `silenceDetached()` in app.js
   handles it — keep using `liveMedia` for any new video/audio.
+- Anything Spine starts must go through `spine_core::hostenv::command` (or
+  `hostenv::sanitize`): inside the AppImage, LD_LIBRARY_PATH/GIO/GTK/GST settings
+  point at bundled libraries and crash host programs (this broke updates and
+  RetroArch on Mint until 0.4.5). On Linux, downloads use the built-in ureq
+  downloader first.
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
-## Where things stand (end of Oct 2026, v0.4.3)
+## Where things stand (end of Oct 2026, v0.4.5)
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
-- Linux: released and tested in a virtual screen; not yet on real hardware. The
-  owner is buying a Linux Mint Cinnamon laptop to test (install with the
-  one-liner in README; if the AppImage won't open: `sudo apt install libfuse2t64`
-  or use the .deb).
+- Linux: works on the owner's Linux Mint Cinnamon laptop (v0.4.5): games launch
+  through RetroArch. Not yet confirmed there: the Select+Start exit, Flatpak
+  standalone emulators, Steam/Heroic games. If the AppImage won't open:
+  `sudo apt install libfuse2t64`, or use the .deb.
 - ScreenScraper: developer access approved; the owner entered keys in Settings.
   0.4.3 fixed matching (rank prefixes, CRC32, search-by-name fallback, retries old
-  misses). **First thing to do:** ask how the re-scan went, then count results per
-  console (files in `media/info/<console>/`: ~27-byte files are "not found"
-  markers, larger ones have details).
+  misses). Result on the owner's PC: 682 of 683 games have details. The one
+  miss is "Horizon Chase Turbo" (a PC shortcut Steam search didn't match).
 
 Ideas already discussed (not started):
 - Build the ScreenScraper developer credentials into releases as a GitHub
