@@ -502,8 +502,10 @@ function detail() {
     series ? chip('series', series, `${esc(series)} series`) : null,
   ].filter(Boolean).join('<span class="dotsep">·</span>');
 
-  return topbar() + `<main class="main"><div class="backdrop" aria-hidden="true">${g.cover ? `<img src="${mediaUrl(g.cover)}" alt="">` : `<div class="tint" style="background:${s.color}"></div>`}<canvas id="bdcanvas" width="48" height="27"></canvas></div>
-  <div class="detail scroll" id="detailscroll">
+  const gc = g.cover ? coverColor(mediaUrl(g.cover), g.id) : null;
+  return topbar() + `<main class="main"${gc ? ` style="--accent:${gc.bg};--accent-ink:${gc.ink}"` : ''}><div class="backdrop" aria-hidden="true">${g.cover ? `<img src="${mediaUrl(g.cover)}" alt="">` : `<div class="tint" style="background:${s.color}"></div>`}<canvas id="bdcanvas" width="48" height="27"></canvas></div>
+  <div class="detail scroll ${g.hero ? 'has-hero' : ''}" id="detailscroll">
+   ${g.hero ? `<div class="herobanner" aria-hidden="true"><img src="${mediaUrl(g.hero)}" alt=""></div>` : ''}
    <div class="detail-top">
     <div class="left"><div class="media">${cover(g, s, 'nofav')}${g.video && videosOn() ? `<video class="preview" id="preview" muted loop playsinline preload="none" data-src="${mediaUrl(g.video)}"></video>${g.video_audio ? `<audio id="previewAudio" loop preload="none" data-src="${mediaUrl(g.video_audio)}"></audio>` : ''}
         <button class="sound" id="soundbtn" data-act="sound" aria-label="${soundOn() ? 'Mute video' : 'Turn on video sound'}" hidden>${soundOn() ? ICON.soundOn : ICON.soundOff}</button>` : ''}</div>
@@ -516,7 +518,7 @@ function detail() {
       </div></div>
     <div class="right">
       <button class="back" data-nav data-key="dback" data-act="back">${ICON.back}${esc(S.cat ? curList().tile.name : s.name)}</button>
-      <h2>${esc(g.title)}</h2>
+      ${g.logo ? `<h2 class="haslogo"><img class="gamelogo" src="${mediaUrl(g.logo)}" alt="${esc(g.title)}"></h2>` : `<h2>${esc(g.title)}</h2>`}
       ${metaLine ? `<div class="metaline">${metaLine}</div>` : ''}
       ${cats.length ? `<div class="cats" role="list" aria-label="Categories">${cats.map((c) => chip('tag', c)).join('')}</div>` : ''}
       ${i.description ? `<p class="desc">${esc(i.description)}</p>` : ''}
@@ -538,6 +540,7 @@ function detail() {
       </div>
     </div>
    </div>
+   ${shotsHtml(g)}
    ${achHtml(g, s)}
    ${rows}
   </div></main>` + hints('Pick a category to see every game like it', [['A', 'Select'], ['B', 'Back'], ['Y', 'Favorite']]);
@@ -666,6 +669,72 @@ async function checkUpdate(quiet) {
     else if (!quiet) toast("You have the newest Spine");
   } catch (e) { S.update = quiet ? null : { error: String(e) }; }
   if (S.panel === 'settings') render();
+}
+
+// ---- Screenshots: a strip on the game page, full size in a viewer.
+function shotsHtml(g) {
+  if (!g.shots?.length) return '';
+  const pix = findGame(g.id)?.s?.id !== 'pc' ? ' pixel' : '';
+  return `<section class="morerow shots"><h3>Screenshots</h3><div class="shotstrip${pix}">${g.shots.map((u, i) =>
+    `<button class="shot" data-nav data-key="shot-${i}" data-act="openshot" data-i="${i}" aria-label="Screenshot ${i + 1} of ${g.shots.length}"><img src="${mediaUrl(u)}" alt="" loading="lazy"></button>`).join('')}</div></section>`;
+}
+function shotViewer() {
+  if (S.shot == null || S.screen !== 'detail') return '';
+  const g = findGame(S.game)?.g;
+  if (!g?.shots?.length) return '';
+  const i = Math.max(0, Math.min(S.shot, g.shots.length - 1));
+  const pix = findGame(S.game)?.s?.id !== 'pc' ? ' pixel' : '';
+  return `<div class="viewer${pix}" role="dialog" aria-label="Screenshot ${i + 1} of ${g.shots.length}" data-act="closeshot">
+    <img src="${mediaUrl(g.shots[i])}" alt="">
+    <button class="vnav prev" data-nav data-key="v-prev" data-act="stepshot" data-d="-1" aria-label="Previous">${ICON.back}</button>
+    <button class="vnav next" data-nav data-key="v-next" data-act="stepshot" data-d="1" aria-label="Next">${ICON.back}</button>
+    <div class="vbar"><span>${i + 1} / ${g.shots.length}</span><span>${glyph('B')} Close</span></div></div>`;
+}
+
+// ---- Colors from the cover: the game page takes its main color.
+const coverColors = {};
+function coverColor(url, id) {
+  if (url in coverColors) return coverColors[url];
+  coverColors[url] = null;
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    try {
+      const c = document.createElement('canvas'); c.width = 48; c.height = 64;
+      const x = c.getContext('2d', { willReadFrequently: true });
+      x.imageSmoothingQuality = 'high';
+      x.drawImage(img, 0, 0, 48, 64);
+      coverColors[url] = pickColor(x.getImageData(0, 10, 48, 50).data); // skip the console banner along the top and the rating box
+    } catch (e) { coverColors[url] = null; }
+    if (coverColors[url] && S.screen === 'detail' && S.game === id && !S.panel && !S.playing && S.shot == null) {
+      const m = document.querySelector('main.main'); if (m) { m.style.setProperty('--accent', coverColors[url].bg); m.style.setProperty('--accent-ink', coverColors[url].ink); }
+    }
+  };
+  img.src = url;
+  return null;
+}
+// The most colorful common color, kept dark enough for white text on top.
+function pickColor(d) {
+  const buckets = {};
+  for (let i = 0; i < d.length; i += 4) {
+    const [r, g, b] = [d[i], d[i + 1], d[i + 2]];
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    const sat = mx ? (mx - mn) / mx : 0;
+    if (sat < 0.28 || mx < 40) continue; // skip greys, whites, blacks
+    const k = `${r >> 6},${g >> 6},${b >> 6}`;
+    const bk = buckets[k] || (buckets[k] = { n: 0, r: 0, g: 0, b: 0, w: 0 });
+    const w = sat * sat * (mx / 255);
+    bk.n++; bk.w += w; bk.r += r * w; bk.g += g * w; bk.b += b * w;
+  }
+  const best = Object.values(buckets).sort((a, b) => b.w - a.w)[0];
+  if (!best || best.n < 30) return null;
+  let [r, g, b] = [best.r / best.w, best.g / best.w, best.b / best.w];
+  // Keep the color vivid; only tame very light or very dark ones.
+  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  const f = lum > 0.7 ? 0.7 / lum : lum < 0.14 ? 0.14 / Math.max(lum, 0.01) : 1;
+  [r, g, b] = [r, g, b].map((v) => Math.round(Math.min(255, v * f)));
+  const L = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return { bg: `rgb(${r}, ${g}, ${b})`, ink: L > 0.5 ? '#16120E' : '#fff' };
 }
 
 // RetroAchievements on the game page: loaded once per game, in the background.
@@ -811,7 +880,7 @@ function render() {
   const scrollers = {};
   app.querySelectorAll('.scroll').forEach((el) => { if (el.id) scrollers[el.id] = el.scrollTop; });
   const screens = { welcome, scanning, home, games, detail, loading: () => '' };
-  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + emulatorPanel() + editPanel() + listsPanel() + searchPanel();
+  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + emulatorPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
   Object.entries(scrollers).forEach(([id, top]) => { const el = document.getElementById(id); if (el) el.scrollTop = top; });
   const car = document.getElementById('carousel');
   if (car) {
@@ -1146,6 +1215,12 @@ const ACT = {
     try { await api.call('install_update'); } catch (e) { S.update = { ...S.update, busy: null, error: String(e) }; render(); }
   },
   autoupdate() { S.focusKey = 'upd-auto'; setSetting('autoUpdate', settings().autoUpdate === false); },
+  openshot(d) { S.shot = +d.i; S.shotFrom = `shot-${d.i}`; stopPreview(); S.focusKey = 'v-next'; render(); },
+  stepshot(d) {
+    const n = findGame(S.game)?.g?.shots?.length || 1;
+    S.shot = (S.shot + +d.d + n) % n; S.focusKey = +d.d < 0 ? 'v-prev' : 'v-next'; render();
+  },
+  closeshot() { S.focusKey = `shot-${S.shot}`; S.shot = null; render(); },
   exitcombo(d) { S.focusKey = `ex-${d.v}`; setSetting('exitCombo', d.v === 'on'); },
   videos(d) { S.focusKey = `vid-${d.v}`; setSetting('videos', d.v === 'on'); },
   sound() {
@@ -1313,6 +1388,12 @@ function press(btn) {
   document.body.classList.add('kb');
   const cur = document.activeElement;
   const typing = cur && cur.tagName === 'INPUT';
+  if (S.shot != null && S.screen === 'detail') {
+    if (btn === 'left' || btn === 'LB') return ACT.stepshot({ d: -1 });
+    if (btn === 'right' || btn === 'RB') return ACT.stepshot({ d: 1 });
+    if (btn === 'B' || btn === 'A') return ACT.closeshot();
+    return;
+  }
   switch (btn) {
     case 'up': case 'down': case 'left': case 'right': return move(btn);
     case 'A': if (cur?.dataset?.act) ACT[cur.dataset.act]?.(cur.dataset); else if (typing) move('down'); return;
@@ -1416,7 +1497,7 @@ function renderToast() {
   if (S.fetch && S.fetch.total) {
     const pct = Math.round((100 * S.fetch.done) / S.fetch.total);
     el.hidden = false;
-    el.innerHTML = `<span>${S.fetch.stage === 'details' ? 'Looking up game details' : S.fetch.stage === 'videos' ? 'Finding trailers' : S.fetch.stage === 'categories' ? 'Sorting games into categories' : 'Downloading covers'} ${S.fetch.done}/${S.fetch.total}</span><span class="bar"><i style="width:${pct}%"></i></span>`;
+    el.innerHTML = `<span>${S.fetch.stage === 'details' ? 'Looking up game details' : S.fetch.stage === 'videos' ? 'Finding trailers' : S.fetch.stage === 'art' ? 'Getting banners, logos and screenshots' : S.fetch.stage === 'categories' ? 'Sorting games into categories' : 'Downloading covers'} ${S.fetch.done}/${S.fetch.total}</span><span class="bar"><i style="width:${pct}%"></i></span>`;
     return;
   }
   el.hidden = true;

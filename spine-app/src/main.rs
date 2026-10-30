@@ -126,6 +126,10 @@ struct GameView {
     warnings: Vec<String>,
     info: Option<screenscraper::GameInfo>,
     meta: Option<spine_core::meta::GameMeta>,
+    /// Wide banner and logo for the game page, and screenshots.
+    hero: Option<String>,
+    logo: Option<String>,
+    shots: Vec<String>,
     /// Its drive isn't connected right now.
     offline: bool,
     /// Unix time it first showed up (0 = was there from the start).
@@ -248,6 +252,9 @@ fn view(app: &App) -> Boot {
                                 warnings: g.warnings.clone(),
                                 info: g.info.clone(),
                                 meta: g.meta.clone(),
+                                hero: spine_core::extras::existing_hero(&media, &g.id).as_deref().and_then(rel),
+                                logo: spine_core::extras::existing_logo(&media, &g.id).as_deref().and_then(rel),
+                                shots: spine_core::extras::existing_shots(&media, &g.id).iter().filter_map(|p| rel(p)).collect(),
                                 offline: is_offline(&g.path),
                                 added: saved.first_seen.get(&g.id).copied().unwrap_or(0),
                                 renamed: saved.renames.contains_key(&g.id),
@@ -367,6 +374,7 @@ fn fetch_media(handle: AppHandle) {
         };
         covers::fetch_covers(&mut lib, &media, &|d, t, title| emit("covers", d, t, title));
         covers::fetch_steam_videos(&mut lib, &media, &|d, t, title| emit("videos", d, t, title));
+        spine_core::extras::fetch_extras(&lib, &media, creds.steamgriddb_key.as_deref(), &|d, t, title| emit("art", d, t, title));
         let metas = spine_core::meta::build(&lib, &media, None, &|d, t, title| emit("categories", d, t, title));
         spine_core::meta::save(&media, &metas);
         if creds.screenscraper_ready() {

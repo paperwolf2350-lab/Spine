@@ -1,13 +1,7 @@
 # Spine — to-do list
 
 ## Next up (planned)
-- **Hero art and game logos** on game pages: a wide banner across the top and
-  the game's real logo in place of the plain title. Source: SteamGridDB
-  (heroes + logos) and ScreenScraper (fanart + "wheel" logos).
-- **Screenshot strip** on game pages, scrollable with the controller and
-  opening full size. Source: Steam (PC games), ScreenScraper (consoles).
-- **Colors from the cover**: pick each cover's main color and use it for the
-  Play button and highlights on that game's page.
+- Nothing queued: suggest something!
 
 ## Waiting on accounts
 - **ScreenScraper developer key** (requested on their forum): turns on names
@@ -15,15 +9,13 @@
   categories for GameCube, PS2, Wii U, Switch, 3DS and Vita.
 
 ## Later
-- A proper installer (share Spine with friends).
 - Linux build.
-
-## To do
-
-- Self-update: needs a place to publish releases (e.g. a GitHub repo with releases).
 
 ## Done
 
+- Hero banners and logos, screenshots with a full-size viewer, colors taken from each cover.
+- One-click installer (Spine-Setup.exe) in every release.
+- Self-updating from GitHub releases.
 - Hold Select + Start to close a game and come back (Settings → Controller).
 - Several ROM folders; unplugged drives keep their games listed, greyed out.
 - Missing BIOS / keys warnings with the exact file and folder.

@@ -1,9 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Spine",
-  "version": "0.2.0",
+  "mainBinaryName": "Spine",
+  "version": "0.3.0",
   "identifier": "app.spine.frontend",
-  "build": { "frontendDist": "./ui" },
+  "build": {
+    "frontendDist": "./ui"
+  },
   "app": {
     "withGlobalTauri": true,
     "windows": [
@@ -18,7 +21,31 @@
         "backgroundColor": "#F6F2EA"
       }
     ],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
-  "bundle": { "active": false, "icon": ["icons/icon.png", "icons/icon.ico"] }
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
+    "publisher": "Spine",
+    "shortDescription": "Your game library, like a console",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "displayLanguageSelector": false
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    }
+  }
 }

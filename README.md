@@ -7,10 +7,13 @@ games show up too. Everything works with a controller.
 
 ## Get it
 
-Download **Spine.exe** from the latest release on this page, put it in its own
-folder (for example `Documents\Spine`), and run it. Spine keeps its settings,
-covers and favorites in that folder, so it's fully portable. It updates itself:
-when a new version is out, Settings → Updates offers it.
+Download **Spine-Setup.exe** from the latest release on this page and run it.
+No admin rights needed; Spine gets a Start menu entry and a desktop shortcut.
+It updates itself: when a new version is out, Settings → Updates offers it.
+
+Prefer no installer? Download **Spine.exe** instead and put it in its own folder
+(for example `Documents\Spine`). Spine keeps its settings, covers and favorites
+next to the program, so that folder is all it needs.
 
 Windows 10 or 11. Your emulators can live anywhere common (an `Emulators`
 folder next to your ROMs, Program Files, AppData).

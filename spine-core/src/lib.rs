@@ -7,6 +7,7 @@
 pub mod bios;
 pub mod config;
 pub mod covers;
+pub mod extras;
 pub mod launch;
 pub mod meta;
 pub mod scan;

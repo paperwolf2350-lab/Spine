@@ -105,6 +105,11 @@ impl ArtIndex {
         ArtIndex { entries, exact, by_key }
     }
 
+    /// The entry with exactly this file name (for tests and tools).
+    pub fn entries_named(&self, name: &str) -> Option<ArtEntry> {
+        self.entries.iter().find(|e| e.name == name).cloned()
+    }
+
     pub fn len(&self) -> usize {
         self.entries.len()
     }
@@ -270,7 +275,7 @@ pub fn steam_search_pub(agent: &Agent, names: &[String]) -> Result<u32, String> 
     steam_search(agent, names)
 }
 
-fn steam_search(agent: &Agent, names: &[String]) -> Result<u32, String> {
+pub(crate) fn steam_search(agent: &Agent, names: &[String]) -> Result<u32, String> {
     for n in names {
         let url = format!("https://store.steampowered.com/api/storesearch/?cc=us&l=english&term={}", utf8_percent_encode(n, PATH_SEG));
         let json = get_bytes(agent, &url)?;
@@ -294,9 +299,9 @@ pub fn agent() -> Agent {
     Agent
 }
 
-const PATH_SEG: &AsciiSet = &NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(b'.').remove(b'~');
+pub(crate) const PATH_SEG: &AsciiSet = &NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(b'.').remove(b'~');
 
-fn curl(url: &str, fail_on_http_error: bool, headers: &[String]) -> Result<Vec<u8>, String> {
+pub(crate) fn curl(url: &str, fail_on_http_error: bool, headers: &[String]) -> Result<Vec<u8>, String> {
     let mut cmd = std::process::Command::new("curl");
     cmd.args(["-sSL", "--connect-timeout", "15", "--max-time", "90", "--retry", "2", "-A", "Spine/0.1 (game library frontend)"]);
     if fail_on_http_error {
@@ -320,7 +325,7 @@ fn curl(url: &str, fail_on_http_error: bool, headers: &[String]) -> Result<Vec<u
     }
 }
 
-fn get_bytes(_agent: &Agent, url: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn get_bytes(_agent: &Agent, url: &str) -> Result<Vec<u8>, String> {
     curl(url, true, &[])
 }
 
@@ -329,7 +334,7 @@ pub fn get_text_any(_agent: &Agent, url: &str) -> Result<String, String> {
     curl(url, false, &[]).map(|b| String::from_utf8_lossy(&b).to_string())
 }
 
-fn is_image(b: &[u8]) -> Option<&'static str> {
+pub(crate) fn is_image(b: &[u8]) -> Option<&'static str> {
     if b.starts_with(&[0x89, b'P', b'N', b'G']) {
         Some("png")
     } else if b.starts_with(&[0xFF, 0xD8]) {
@@ -436,7 +441,7 @@ fn download_steam(agent: &Agent, app: u32, dest: &Path) -> Result<(), String> {
     Err(last)
 }
 
-fn save(dest: &Path, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn save(dest: &Path, bytes: &[u8]) -> Result<(), String> {
     if let Some(d) = dest.parent() {
         fs::create_dir_all(d).map_err(|e| e.to_string())?;
     }
@@ -701,7 +706,7 @@ pub fn attach_existing(lib: &mut Library, media: &Path) {
 // SteamGridDB (needs a free API key)
 // ---------------------------------------------------------------------------
 
-const SGDB: &str = "https://www.steamgriddb.com/api/v2";
+pub(crate) const SGDB: &str = "https://www.steamgriddb.com/api/v2";
 
 /// Pick the SteamGridDB game whose name matches one of `names` from an autocomplete result.
 pub fn pick_sgdb_game(json: &[u8], names: &[String]) -> Option<u64> {
