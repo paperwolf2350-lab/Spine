@@ -186,6 +186,8 @@ after the show name); results in `Seasons.specials` by file name (tmdb 0 = not f
 picture at `stills/tv/<slug>/special-<file>.jpg`. "Fix match" on the Movies &
 specials tab stores a typed name in spine-state.json `special_queries`
 ("<show id>|<file>") and `forget_special` clears the old result.
+Confirmed on the owner's PC (Oct 31): all three specials (JJK 0, Goblin's Crown,
+Demon Slayer Mugen Train) matched automatically, no Fix match needed.
 Remaining ideas: "Fix match" for whole shows and for the Movies shelf.
 Known gaps for later: renaming a movie doesn't re-run the TMDB lookup; Surprise me
 can pick a movie; "Continue playing" lists movies too.
