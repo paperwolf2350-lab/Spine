@@ -1,6 +1,7 @@
 # Spine — to-do list
 
 ## Next up (planned)
+- **Fix:** clicking a letter in the A–Z column on a console's page no longer jumps to that letter (reported Oct 31, v0.7.2).
 - Ideas: "Fix match" for whole shows; resume in mpv; keep Surprise me to games.
 
 ## Waiting on accounts
