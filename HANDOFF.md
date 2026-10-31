@@ -146,8 +146,8 @@ with posters/cover art, details, and seasons/episodes. Agreed approach:
   TMDB key errors reach the UI as a `fetch-error` event.
 - UI: Movies tile on Home, "movie/watched" wording, runtime on the detail page;
   "My own video", "Fix name or cover" and achievements are hidden for movies.
-- Not verified against the real TMDB yet (no key in the workspace): the owner
-  should add a folder + key and report what matched.
+- Confirmed working on the owner's PC (Oct 31): folders, TMDB posters/details
+  and playback all as intended.
 
 Next: TV seasons/episodes (step 2), then resume and Continue watching (step 3).
 Known gaps for later: renaming a movie doesn't re-run the TMDB lookup; Surprise me
