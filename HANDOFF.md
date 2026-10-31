@@ -85,6 +85,14 @@ Gotchas learned the hard way:
 
 Ideas already discussed (not started):
 - List Spine on Flathub for one-click Linux installs.
+- YouTube showcase video. The script is drafted as a Claude Doc ("Spine — YouTube
+  Showcase Script", https://claude.ai/artifact/QmH3FRGe7udhD1cHcKxtMV). The owner's
+  mic is broken, so the voice will be TTS. The owner records the footage with OBS
+  (no mic needed) and Claude helps with the rest: rewriting the script for TTS,
+  suggesting voices, a shot list, captions, title/description/chapters, and edit
+  advice. Recording tips: mute trailer audio (copyright claims), don't show
+  Settings → Scrapers with keys filled in, let covers load first, and test
+  Select+Start on Linux before filming it.
 
 ## Next feature: Movies & TV
 
