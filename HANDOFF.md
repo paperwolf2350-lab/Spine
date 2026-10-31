@@ -66,7 +66,7 @@ Gotchas learned the hard way:
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
-## Where things stand (end of Oct 2026, v0.6.1)
+## Where things stand (end of Oct 2026, v0.6.2)
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
@@ -179,7 +179,14 @@ after earlier seasons on disk. Arcs: `Seasons.list` (TMDB's season list) feeds a
 ("<show id>|<arc>" → {season, start}); `set_arc_season`. Matched arcs sort by season.
 Stills are now named by TMDB numbering. Checked on the owner's PC: Godzilla S.P,
 Kimetsu S1, Goblin Slayer S1/S2 matched fine.
-Remaining ideas: "Fix match" (re-search TMDB with a typed name) for movies and shows.
+Owner confirmed the arc picker fixed Demon Slayer.
+**0.6.2**: specials (unnumbered files in a show folder) are searched among TMDB
+*movies* (`tv::special_queries`: full clean file name without "Movie", then the part
+after the show name); results in `Seasons.specials` by file name (tmdb 0 = not found),
+picture at `stills/tv/<slug>/special-<file>.jpg`. "Fix match" on the Movies &
+specials tab stores a typed name in spine-state.json `special_queries`
+("<show id>|<file>") and `forget_special` clears the old result.
+Remaining ideas: "Fix match" for whole shows and for the Movies shelf.
 Known gaps for later: renaming a movie doesn't re-run the TMDB lookup; Surprise me
 can pick a movie; "Continue playing" lists movies too.
 

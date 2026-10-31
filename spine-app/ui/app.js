@@ -550,7 +550,8 @@ function detail() {
       <button class="btn small" data-nav data-key="arcpick" data-act="arcpick" data-id="${esc(g.id)}" data-g="${esc(group)}">${g.arcs?.[group] ? 'Change season' : 'Which season is this?'}</button></div>` : ''}
     <div class="eplist">${shown.map(({ e, i }) => `<button class="ep" data-nav data-key="ep-${i}" data-act="play" data-id="${esc(g.id)}" data-ep="${i}" title="${esc(e.file)}">
       <span class="thumb">${e.still ? `<img src="${mediaUrl(e.still)}" alt="" loading="lazy">` : `${thumbFallback}<span style="position:relative">${e.number ?? ICON.film}</span>`}</span>
-      <span><span class="et"><span class="n">${esc(epCode(e))}</span>${esc(e.title || (e.number != null ? 'Episode ' + e.number : e.file))}</span>${e.overview ? `<span class="eo">${esc(e.overview)}</span>` : ''}</span></button>`).join('')}</div></section>`;
+      <span><span class="et">${epCode(e) ? `<span class="n">${esc(epCode(e))}</span>` : ''}${esc(e.title || (e.number != null ? 'Episode ' + e.number : e.file))}</span>${e.note ? `<span class="eo" style="font-weight:600">${esc(e.note)}</span>` : ''}${e.overview ? `<span class="eo">${esc(e.overview)}</span>` : ''}</span></button>`).join('')}</div>
+    ${group === 'Movies & specials' ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span class="note">Wrong movie, or no details?</span><button class="btn small" data-nav data-key="spfix" data-act="spfix" data-id="${esc(g.id)}">Fix match</button></div>` : ''}</section>`;
   const metaLine = [
     year ? `<span>${esc(year)}</span>` : null,
     i.runtime ? `<span>${esc(fmtRuntime(i.runtime))}</span>` : null,
@@ -732,6 +733,21 @@ function arcPanel() {
     ${opts.length ? `<div class="choices">${opts.map(row).join('')}
       ${cur ? `<button class="choice" data-nav data-key="arc-none" data-act="setarc" data-s=""><span class="t">Not matched</span><span class="n">Forget this match</span></button>` : ''}</div>`
       : `<p class="note">Spine hasn't downloaded TMDB's season list for this show yet. Wait for "Getting TV shows" to finish, then try again.</p>`}
+  </aside></div>`;
+}
+
+function specialPanel() {
+  if (S.panel !== 'special' || !S.spFix) return '';
+  const found = findGame(S.spFix);
+  if (!found) return '';
+  const sps = (found.g.episodes || []).filter((e) => e.number == null);
+  return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="Fix match">
+    <h2>Fix match</h2>
+    <span class="note">Spine looks these up among TMDB's movies. If one is wrong or missing, type its English title (for example "Demon Slayer Mugen Train") and search again.</span>
+    ${sps.map((e, i) => `<div class="grp"><span class="k">${esc(e.file)}</span>
+      ${e.note ? `<span class="note">Now: ${esc(e.title || '')}${e.note.startsWith('Movie') ? ' · ' + esc(e.note) : ''}</span>` : ''}
+      <label class="field"><span>Search TMDB for</span><input type="text" id="sq-${i}" data-nav data-key="sq-${i}" value="${esc(e.query || e.title || '')}" autocomplete="off" spellcheck="false"></label>
+      <div class="opts"><button class="btn primary" data-nav data-key="sqgo-${i}" data-act="setspecial" data-i="${i}">Search again</button></div></div>`).join('')}
   </aside></div>`;
 }
 
@@ -980,7 +996,7 @@ function render() {
   const scrollers = {};
   app.querySelectorAll('.scroll').forEach((el) => { if (el.id) scrollers[el.id] = el.scrollTop; });
   const screens = { welcome, scanning, home, games, detail, loading: () => '' };
-  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + emulatorPanel() + arcPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
+  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + emulatorPanel() + arcPanel() + specialPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
   silenceDetached();
   Object.entries(scrollers).forEach(([id, top]) => { const el = document.getElementById(id); if (el) el.scrollTop = top; });
   const car = document.getElementById('carousel');
@@ -1209,6 +1225,18 @@ const ACT = {
     S.emu = { id: d.id, ...r };
     S.panel = 'emulator'; S.focusKey = null;
     render();
+  },
+  spfix(d) { S.spFix = d.id; S.panel = 'special'; S.focusKey = 'sq-0'; render(); },
+  async setspecial(d) {
+    const found = findGame(S.spFix);
+    const e = (found?.g.episodes || []).filter((x) => x.number == null)[Number(d.i)];
+    if (!e) return;
+    const q = document.getElementById('sq-' + d.i)?.value || '';
+    S.boot = await api.call('set_special_query', { id: S.spFix, file: e.file, query: q });
+    S.panel = null; S.focusKey = 'spfix';
+    render();
+    toast('Searching TMDB…', 4000);
+    api.call('fetch_media');
   },
   arcpick(d) { S.arcPick = { id: d.id, group: d.g }; S.panel = 'arc'; S.focusKey = null; render(); },
   async setarc(d) {

@@ -14,6 +14,7 @@
 
 ## Done
 
+- Movies in show folders looked up as TMDB movies, with Fix match (0.6.2).
 - TV details for long-season anime and arcs you match to a season (0.6.1).
 - TV shows, step 2 (0.6.0): TV folders, seasons/arcs/specials, episode list with TMDB names and thumbnails.
 - Movies, step 1 (0.5.0): movie folders, TMDB posters and details, plays in VLC or mpv.

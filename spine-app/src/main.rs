@@ -68,6 +68,9 @@ struct Saved {
     /// Which TMDB season each arc folder is: "<show id>|<arc name>" -> season.
     #[serde(default)]
     arc_seasons: BTreeMap<String, spine_core::tv::ArcMap>,
+    /// Names the user typed for movies in show folders: "<show id>|<file name>" -> name.
+    #[serde(default)]
+    special_queries: BTreeMap<String, String>,
 }
 
 impl Saved {
@@ -196,6 +199,10 @@ struct EpisodeView {
     overview: Option<String>,
     still: Option<String>,
     file: String,
+    /// Movies & specials: "Movie · 2021 · 1 h 45 min", or why there are no details.
+    note: Option<String>,
+    /// Movies & specials: what Spine searched TMDB for (to fix a wrong match).
+    query: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -366,6 +373,36 @@ fn episode_views(g: &spine_core::Game, media: &Path, rel: &dyn Fn(&Path) -> Opti
                 _ => None,
             };
             let still = m.map(|(s, n)| spine_core::tv::still_path(media, &g.id, s, n)).filter(|p| p.is_file()).and_then(|p| rel(&p));
+            let file = e.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
+            // A movie in the show's folder: what TMDB's movies said about it.
+            if e.number.is_none() {
+                let sp = tmdb.as_ref().and_then(|t| t.specials.get(&file));
+                let found = sp.filter(|x| x.tmdb != 0);
+                let note = match (sp, found) {
+                    (_, Some(x)) => {
+                        let mut parts = vec!["Movie".to_string()];
+                        parts.extend(x.year.clone());
+                        if let Some(m) = x.runtime {
+                            parts.push(if m >= 60 { format!("{} h {} min", m / 60, m % 60) } else { format!("{m} min") });
+                        }
+                        Some(parts.join(" · "))
+                    }
+                    (Some(_), None) => Some("Not found on TMDB. Use Fix match to search for it by name.".into()),
+                    (None, None) => None,
+                };
+                let still = Some(spine_core::tv::special_still(media, &g.id, &file)).filter(|p| p.is_file()).and_then(|p| rel(&p));
+                return EpisodeView {
+                    group: e.group.clone(),
+                    season: None,
+                    number: None,
+                    title: found.and_then(|x| x.name.clone()).or_else(|| e.title.clone()),
+                    overview: found.and_then(|x| x.overview.clone()),
+                    still,
+                    note,
+                    query: sp.and_then(|x| x.query.clone()).or_else(|| spine_core::tv::special_queries(e).into_iter().next()),
+                    file,
+                };
+            }
             EpisodeView {
                 group: e.group.clone(),
                 season: e.season,
@@ -373,7 +410,9 @@ fn episode_views(g: &spine_core::Game, media: &Path, rel: &dyn Fn(&Path) -> Opti
                 title: t.and_then(|t| t.name.clone()).or_else(|| e.title.clone()),
                 overview: t.and_then(|t| t.overview.clone()),
                 still,
-                file: e.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default(),
+                file,
+                note: None,
+                query: None,
             }
         })
         .collect()
@@ -499,6 +538,24 @@ fn remove_tv_root(path: String, app: State<App>) -> Boot {
     view(&app)
 }
 
+/// "Fix match" for a movie in a show's folder: search TMDB's movies for this name next time.
+#[tauri::command]
+fn set_special_query(id: String, file: String, query: String, app: State<App>) -> Boot {
+    let q = query.trim().to_string();
+    {
+        let mut s = app.saved.lock().unwrap();
+        let k = format!("{id}|{file}");
+        if q.is_empty() {
+            s.special_queries.remove(&k);
+        } else {
+            s.special_queries.insert(k, q);
+        }
+    }
+    app.save();
+    spine_core::tv::forget_special(&app.media(), &id, &file);
+    view(&app)
+}
+
 /// Say which TMDB season an arc folder is (None: forget the match).
 #[tauri::command]
 fn set_arc_season(id: String, group: String, season: Option<u32>, start: Option<u32>, app: State<App>) -> Boot {
@@ -549,8 +606,11 @@ fn fetch_media(handle: AppHandle) {
         if let Some(key) = &creds.tmdb_key {
             let r = spine_core::movies::fetch_details(&videos, &media, key, &|d, t, title| emit("movies", d, t, title))
                 .and_then(|_| {
-                    let arcs = app.saved.lock().unwrap().arc_seasons.clone();
-                    spine_core::tv::fetch_details(&videos, &media, key, &|id, group| arcs.get(&format!("{id}|{group}")).copied(), &|d, t, title| emit("tv", d, t, title))
+                    let (arcs, queries) = {
+                        let s = app.saved.lock().unwrap();
+                        (s.arc_seasons.clone(), s.special_queries.clone())
+                    };
+                    spine_core::tv::fetch_details(&videos, &media, key, &|id, group| arcs.get(&format!("{id}|{group}")).copied(), &|id, file| queries.get(&format!("{id}|{file}")).cloned(), &|d, t, title| emit("tv", d, t, title))
                 });
             if let Err(e) = r {
                 movie_error = Some(e);
@@ -1402,7 +1462,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

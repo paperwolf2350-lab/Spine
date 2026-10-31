@@ -371,6 +371,64 @@ pub struct Seasons {
     /// Every season TMDB has (not counting "Specials"), for matching arcs.
     #[serde(default)]
     pub list: Vec<TmdbSeason>,
+    /// Movies in the show's folder, by file name, as found among TMDB's movies.
+    #[serde(default)]
+    pub specials: BTreeMap<String, Special>,
+}
+
+/// A movie that sits in a show's folder ("Jujutsu Kaisen 0"), looked up as a TMDB movie.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Special {
+    /// 0: TMDB had nothing for it.
+    #[serde(default)]
+    pub tmdb: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overview: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub year: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<u32>,
+    /// The search that found it (or failed), shown when fixing a match.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+}
+
+/// Where a special's picture is kept.
+pub fn special_still(media: &Path, id: &str, file: &str) -> PathBuf {
+    let stem = Path::new(file).file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
+    art_base(media, "stills", id).join(format!("special-{}.jpg", slug(&stem)))
+}
+
+/// Forget what TMDB said about one special, so it's looked up again.
+pub fn forget_special(media: &Path, id: &str, file: &str) {
+    if let Some(mut s) = load_seasons(media, id) {
+        if s.specials.remove(file).is_some() {
+            let p = seasons_path(media, id);
+            let _ = fs::write(p, serde_json::to_string(&s).unwrap_or_default());
+        }
+    }
+    let _ = fs::remove_file(special_still(media, id, file));
+}
+
+/// Names to search TMDB's movies for: the whole file name without tags
+/// ("Goblin Slayer Goblin's Crown"), then the part after the show's name.
+/// "Movie" and "Gekijouban" are left out: TMDB titles rarely start that way.
+pub fn special_queries(e: &Episode) -> Vec<String> {
+    static W: OnceLock<Regex> = OnceLock::new();
+    let clean = |t: &str| {
+        let t = re(&W, r"(?i)\b(the movie|movie|gekijouban|gekijoban|film)\b").replace_all(t, " ");
+        t.split_whitespace().collect::<Vec<_>>().join(" ").trim_matches(|c: char| c == '-' || c == ':' || c.is_whitespace()).to_string()
+    };
+    let stem = e.path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    let mut out = vec![clean(&strip_tags(&stem))];
+    if let Some(t) = &e.title {
+        out.push(clean(t));
+    }
+    out.retain(|q| q.chars().filter(|c| c.is_alphanumeric()).count() >= 2);
+    out.dedup();
+    out
 }
 
 /// One season as TMDB lists it.
@@ -493,7 +551,8 @@ pub fn parse_season(json: &serde_json::Value) -> Vec<TmdbEpisode> {
 
 /// Look up shows TMDB hasn't been asked about, and seasons not fetched yet.
 /// `arc(show id, arc name)` is the season the user matched an arc to.
-pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, &str) -> Option<ArcMap>, progress: &dyn Fn(usize, usize, &str)) -> Result<usize, String> {
+/// `special_query(show id, file name)` is a name the user typed for a special ("Fix match").
+pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, &str) -> Option<ArcMap>, special_query: &dyn Fn(&str, &str) -> Option<String>, progress: &dyn Fn(usize, usize, &str)) -> Result<usize, String> {
     let shows: Vec<&Game> = lib.systems.iter().filter(|s| s.id == SYSTEM_ID).flat_map(|s| s.games.iter()).collect();
     let agent = covers::agent();
     let mut found = 0;
@@ -547,7 +606,7 @@ pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, 
                 img("w500", &d.logo, art_base(media, "logos", &g.id));
             }
             write_info(media, &g.id, &d.info);
-            saved = Some(Seasons { tmdb, seasons: BTreeMap::new(), list: parse_season_list(&j) });
+            saved = Some(Seasons { tmdb, seasons: BTreeMap::new(), list: parse_season_list(&j), specials: BTreeMap::new() });
             found += 1;
         }
         // Episode names and thumbnails for the seasons on disk.
@@ -583,6 +642,55 @@ pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, 
                 Err(_) => continue,
             };
             seasons.seasons.insert(s, eps);
+            changed = true;
+        }
+        // Movies in the show's folder: look each up among TMDB's movies.
+        for e in g.episodes.iter().filter(|e| e.number.is_none()) {
+            let file = e.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
+            if seasons.specials.contains_key(&file) {
+                continue;
+            }
+            let queries = match special_query(&g.id, &file) {
+                Some(q) => vec![q],
+                None => special_queries(e),
+            };
+            let mut hit = None;
+            let mut failed = false;
+            for q in &queries {
+                let url = format!("{API}/search/movie?query={}&include_adult=false&language=en-US", utf8_percent_encode(q, PATH_SEG));
+                match get_json(&url, key) {
+                    Ok(j) => {
+                        if let Some(id) = movies::pick_movie(&j, q, None) {
+                            hit = Some((id, q.clone()));
+                            break;
+                        }
+                    }
+                    Err(e) if e.contains("key") => return Err(e),
+                    Err(_) => {
+                        failed = true;
+                        break;
+                    }
+                }
+            }
+            if failed {
+                continue;
+            }
+            let special = match hit {
+                None => Special { query: queries.first().cloned(), ..Default::default() },
+                Some((id, q)) => {
+                    let j = match get_json(&format!("{API}/movie/{id}?language=en-US"), key) {
+                        Ok(j) => j,
+                        Err(e) if e.contains("key") => return Err(e),
+                        Err(_) => continue,
+                    };
+                    let d = movies::parse_details(&j);
+                    if let Some(p) = d.backdrop.as_ref().or(d.poster.as_ref()) {
+                        let _ = covers::download_image(&agent, &format!("{IMG}w300{p}"), &special_still(media, &g.id, &file));
+                    }
+                    Special { tmdb: id, name: d.info.name, overview: d.info.description, year: d.info.year, runtime: d.info.runtime, query: Some(q) }
+                }
+            };
+            seasons.specials.insert(file, special);
             changed = true;
         }
         // Thumbnails for every file Spine can match to a TMDB episode.
@@ -722,22 +830,22 @@ mod tests {
 
         // Jujutsu Kaisen: TMDB has one season of 59; files say 001-024 and 025-047.
         g.episodes = vec![ep("Season 1", Some(1), 24, None), ep("Season 2", Some(2), 1, Some(25)), ep("Season 2", Some(2), 23, Some(47))];
-        let jjk = Seasons { tmdb: 1, seasons: BTreeMap::from([(1, tm(59)), (2, vec![])]), list: vec![] };
+        let jjk = Seasons { tmdb: 1, seasons: BTreeMap::from([(1, tm(59)), (2, vec![])]), list: vec![], specials: BTreeMap::new() };
         assert_eq!(resolve(&g, &jjk, &none), vec![Some((1, 24)), Some((1, 25)), Some((1, 47))]);
 
         // Wind Breaker: S01E01-13 and S02E01-12 on disk, TMDB has one season of 25.
         g.episodes = vec![ep("Season 1", Some(1), 13, None), ep("Season 2", Some(2), 1, None), ep("Season 2", Some(2), 12, None)];
-        let wb = Seasons { tmdb: 1, seasons: BTreeMap::from([(1, tm(25)), (2, vec![])]), list: vec![] };
+        let wb = Seasons { tmdb: 1, seasons: BTreeMap::from([(1, tm(25)), (2, vec![])]), list: vec![], specials: BTreeMap::new() };
         assert_eq!(resolve(&g, &wb, &none), vec![Some((1, 13)), Some((1, 14)), Some((1, 25))]);
 
         // A real season 2 on TMDB is used as is.
-        let two = Seasons { tmdb: 1, seasons: BTreeMap::from([(1, tm(13)), (2, tm(12))]), list: vec![] };
+        let two = Seasons { tmdb: 1, seasons: BTreeMap::from([(1, tm(13)), (2, tm(12))]), list: vec![], specials: BTreeMap::new() };
         assert_eq!(resolve(&g, &two, &none), vec![Some((1, 13)), Some((2, 1)), Some((2, 12))]);
 
         // Demon Slayer arcs, matched by the user: Mugen Ressha-hen is season 2 from 1,
         // Yuukaku-hen season 2 from episode 8; an unmatched arc stays unknown.
         g.episodes = vec![ep("Season 1", Some(1), 26, None), ep("Mugen Ressha-hen", None, 7, None), ep("Yuukaku-hen", None, 1, None), ep("Hashira Geiko-hen", None, 1, None)];
-        let ds = Seasons { tmdb: 1, seasons: BTreeMap::from([(1, tm(26)), (2, tm(18))]), list: vec![] };
+        let ds = Seasons { tmdb: 1, seasons: BTreeMap::from([(1, tm(26)), (2, tm(18))]), list: vec![], specials: BTreeMap::new() };
         let arcs = |a: &str| match a {
             "Mugen Ressha-hen" => Some(ArcMap { season: 2, start: 1 }),
             "Yuukaku-hen" => Some(ArcMap { season: 2, start: 8 }),
@@ -747,6 +855,14 @@ mod tests {
 
         let list: serde_json::Value = serde_json::from_str(r#"{"seasons":[{"season_number":0,"name":"Specials","episode_count":5},{"season_number":2,"name":"Entertainment District Arc","episode_count":18}]}"#).unwrap();
         assert_eq!(parse_season_list(&list), vec![TmdbSeason { number: 2, name: Some("Entertainment District Arc".into()), episodes: 18 }]);
+    }
+
+    #[test]
+    fn special_names() {
+        let sp = |file: &str, title: &str| Episode { path: PathBuf::from(file), group: SPECIALS.into(), season: None, number: None, title: Some(title.into()), absolute: None };
+        assert_eq!(special_queries(&sp("Jujutsu Kaisen 0.mkv", "Jujutsu Kaisen 0")), vec!["Jujutsu Kaisen 0"]);
+        assert_eq!(special_queries(&sp("[DB]Goblin Slayer Goblin's Crown_-_(Dual Audio_10bit_BD1080p_x265).mkv", "Goblin's Crown")), vec!["Goblin Slayer Goblin's Crown", "Goblin's Crown"]);
+        assert_eq!(special_queries(&sp("[DB]Kimetsu no Yaiba Movie Mugen Ressha-hen_-_(Dual Audio_10bit_BD1080p_x265).mkv", "Movie Mugen Ressha-hen")), vec!["Kimetsu no Yaiba Mugen Ressha-hen", "Mugen Ressha-hen"]);
     }
 
     #[test]

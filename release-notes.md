@@ -1,6 +1,7 @@
 ## What's new
-- **More shows get episode details.** For shows TMDB lists as one long season (like Jujutsu Kaisen and Wind Breaker), Spine now counts on into it, so Season 2 gets its episode names, summaries and thumbnails. Nothing to do: it happens on the next start.
-- **Arcs:** on an arc tab (like Demon Slayer's "Yuukaku-hen"), press **Which season is this?** and pick the matching TMDB season once. The arc gets its episode details and moves into story order.
+- **Movies inside show folders** (like Jujutsu Kaisen 0 or Goblin's Crown) now get their real title, year, length, summary and a picture from TMDB.
+- **Fix match:** if one comes out wrong or missing, open the show's "Movies & specials" tab, press **Fix match**, type its English title and search again.
+- Since 0.6.1: Season 2 details for shows TMDB lists as one long season, and "Which season is this?" for arcs.
 
 ---
 
