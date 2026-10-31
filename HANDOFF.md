@@ -66,7 +66,7 @@ Gotchas learned the hard way:
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
-## Where things stand (end of Oct 2026, v0.4.5)
+## Where things stand (end of Oct 2026, v0.5.0)
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
@@ -133,9 +133,25 @@ with posters/cover art, details, and seasons/episodes. Agreed approach:
   "Next episode" button.
 - Same layouts, A–Z rail, search, sounds and controller navigation as games.
 
-**Suggested first step (keeps it small)**: movies only from one folder, TMDB
-posters + details, opening in mpv/VLC. Then TV seasons/episodes, then resume
-and Continue watching.
+**Step 1 is done (v0.5.0, proof of concept)**:
+- `spine-core/src/movies.rs`: scanner (name/year cleanup, skips extras, samples,
+  trailers, S01E02 files and Season folders; duplicates keep the bigger file),
+  TMDB lookup (`fetch_details`; API key or Read Access Token both work), poster →
+  cover, backdrop → hero, English logo → logo, details → info JSON incl. `runtime`.
+- Movies are one more system, id `movies` (`systems.rs`), launched by the
+  `mpv` / `vlc` entries in `launch.rs` (Program Files, /usr/bin, Flatpak).
+- App: `movie_roots` in spine-state.json (Settings → Movies), `add_movie_root` /
+  `remove_movie_root`, `tmdb_key` in Scrapers. `fetch_media` runs TMDB first and
+  keeps movies out of all game-art sources (SteamGridDB would give game covers).
+  TMDB key errors reach the UI as a `fetch-error` event.
+- UI: Movies tile on Home, "movie/watched" wording, runtime on the detail page;
+  "My own video", "Fix name or cover" and achievements are hidden for movies.
+- Not verified against the real TMDB yet (no key in the workspace): the owner
+  should add a folder + key and report what matched.
+
+Next: TV seasons/episodes (step 2), then resume and Continue watching (step 3).
+Known gaps for later: renaming a movie doesn't re-run the TMDB lookup; Surprise me
+can pick a movie; "Continue playing" lists movies too.
 
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

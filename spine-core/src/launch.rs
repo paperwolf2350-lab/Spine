@@ -33,6 +33,9 @@ pub static EMULATORS: &[EmulatorDef] = &[
     EmulatorDef { id: "rmg", name: "Rosalie's Mupen GUI", exes: &["rmg.exe", "rmg", "rmg.appimage"], args: &["--fullscreen", "{rom}"] },
     EmulatorDef { id: "simple64", name: "simple64", exes: &["simple64-gui.exe", "simple64-gui"], args: &["{rom}"] },
     EmulatorDef { id: "mgba", name: "mGBA", exes: &["mgba.exe", "mgba-qt", "mgba.appimage"], args: &["-f", "{rom}"] },
+    // Movie players (the Movies shelf).
+    EmulatorDef { id: "mpv", name: "mpv", exes: &["mpv.exe", "mpvnet.exe", "mpv"], args: &["--fullscreen", "{rom}"] },
+    EmulatorDef { id: "vlc", name: "VLC", exes: &["vlc.exe", "vlc"], args: &["--fullscreen", "--play-and-exit", "{rom}"] },
 ];
 
 pub fn emulator(id: &str) -> Option<&'static EmulatorDef> {
@@ -64,6 +67,8 @@ pub const FLATPAKS: &[(&str, &str)] = &[
     ("simple64", "io.github.simple64.simple64"),
     ("ryujinx", "io.github.ryubing.Ryujinx"),
     ("vita3k", "org.vita3k.Vita3K"),
+    ("mpv", "io.mpv.Mpv"),
+    ("vlc", "org.videolan.VLC"),
 ];
 
 pub fn flatpak_id(emulator: &str) -> Option<&'static str> {
@@ -239,7 +244,12 @@ pub fn plan(sys: &System, game: &Game, installed: &Installed) -> LaunchPlan {
         if p.blocked.is_none() {
             return p;
         }
-        first_block.get_or_insert(p);
+        // Movies: when no player is installed, suggest VLC (the easiest to install).
+        if sys.id == "movies" {
+            first_block = Some(p);
+        } else {
+            first_block.get_or_insert(p);
+        }
     }
     first_block.unwrap_or(LaunchPlan { emulator: "none".into(), program: PathBuf::new(), args: vec![], blocked: Some("No emulator configured for this console.".into()) })
 }
@@ -439,6 +449,8 @@ pub fn download_pages() -> &'static [(&'static str, &'static str)] {
         ("rmg", "https://github.com/Rosalie241/RMG/releases"),
         ("simple64", "https://simple64.github.io/"),
         ("mgba", "https://mgba.io/downloads.html"),
+        ("vlc", "https://www.videolan.org/vlc/"),
+        ("mpv", "https://mpv.io/installation/"),
     ]
 }
 
@@ -477,6 +489,8 @@ pub fn flathub_pages() -> &'static [(&'static str, &'static str)] {
         ("mgba", "https://flathub.org/apps/io.mgba.mGBA"),
         ("rmg", "https://flathub.org/apps/com.github.Rosalie241.RMG"),
         ("simple64", "https://flathub.org/apps/io.github.simple64.simple64"),
+        ("vlc", "https://flathub.org/apps/org.videolan.VLC"),
+        ("mpv", "https://flathub.org/apps/io.mpv.Mpv"),
     ]
 }
 

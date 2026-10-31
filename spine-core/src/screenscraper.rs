@@ -48,6 +48,9 @@ pub struct GameInfo {
     pub players: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub developer: Option<String>,
+    /// Length in minutes (movies).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<u32>,
     /// Box art URL as returned (contains no user password; ScreenScraper media URLs carry dev id only).
     #[serde(default, skip_serializing)]
     pub box_url: Option<String>,
@@ -123,7 +126,7 @@ pub fn parse_game(json: &Value) -> Option<GameInfo> {
             }
         }
     }
-    Some(GameInfo { name, description, year, genre, players, developer, box_url, box_format, video_url, not_found_at: None, lookup: None })
+    Some(GameInfo { name, description, year, genre, players, developer, box_url, box_format, video_url, runtime: None, not_found_at: None, lookup: None })
 }
 
 pub fn info_path(media: &Path, game_id: &str) -> PathBuf {
@@ -214,7 +217,7 @@ pub fn parse_search(json: &Value, want_title: &str) -> Option<GameInfo> {
 pub fn should_use_name(system: &str, current: &str) -> bool {
     let letters: Vec<char> = current.chars().filter(|c| c.is_alphabetic()).collect();
     let abbreviation = !current.contains(' ') && letters.len() <= 6 && letters.iter().all(|c| c.is_uppercase());
-    matches!(system, "switch" | "psvita") || abbreviation
+    matches!(system, "switch" | "psvita" | "movies") || abbreviation
 }
 
 #[derive(Debug, Default)]

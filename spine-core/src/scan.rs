@@ -570,10 +570,15 @@ pub fn merge_library(lib: &mut Library, other: Library) {
 /// Scan every ROM folder. A folder that can't be read right now (its drive is
 /// unplugged) contributes what it held last time, and is listed as offline.
 pub fn scan_many(roots: &[PathBuf], cache: &Path) -> (Library, Vec<PathBuf>) {
+    scan_many_with(roots, cache, |r| scan(r).ok())
+}
+
+/// Like `scan_many`, with another way of reading one folder (movie folders use this).
+pub fn scan_many_with(roots: &[PathBuf], cache: &Path, scan_one: impl Fn(&Path) -> Option<Library>) -> (Library, Vec<PathBuf>) {
     let mut lib = Library { root: roots.first().cloned().unwrap_or_default(), systems: vec![], notes: vec![], game_count: 0 };
     let mut offline = Vec::new();
     for root in roots {
-        let found = if root.is_dir() { scan(root).ok() } else { None };
+        let found = if root.is_dir() { scan_one(root) } else { None };
         match found {
             Some(l) => {
                 let c = RootCache { systems: l.systems.iter().map(|s| (s.id.to_string(), s.games.clone())).collect() };

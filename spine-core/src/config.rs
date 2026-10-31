@@ -26,6 +26,10 @@ screenscraper_devpassword =
 # Web API key from Settings > Authentication on their site.
 retroachievements_user =
 retroachievements_key =
+
+# TMDB (https://www.themoviedb.org): posters and details for Movies. Sign in,
+# open Settings > API, and copy the API key (or the Read Access Token) here.
+tmdb_key =
 ";
 
 /// Spine's own ScreenScraper developer key, built into official releases by
@@ -45,6 +49,7 @@ pub struct Credentials {
     pub ss_devpassword: Option<String>,
     pub ra_user: Option<String>,
     pub ra_key: Option<String>,
+    pub tmdb_key: Option<String>,
 }
 
 impl Credentials {
@@ -71,6 +76,7 @@ impl Credentials {
             ss_devpassword: m.remove("screenscraper_devpassword"),
             ra_user: m.remove("retroachievements_user"),
             ra_key: m.remove("retroachievements_key"),
+            tmdb_key: m.remove("tmdb_key"),
         }
     }
 
@@ -102,6 +108,7 @@ impl Credentials {
                 Some("screenscraper_devpassword") => format!("screenscraper_devpassword = {}", v(&self.ss_devpassword)),
                 Some("retroachievements_user") => format!("retroachievements_user = {}", v(&self.ra_user)),
                 Some("retroachievements_key") => format!("retroachievements_key = {}", v(&self.ra_key)),
+                Some("tmdb_key") => format!("tmdb_key = {}", v(&self.tmdb_key)),
                 _ => line.replace("Fill these in, save, then run build-and-scan.bat again.", "Spine edits this file from Settings > Scrapers."),
             };
             text.push_str(&out);
@@ -141,10 +148,12 @@ mod tests {
         let mut c2 = c.clone();
         c2.steamgriddb_key = Some("newkey".into());
         c2.ss_password = None;
+        c2.tmdb_key = Some("tm".into());
         c2.save(&p).unwrap();
         let c3 = Credentials::load(&p);
         assert_eq!(c3.steamgriddb_key.as_deref(), Some("newkey"));
         assert_eq!(c3.ss_user.as_deref(), Some("example_user"));
         assert!(c3.ss_password.is_none());
+        assert_eq!(c3.tmdb_key.as_deref(), Some("tm"));
     }
 }

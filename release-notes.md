@@ -1,6 +1,7 @@
 ## What's new
-- ScreenScraper is now built in: console games get descriptions and gameplay videos with no setup. Adding your own free screenscraper.fr account (Settings → Scrapers) is optional and gives faster lookups.
-- Linux: Spine starts programs with your system's own settings, which fixed updates and emulators closing right away on some systems (since 0.4.5).
+- **Movies (first test version).** Settings → Movies → Add movie folder. Your films show up as a Movies shelf on Home, sorted A–Z like the games, and play in VLC or mpv (whichever you have installed).
+- Posters, banners, descriptions, year, length and genres come from TMDB. Add your free TMDB key in Settings → Scrapers.
+- TV shows aren't in yet: episode files (S01E02) and "Season" folders are skipped for now.
 
 ---
 

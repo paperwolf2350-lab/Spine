@@ -1,7 +1,7 @@
 # Spine — to-do list
 
 ## Next up (planned)
-- **Movies & TV** section (TMDB details and posters, seasons/episodes, plays in mpv/VLC). Plan in HANDOFF.md.
+- **Movies & TV**, step 2: TV shows (seasons, episodes, watched marks). Then step 3: resume where you left off and a "Continue watching" row. Plan in HANDOFF.md.
 
 ## Waiting on accounts
 - **ScreenScraper developer key** (requested on their forum): turns on names
@@ -14,6 +14,7 @@
 
 ## Done
 
+- Movies, step 1 (0.5.0): movie folders, TMDB posters and details, plays in VLC or mpv.
 - Interface sounds (Settings → Sounds).
 - Linux version: AppImage + .deb + one-line installer; Flatpak/AppImage emulators; Steam and Heroic games; controller exit combo; self-update.
 - Hero banners and logos, screenshots with a full-size viewer, colors taken from each cover.

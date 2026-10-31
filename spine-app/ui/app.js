@@ -154,6 +154,10 @@ function seriesOf(g) {
   return hit ? hit[1] : null;
 }
 const devOf = (g) => g.info?.developer || g.meta?.developer || null;
+// Movies use "movie / watched" words where games say "game / played".
+const isMovies = (s) => s && s.id === 'movies';
+const things = (s, n) => (isMovies(s) ? (n === 1 ? 'movie' : 'movies') : (n === 1 ? 'game' : 'games'));
+const fmtRuntime = (m) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? (m % 60) + ' min' : ''}`.trim() : `${m} min`);
 const yearOf = (g) => g.info?.year || g.meta?.year || null;
 function allItems() { return systems().flatMap((s) => s.games.map((g) => ({ s, g }))); }
 function catItems(cat) {
@@ -236,6 +240,7 @@ const SYS_ICON = {
   neogeo: '<rect x="8" y="14" width="48" height="24" rx="2"/><rect x="18" y="10" width="28" height="8" rx="1"/><circle cx="16" cy="30" r="2"/>',
   arcade: '<path d="M18 4h28v40H18z"/><rect x="22" y="9" width="20" height="14" rx="1"/><path d="M18 28h28"/><path d="M27 28v-4"/><circle cx="27" cy="23" r="2"/><circle cx="37" cy="27" r="1.6"/>',
   atari2600: '<path d="M8 22l6-8h36l6 8v12c0 2-2 4-4 4H12c-2 0-4-2-4-4z"/><path d="M8 28h48M14 24h6M44 24h6"/>',
+  movies: '<rect x="8" y="18" width="48" height="26" rx="2"/><path d="M8 18l4-10 44 0-4 10"/><path d="M20 8l-4 10M32 8l-4 10M44 8l-4 10"/><path d="M28 25l10 6-10 6z"/>',
   pc: '<rect x="8" y="6" width="48" height="30" rx="2"/><path d="M26 36l-2 6h16l-2-6M20 42h24"/>',
   dos: '<rect x="8" y="6" width="48" height="30" rx="2"/><path d="M16 16l5 4-5 4M24 26h8"/><path d="M26 36l-2 6h16l-2-6"/>',
   category: '<path d="M8 10h22l26 26-16 16L14 26z"/><circle cx="18" cy="18" r="3"/>',
@@ -307,7 +312,7 @@ function home() {
   const fan = src.filter((_, i) => i % step === 0).slice(0, 5);
   let status, cta;
   if (t.kind === 'sys') {
-    status = `${t.count.toLocaleString()} games · ` + (t.sys.blocked ? `<span class="warn">${esc(t.sys.blocked)}</span>` : (t.sys.emulator === 'system' ? 'opens with their store or your PC' : `launches with ${esc(t.sys.emulator)}`))
+    status = `${t.count.toLocaleString()} ${things(t.sys, t.count)} · ` + (t.sys.blocked ? `<span class="warn">${esc(t.sys.blocked)}</span>` : (t.sys.emulator === 'system' ? 'opens with their store or your PC' : `${isMovies(t.sys) ? 'plays in' : 'launches with'} ${esc(t.sys.emulator)}`))
       + (t.sys.bios && !t.sys.blocked ? `<br><span class="warn">${esc(t.sys.bios.message)}</span>` : '');
     cta = 'Open library';
   } else if (t.kind === 'coll') {
@@ -320,8 +325,8 @@ function home() {
     status = `Can't decide? Spine picks something from all ${sys.reduce((n, x) => n + x.games.length, 0).toLocaleString()} games.`;
     cta = 'Surprise me';
   }
-  const cards = T.map((c, i) => `<button class="console ${i === sel ? 'sel' : ''} ${c.kind}" style="background:${c.color};--chip:${c.color}" data-nav data-key="con-${c.id}" data-act="tile" data-i="${i}" data-focus="selcon" aria-label="${esc(c.name)}${c.count != null ? ', ' + c.count + ' games' : ''}">
-      ${sysIcon(tileIcon(c), i === sel ? 72 : 60)}<span><span class="short">${esc(c.short)}</span>${c.kind === 'sys' ? `<span class="name">${esc(c.name)}</span>` : ''}<span class="count">${c.count != null ? c.count + ' games' : 'Random pick'}</span></span></button>`).join('');
+  const cards = T.map((c, i) => `<button class="console ${i === sel ? 'sel' : ''} ${c.kind}" style="background:${c.color};--chip:${c.color}" data-nav data-key="con-${c.id}" data-act="tile" data-i="${i}" data-focus="selcon" aria-label="${esc(c.name)}${c.count != null ? ', ' + c.count + ' ' + things(c.sys, c.count) : ''}">
+      ${sysIcon(tileIcon(c), i === sel ? 72 : 60)}<span><span class="short">${esc(c.short)}</span>${c.kind === 'sys' && c.name !== c.short ? `<span class="name">${esc(c.name)}</span>` : ''}<span class="count">${c.count != null ? c.count + ' ' + things(c.sys, c.count) : 'Random pick'}</span></span></button>`).join('');
 
   const lp = S.boot.last_played || {};
   const recent = Object.entries(lp).sort((a, b) => b[1] - a[1]).map(([id]) => findGame(id)).filter(Boolean).slice(0, 6);
@@ -503,8 +508,10 @@ function detail() {
     moreRow(`More from ${s.name}`, conRow, 'mn'),
   ].join('');
 
+  const movie = isMovies(s);
   const metaLine = [
     year ? `<span>${esc(year)}</span>` : null,
+    i.runtime ? `<span>${esc(fmtRuntime(i.runtime))}</span>` : null,
     i.players ? `<span>${esc(i.players)} player${i.players === '1' ? '' : 's'}</span>` : null,
     dev ? chip('dev', dev, `by ${esc(dev)}`) : null,
     series ? chip('series', series, `${esc(series)} series`) : null,
@@ -520,9 +527,9 @@ function detail() {
       <div class="coverbtns">
         <button class="btn small" data-nav data-key="mycover" data-act="mycover" data-id="${esc(g.id)}">${ICON.image}${g.custom_cover ? 'Change cover' : 'My own cover'}</button>
         ${g.custom_cover ? `<button class="btn small" data-nav data-key="resetcover" data-act="resetcover" data-id="${esc(g.id)}">Reset</button>` : ''}
-        <button class="btn small" data-nav data-key="myvideo" data-act="myvideo" data-id="${esc(g.id)}">${ICON.film}${g.custom_video ? 'Change video' : 'My own video'}</button>
+        ${movie ? '' : `<button class="btn small" data-nav data-key="myvideo" data-act="myvideo" data-id="${esc(g.id)}">${ICON.film}${g.custom_video ? 'Change video' : 'My own video'}</button>
         ${g.custom_video ? `<button class="btn small" data-nav data-key="resetvideo" data-act="resetvideo" data-id="${esc(g.id)}">Reset</button>` : ''}
-        <button class="btn small" data-nav data-key="fixgame" data-act="fixgame" data-id="${esc(g.id)}">${ICON.pencil}Fix name or cover</button>
+        <button class="btn small" data-nav data-key="fixgame" data-act="fixgame" data-id="${esc(g.id)}">${ICON.pencil}Fix name or cover</button>`}
       </div></div>
     <div class="right">
       <button class="back" data-nav data-key="dback" data-act="back">${ICON.back}${esc(S.cat ? curList().tile.name : s.name)}</button>
@@ -537,19 +544,19 @@ function detail() {
         <button class="btn" data-nav data-key="addlist" data-act="lists" data-id="${esc(g.id)}">${ICON.list} ${Object.values(S.boot.collections || {}).some((l) => l.includes(g.id)) ? 'In your lists' : 'Add to list'}</button>
         ${S.spun === g.id ? `<button class="btn" data-nav data-key="spin" data-act="random" data-scope="${esc(S.spinScope || 'all')}">${ICON.dice} Spin again</button>` : ''}
       </div>
-      ${s.blocked && !g.launcher ? `<div class="warning"><b>Can't play yet:</b> ${esc(s.blocked)} ${s.download ? `<button class="link" data-nav data-key="getemu" data-act="openurl" data-u="${esc(s.download)}">${s.download.includes('flathub.org') ? 'Get it from Flathub' : 'Open the download page'}</button> <span class="note">${s.download.includes('flathub.org') ? 'Install it from your software center (Discover, GNOME Software) or Flathub, then reopen Spine.' : 'Put it in your Emulators folder, and Spine finds it next time it starts.'}</span>` : ''}</div>` : ''}
-      ${g.offline ? `<div class="warning"><b>Drive not connected.</b> Plug in the drive this game is on to play it.</div>` : ''}
+      ${s.blocked && !g.launcher ? `<div class="warning"><b>Can't play yet:</b> ${esc(s.blocked)} ${s.download ? `<button class="link" data-nav data-key="getemu" data-act="openurl" data-u="${esc(s.download)}">${s.download.includes('flathub.org') ? 'Get it from Flathub' : 'Open the download page'}</button> <span class="note">${s.download.includes('flathub.org') ? 'Install it from your software center (Discover, GNOME Software) or Flathub, then reopen Spine.' : movie ? 'Install it the normal way, then reopen Spine.' : 'Put it in your Emulators folder, and Spine finds it next time it starts.'}</span>` : ''}</div>` : ''}
+      ${g.offline ? `<div class="warning"><b>Drive not connected.</b> Plug in the drive this ${movie ? 'movie' : 'game'} is on to ${movie ? 'watch' : 'play'} it.</div>` : ''}
       ${s.bios && !s.blocked && !g.launcher ? `<div class="warning"><b>Missing file:</b> ${esc(s.bios.message)} <span class="path">${esc(s.bios.folder)}</span> <button class="link" data-nav data-key="biosdir" data-act="biosdir" data-s="${esc(s.id)}">Open that folder</button></div>` : ''}
       <div class="facts">
-        <div class="fact"><span class="k">${s.id === 'pc' ? 'Opens with' : 'Emulator'}</span><span class="v">${esc(g.launcher || (s.emulator === 'system' ? opener(g) : s.emulator))}</span>
-          ${s.id === 'pc' ? '<span class="n">Your PC</span>' : `<span class="n">${g.launcher ? 'Chosen for this game' : 'Console default'}</span><button class="link" data-nav data-key="chemu" data-act="emu" data-id="${esc(g.id)}">Change for this game</button>`}</div>
-        <div class="fact"><span class="k">Playtime</span><span class="v">${fmtTime(pt)}</span><span class="n">${lp ? 'Last played ' + ago(lp) : (g.format === 'steam' || g.format === 'epic') ? `${g.format === 'steam' ? 'Steam' : 'Epic'} keeps this one` : 'Tracked automatically'}</span></div>
+        <div class="fact"><span class="k">${s.id === 'pc' ? 'Opens with' : movie ? 'Plays in' : 'Emulator'}</span><span class="v">${esc(g.launcher || (s.emulator === 'system' ? opener(g) : s.emulator))}</span>
+          ${s.id === 'pc' ? '<span class="n">Your PC</span>' : `<span class="n">${g.launcher ? `Chosen for this ${things(s, 1)}` : movie ? 'Default player' : 'Console default'}</span><button class="link" data-nav data-key="chemu" data-act="emu" data-id="${esc(g.id)}">Change for this ${things(s, 1)}</button>`}</div>
+        <div class="fact"><span class="k">${movie ? 'Watched' : 'Playtime'}</span><span class="v">${fmtTime(pt)}</span><span class="n">${lp ? (movie ? 'Last watched ' : 'Last played ') + ago(lp) : (g.format === 'steam' || g.format === 'epic') ? `${g.format === 'steam' ? 'Steam' : 'Epic'} keeps this one` : 'Tracked automatically'}</span></div>
         <div class="fact"><span class="k">File</span><span class="v">${esc(g.format.toUpperCase())}${g.region ? ' · ' + esc(g.region) : ''}</span><span class="n" title="${esc(g.file)}">${esc(g.file)}</span>${extras.length ? `<span class="n">${esc(extras.join(' · '))}</span>` : ''}${isFav(g.id) ? `<span class="n" style="color:var(--accent);font-weight:600">${ICON.check} Favorite</span>` : ''}</div>
       </div>
     </div>
    </div>
    ${shotsHtml(g)}
-   ${achHtml(g, s)}
+   ${movie ? '' : achHtml(g, s)}
    ${rows}
   </div></main>` + hints('Pick a category to see every game like it', [['A', 'Select'], ['B', 'Back'], ['Y', 'Favorite']]);
 }
@@ -559,7 +566,7 @@ function playingOverlay() {
   if (!p) return '';
   return `<div class="overlay" role="dialog" aria-label="Playing"><div class="box">
     ${p.error ? '' : '<div class="spinner"></div>'}
-    <p style="font-size:15px;font-weight:600;letter-spacing:.08em;text-transform:uppercase">${p.error ? "Couldn't start" : p.started ? 'Playing' : 'Launching'}</p>
+    <p style="font-size:15px;font-weight:600;letter-spacing:.08em;text-transform:uppercase">${p.error ? "Couldn't start" : p.started ? (p.movie ? 'Watching' : 'Playing') : (p.movie ? 'Opening' : 'Launching')}</p>
     <h2>${esc(p.title)}</h2>
     ${p.error ? `<p class="err">${esc(p.error)}</p>` : `<p>${esc(p.emulator === 'system' ? `Opening with ${p.opener || OS_NAME}` : p.emulator)}</p><p style="font-size:15px">${p.closing ? 'Closing the game…' : exitComboOn() ? `Hold ${glyph('SELECT')} + ${glyph('START')} on your controller, or quit the game, to come back.` : 'Quit the game to come back here.'}</p>`}
     ${p.error || p.emulator === 'system' ? `<button class="btn" data-nav data-key="closeplay" data-act="closeplay">${glyph('B')}Back to library</button>` : ''}
@@ -573,7 +580,7 @@ function settingsPanel() {
   const accent = st.accent || '#C8431F';
   const sw = ['#C8431F', '#2F5FBF', '#237A52', '#5B21B6', '#C99A1A', '#0E7490'].map((c) =>
     `<button class="swatch ${c === accent ? 'on' : ''}" style="background:${c}" data-nav data-key="acc-${c}" data-act="accent" data-c="${c}" aria-label="Accent ${c}"></button>`).join('');
-  const fetching = S.fetch ? `${S.fetch.stage === 'details' ? 'Looking up details' : 'Downloading covers'} ${S.fetch.done}/${S.fetch.total}` : null;
+  const fetching = S.fetch ? `${S.fetch.stage === 'movies' ? 'Getting movie posters' : S.fetch.stage === 'details' ? 'Looking up details' : 'Downloading covers'} ${S.fetch.done}/${S.fetch.total}` : null;
   return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="Settings">
     <h2>Settings</h2>
     <div class="grp"><span class="k">Theme</span><div class="opts">
@@ -587,6 +594,10 @@ function settingsPanel() {
       <button class="btn" data-nav data-key="addroot" data-act="addroot">${ICON.plus} Add folder</button>
       <button class="btn" data-nav data-key="rescan" data-act="rescan">Rescan</button>
       <button class="chip ${settings().autoScan !== false ? 'on' : ''}" data-nav data-key="as-tog" data-act="autoscan">${settings().autoScan !== false ? 'Watching for new games' : 'Not watching for new games'}</button></div></div>
+    <div class="grp"><span class="k">Movies</span><span class="note">Folders with your movie files. They show up as a Movies shelf on Home and play in VLC or mpv. Posters and details come from TMDB (add your free key under Scrapers).</span>
+      <div class="roots">${(S.boot.movie_roots || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>
+        <button class="btn small" data-nav data-key="rmmovie-${i}" data-act="rmmovieroot" data-p="${esc(r.path)}">Remove</button></div>`).join('')}</div>
+      <div class="opts"><button class="btn" data-nav data-key="addmovieroot" data-act="addmovieroot">${ICON.plus} Add movie folder</button></div></div>
     <div class="grp"><span class="k">PC stores</span><span class="note">Games installed with Steam, Epic Games and GOG show up in PC Games, ready to play.</span><div class="opts">
       <button class="chip ${storesOn() ? 'on' : ''}" data-nav data-key="st-on" data-act="stores" data-v="on">Include them</button>
       <button class="chip ${!storesOn() ? 'on' : ''}" data-nav data-key="st-off" data-act="stores" data-v="off">Off</button></div></div>
@@ -643,6 +654,11 @@ function scrapersPanel() {
       ${field('rauser', 'Username', 'text', a.retroachievements_user, 'Username')}
       ${field('rakey', 'Web API key', 'password', '', a.retroachievements_key ? `Saved (${a.retroachievements_key}). Type to replace.` : 'Paste your key')}
       ${a.retroachievements_key ? `<button class="link" data-nav data-key="clr-ra" data-act="clearacc" data-f="retroachievements_key">Remove key</button>` : ''}</div>
+    <div class="grp"><span class="k">TMDB · movie posters &amp; details</span>
+      <span class="note">Free. Make an account at themoviedb.org, open Settings → API, ask for a developer key (personal use), and copy the "API Key" here.</span>
+      <button class="link" data-nav data-key="tmdbsite" data-act="openurl" data-u="https://www.themoviedb.org/settings/api">Open TMDB's API page</button>
+      ${field('tmdb', 'API key', 'password', '', a.tmdb_key ? `Saved (${a.tmdb_key}). Type to replace.` : 'Paste your key')}
+      ${a.tmdb_key ? `<button class="link" data-nav data-key="clr-tmdb" data-act="clearacc" data-f="tmdb_key">Remove key</button>` : ''}</div>
     <div class="opts"><button class="btn primary" data-nav data-key="accsave" data-act="saveacc">${glyph('A')}Save &amp; get covers</button></div>
   </aside></div>`;
 }
@@ -1281,6 +1297,7 @@ const ACT = {
     const dp = v('ssdevpw'); if (dp) changes.screenscraper_devpassword = dp;
     const ru = v('rauser'); if (ru !== undefined && ru !== (S.accounts.retroachievements_user || '')) changes.retroachievements_user = ru;
     const rk = v('rakey'); if (rk) changes.retroachievements_key = rk;
+    const tk = v('tmdb'); if (tk) changes.tmdb_key = tk;
     if (ru || rk) S.ach = {};
     try {
       S.accounts = await api.call('set_accounts', { changes });
@@ -1347,7 +1364,7 @@ const ACT = {
     const found = findGame(d.id);
     if (!found) return;
     stopPreview();
-    S.playing = { title: found.g.title, emulator: found.s.emulator, opener: opener(found.g) };
+    S.playing = { title: found.g.title, emulator: found.s.emulator, opener: opener(found.g), movie: isMovies(found.s) };
     render();
     try {
       const emu = await api.call('play', { id: d.id });
@@ -1378,7 +1395,25 @@ const ACT = {
   async rmroot(d) {
     S.boot = await api.call('remove_root', { path: d.p });
     S.focusKey = 'addroot';
-    if (!S.boot.roots.length) { S.panel = null; S.screen = 'welcome'; }
+    if (!S.boot.roots.length && !(S.boot.movie_roots || []).length) { S.panel = null; S.screen = 'welcome'; }
+    render();
+    toast('Folder removed from Spine (nothing was deleted)');
+  },
+  async addmovieroot() {
+    try {
+      const b = await api.call('add_movie_root');
+      if (!b) return;
+      const count = (x) => (x.systems.find((s) => s.id === 'movies')?.games.length || 0);
+      const n = count(b) - count(S.boot);
+      S.boot = b; S.focusKey = 'addmovieroot';
+      render();
+      toast(n > 0 ? `Found ${n} movie${n === 1 ? '' : 's'}` : 'Folder added, but no movies found in it yet', 4000);
+      api.call('fetch_media');
+    } catch (e) { toast(String(e), 5000); }
+  },
+  async rmmovieroot(d) {
+    S.boot = await api.call('remove_movie_root', { path: d.p });
+    S.focusKey = 'addmovieroot';
     render();
     toast('Folder removed from Spine (nothing was deleted)');
   },
@@ -1604,7 +1639,7 @@ function renderToast() {
   if (S.fetch && S.fetch.total) {
     const pct = Math.round((100 * S.fetch.done) / S.fetch.total);
     el.hidden = false;
-    el.innerHTML = `<span>${S.fetch.stage === 'details' ? 'Looking up game details' : S.fetch.stage === 'videos' ? 'Finding trailers' : S.fetch.stage === 'art' ? 'Getting banners, logos and screenshots' : S.fetch.stage === 'categories' ? 'Sorting games into categories' : 'Downloading covers'} ${S.fetch.done}/${S.fetch.total}</span><span class="bar"><i style="width:${pct}%"></i></span>`;
+    el.innerHTML = `<span>${S.fetch.stage === 'movies' ? 'Getting movie posters and details' : S.fetch.stage === 'details' ? 'Looking up game details' : S.fetch.stage === 'videos' ? 'Finding trailers' : S.fetch.stage === 'art' ? 'Getting banners, logos and screenshots' : S.fetch.stage === 'categories' ? 'Sorting games into categories' : 'Downloading covers'} ${S.fetch.done}/${S.fetch.total}</span><span class="bar"><i style="width:${pct}%"></i></span>`;
     return;
   }
   el.hidden = true;
@@ -1612,6 +1647,7 @@ function renderToast() {
 setInterval(() => { const c = document.getElementById('clock'); if (c) c.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }, 15000);
 
 api.on('fetch-progress', (p) => { S.fetch = p; renderToast(); });
+api.on('fetch-error', (msg) => toast(String(msg), 6000));
 api.on('library-updated', (boot) => {
   const before = (S.boot?.systems || []).reduce((n, s) => n + s.games.filter((g) => g.cover).length, 0);
   S.boot = boot; S.fetch = null;
@@ -1647,7 +1683,7 @@ api.on('game-exited', (p) => {
   S.playing = null;
   S.focusKey = 'play';
   render();
-  if (p.seconds > 60) toast(`Played ${fmtTime(p.seconds)}`);
+  if (p.seconds > 60) toast(`${String(p.id).startsWith('movies/') ? 'Watched' : 'Played'} ${fmtTime(p.seconds)}`);
 });
 
 // ---------------------------------------------------------------------------
@@ -1656,11 +1692,12 @@ api.on('game-exited', (p) => {
 (async function start() {
   S.boot = await api.call('boot');
   applyTheme();
-  if (!S.boot.rom_root) S.screen = 'welcome';
+  const hasLibrary = S.boot.rom_root || (S.boot.movie_roots || []).length;
+  if (!hasLibrary) S.screen = 'welcome';
   else { S.screen = 'home'; S.sel = Math.max(0, tiles().findIndex((t) => t.kind === 'sys')); }
   render();
   if (settings().fullscreen) api.call('set_fullscreen', { on: true });
-  if (S.boot.rom_root) api.call('fetch_media');
+  if (hasLibrary) api.call('fetch_media');
   api.call('app_version').then((v) => { S.version = v; }).catch(() => {});
   if (settings().autoUpdate !== false) setTimeout(() => checkUpdate(true), 4000);
 })();

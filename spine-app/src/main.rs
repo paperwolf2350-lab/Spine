@@ -59,6 +59,9 @@ struct Saved {
     /// The user's own lists: name -> game ids, in the order added.
     #[serde(default)]
     collections: BTreeMap<String, Vec<String>>,
+    /// Folders with movies in them (Settings → Movies). Kept apart from ROM folders.
+    #[serde(default)]
+    movie_roots: Vec<String>,
 }
 
 impl Saved {
@@ -66,6 +69,13 @@ impl Saved {
         let mut v: Vec<PathBuf> = self.rom_root.iter().chain(self.extra_roots.iter()).map(PathBuf::from).collect();
         v.dedup();
         v
+    }
+    fn movie_roots(&self) -> Vec<PathBuf> {
+        self.movie_roots.iter().map(PathBuf::from).collect()
+    }
+    /// Nothing to show yet: no ROM folder and no movie folder.
+    fn empty(&self) -> bool {
+        self.roots().is_empty() && self.movie_roots.is_empty()
     }
 }
 
@@ -184,6 +194,7 @@ struct Boot {
     settings: serde_json::Map<String, serde_json::Value>,
     notes: Vec<String>,
     roots: Vec<RootView>,
+    movie_roots: Vec<RootView>,
     hidden: Vec<HiddenView>,
     collections: BTreeMap<String, Vec<String>>,
 }
@@ -277,8 +288,10 @@ fn view(app: &App) -> Boot {
         })
         .unwrap_or_default();
     let roots = saved.roots().iter().map(|r| RootView { path: r.to_string_lossy().to_string(), online: !offline.contains(r) }).collect();
+    let movie_roots = saved.movie_roots().iter().map(|r| RootView { path: r.to_string_lossy().to_string(), online: !offline.contains(r) }).collect();
     Boot {
         roots,
+        movie_roots,
         hidden,
         collections: saved.collections.clone(),
         rom_root: saved.rom_root,
@@ -359,6 +372,35 @@ fn remove_root(path: String, app: State<App>) -> Boot {
     view(&app)
 }
 
+/// Add a folder with movies in it.
+#[tauri::command]
+async fn add_movie_root(handle: AppHandle) -> Result<Option<Boot>, String> {
+    let Some(p) = handle.dialog().file().set_title("Choose a folder with movies").blocking_pick_folder().and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    let app = handle.state::<App>();
+    {
+        let mut s = app.saved.lock().unwrap();
+        if s.movie_roots().iter().any(|r| r == &p) {
+            return Err("That folder is already in Movies.".into());
+        }
+        if s.roots().iter().any(|r| r == &p) {
+            return Err("That's one of your ROM folders. Choose a folder that only has movies.".into());
+        }
+        s.movie_roots.push(p.to_string_lossy().to_string());
+    }
+    app.save();
+    reload(&app);
+    Ok(Some(view(&app)))
+}
+
+/// Stop reading a movie folder (nothing on disk is touched).
+#[tauri::command]
+fn remove_movie_root(path: String, app: State<App>) -> Boot {
+    app.saved.lock().unwrap().movie_roots.retain(|r| r != &path);
+    app.save();
+    reload(&app);
+    view(&app)
+}
+
 /// Download missing covers / details in the background. Emits
 /// "fetch-progress" {stage, done, total, title} and "library-updated" at the end.
 #[tauri::command]
@@ -382,6 +424,15 @@ fn fetch_media(handle: AppHandle) {
         let emit = |stage: &str, done: usize, total: usize, title: &str| {
             let _ = handle.emit("fetch-progress", serde_json::json!({"stage": stage, "done": done, "total": total, "title": title}));
         };
+        // Movies get their art from TMDB only, never from the game art sources.
+        let movies = Library { root: lib.root.clone(), systems: lib.systems.iter().filter(|s| s.id == spine_core::movies::SYSTEM_ID).cloned().collect(), notes: vec![], game_count: 0 };
+        lib.systems.retain(|s| s.id != spine_core::movies::SYSTEM_ID);
+        let mut movie_error = None;
+        if let Some(key) = &creds.tmdb_key {
+            if let Err(e) = spine_core::movies::fetch_details(&movies, &media, key, &|d, t, title| emit("movies", d, t, title)) {
+                movie_error = Some(e);
+            }
+        }
         covers::fetch_covers(&mut lib, &media, &|d, t, title| emit("covers", d, t, title));
         covers::fetch_steam_videos(&mut lib, &media, &|d, t, title| emit("videos", d, t, title));
         spine_core::extras::fetch_extras(&lib, &media, creds.steamgriddb_key.as_deref(), &|d, t, title| emit("art", d, t, title));
@@ -398,6 +449,9 @@ fn fetch_media(handle: AppHandle) {
         drop(lib);
         reload(&app);
         *app.fetching.lock().unwrap() = false;
+        if let Some(e) = movie_error {
+            let _ = handle.emit("fetch-error", e);
+        }
         let _ = handle.emit("library-updated", view(&app));
     });
 }
@@ -430,12 +484,14 @@ fn play(id: String, handle: AppHandle) -> Result<String, String> {
     if let Some(r) = app.running.lock().unwrap().as_ref() {
         return Err(format!("{r} is still running."));
     }
+    let is_movie = id.starts_with("movies/");
     let (plan, title) = {
         let lib = app.library.lock().unwrap();
         let lib = lib.as_ref().ok_or("No library yet.")?;
         let (sys, game) = lib.systems.iter().find_map(|s| s.games.iter().find(|g| g.id == id).map(|g| (s, g))).ok_or("Game not found.")?;
         if let Some(root) = app.offline.lock().unwrap().iter().find(|r| game.path.starts_with(r)) {
-            return Err(format!("This game is on {}, which isn't connected. Plug in that drive and try again.", root.display()));
+            let what = if is_movie { "movie" } else { "game" };
+            return Err(format!("This {what} is on {}, which isn't connected. Plug in that drive and try again.", root.display()));
         }
         let def = systems::system_by_id(sys.id).unwrap();
         let pref = app.saved.lock().unwrap().overrides.get(&id).cloned();
@@ -480,7 +536,8 @@ fn play(id: String, handle: AppHandle) -> Result<String, String> {
         let failed = quick && status.as_ref().map_or(true, |s| !s.success());
         let error = (quick && (failed || secs < 3)).then(|| {
             let reason = fs::read_to_string(&log).ok().and_then(|t| launch::log_reason(&t));
-            let mut msg = format!("{} closed right away, so the game didn't start.", plan.emulator);
+            let what = if is_movie { "movie" } else { "game" };
+            let mut msg = format!("{} closed right away, so the {what} didn't start.", plan.emulator);
             if let Some(r) = reason {
                 msg.push_str("\n\nWhat it said:\n");
                 msg.push_str(&r);
@@ -614,10 +671,11 @@ async fn achievements(id: String, handle: AppHandle) -> Result<Option<spine_core
     tauri::async_runtime::spawn_blocking(move || spine_core::retroachievements::progress(system, &title, &user, &key, &media)).await.map_err(|e| e.to_string())?
 }
 
-/// Open a link in the browser (only RetroAchievements and emulator download pages).
+/// Open a link in the browser (only RetroAchievements, TMDB's key page and emulator download pages).
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
-    let ok = ["https://retroachievements.org/", "https://www.retroachievements.org/"].iter().any(|p| url.starts_with(p)) || launch::download_pages().iter().chain(launch::flathub_pages()).any(|(_, u)| *u == url);
+    let ok = ["https://retroachievements.org/", "https://www.retroachievements.org/"].iter().any(|p| url.starts_with(p))
+        || url == "https://www.themoviedb.org/settings/api" || launch::download_pages().iter().chain(launch::flathub_pages()).any(|(_, u)| *u == url);
     if !ok || url.contains(['"', '\'', ' ', '&', '|', '^', '<', '>']) {
         return Err("Spine only opens links it knows.".into());
     }
@@ -852,6 +910,7 @@ struct Accounts {
     screenscraper_builtin: bool,
     retroachievements_user: Option<String>,
     retroachievements_key: Option<String>,
+    tmdb_key: Option<String>,
 }
 
 fn hint(k: &Option<String>) -> Option<String> {
@@ -873,6 +932,7 @@ fn get_accounts(app: State<App>) -> Accounts {
         screenscraper_builtin: spine_core::config::builtin_dev_key().is_some(),
         retroachievements_user: c.ra_user.clone(),
         retroachievements_key: hint(&c.ra_key),
+        tmdb_key: hint(&c.tmdb_key),
     }
 }
 
@@ -886,6 +946,8 @@ struct AccountChanges {
     screenscraper_devpassword: Option<String>,
     retroachievements_user: Option<String>,
     retroachievements_key: Option<String>,
+    #[serde(default)]
+    tmdb_key: Option<String>,
 }
 
 #[tauri::command]
@@ -905,6 +967,7 @@ fn set_accounts(changes: AccountChanges, app: State<App>) -> Result<Accounts, St
     apply(&mut c.ss_devpassword, changes.screenscraper_devpassword);
     apply(&mut c.ra_user, changes.retroachievements_user);
     apply(&mut c.ra_key, changes.retroachievements_key);
+    apply(&mut c.tmdb_key, changes.tmdb_key);
     c.save(&path).map_err(|e| format!("Couldn't save: {e}"))?;
     Ok(get_accounts(app))
 }
@@ -1037,11 +1100,17 @@ fn reattach(lib: &mut Library, media: &Path, saved: &Saved) {
 /// Scan every ROM folder (plus installed PC store games) into one library.
 fn build_library(dir: &Path, saved: &Saved) -> (Library, Vec<PathBuf>, Installed) {
     let roots = saved.roots();
-    let (mut lib, offline) = spine_core::scan::scan_many(&roots, &dir.join("media").join("cache"));
+    let (mut lib, mut offline) = spine_core::scan::scan_many(&roots, &dir.join("media").join("cache"));
     add_store_games(&mut lib, saved);
+    let movie_roots = saved.movie_roots();
+    if !movie_roots.is_empty() {
+        let (movies, movies_offline) = spine_core::movies::scan_many(&movie_roots, &dir.join("media").join("cache"));
+        spine_core::scan::merge_library(&mut lib, movies);
+        offline.extend(movies_offline);
+    }
     reattach(&mut lib, &dir.join("media"), saved);
     let mut search: Vec<PathBuf> = vec![];
-    for r in &roots {
+    for r in roots.iter().chain(movie_roots.iter()) {
         for p in launch::default_search_paths(r) {
             if !search.contains(&p) {
                 search.push(p);
@@ -1084,6 +1153,7 @@ fn reload(app: &App) {
 fn folder_signature(saved: &Saved) -> Vec<(PathBuf, bool, Vec<u64>)> {
     let mt = |p: &Path| fs::metadata(p).and_then(|m| m.modified()).ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
     let mut dirs: Vec<PathBuf> = saved.roots();
+    dirs.extend(saved.movie_roots());
     if saved.settings.get("storeGames").and_then(|v| v.as_bool()) != Some(false) {
         dirs.push(spine_core::stores::epic_manifest_dir());
         if let Some(st) = spine_core::stores::steam_root() {
@@ -1117,7 +1187,7 @@ fn watch_folders(handle: AppHandle) {
             std::thread::sleep(std::time::Duration::from_secs(15));
             let app = handle.state::<App>();
             let saved = app.saved.lock().unwrap().clone();
-            if saved.roots().is_empty() || saved.settings.get("autoScan").and_then(|v| v.as_bool()) == Some(false) {
+            if saved.empty() || saved.settings.get("autoScan").and_then(|v| v.as_bool()) == Some(false) {
                 continue;
             }
             let sig = folder_signature(&saved);
@@ -1164,7 +1234,7 @@ fn main() {
     let media = dir.join("media");
     let mut saved = saved;
     // Scanning is fast (under a second for ~700 games), so just do it at start.
-    let (library, offline, installed) = if saved.roots().is_empty() {
+    let (library, offline, installed) = if saved.empty() {
         (None, vec![], Installed::default())
     } else {
         let (l, o, i) = build_library(&dir, &saved);
@@ -1197,7 +1267,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

@@ -82,6 +82,8 @@ pub static SYSTEMS: &[System] = &[
     System { id: "xbox", name: "Xbox", short: "Xbox", folders: &["xbox"], exts: &["iso", "xiso"], launchers: &[Standalone("xemu")], color: "#2E6B2E" },
     // ---- PC
     System { id: "pc", name: "PC Games", short: "PC", folders: &["steam", "pcgames", "windows", "epic", "gog"], exts: &["url", "lnk"], launchers: &[ShellOpen], color: "#1B2838" },
+    // ---- Movies (from Settings → Movies folders, never from ROM folders; see movies.rs)
+    System { id: "movies", name: "Movies", short: "Movies", folders: &[], exts: &["mkv", "mp4", "m4v", "avi", "mov", "wmv", "webm"], launchers: &[Standalone("mpv"), Standalone("vlc")], color: "#8A2B3B" },
 ];
 
 /// Lower-case and keep only letters and digits: "PS2 isos" -> "ps2isos".
