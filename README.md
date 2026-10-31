@@ -3,7 +3,19 @@
 A game library for your PC that feels like a console. Point it at your ROM
 folder and it sorts every game by console and A–Z, finds box art, details and
 trailers, and starts each game with the right emulator. Steam, Epic and GOG
-games show up too. Everything works with a controller.
+games show up too. Your movies and TV shows can live there too, with posters, episode lists and
+resume where you left off. Everything works with a controller.
+
+![Spine's home screen: consoles in a row, with Continue playing below](docs/screenshots/home.jpg)
+
+| | |
+|---|---|
+| ![A console's games as a wall of box art](docs/screenshots/library.jpg) | ![A game page with a trailer, logo and description](docs/screenshots/game-page.jpg) |
+| **Every console, A–Z:** box art for each game, four layouts, an A–Z rail. | **Game pages:** trailers, banners, logos and descriptions. |
+| ![Screenshots, achievements and more games like it](docs/screenshots/game-page-more.jpg) | ![The Movies shelf with posters](docs/screenshots/movies.jpg) |
+| **And more:** screenshots, RetroAchievements, "more like this". | **Movies & TV:** posters and details found for you. |
+| ![A movie page with backdrop, logo and Play button](docs/screenshots/movie-page.jpg) | ![Settings: themes, accent colors and folders](docs/screenshots/settings.jpg) |
+| **Movie pages:** play in VLC or mpv, resume where you stopped. | **Make it yours:** themes, colors, several folders and drives. |
 
 ## Get it
 
@@ -44,6 +56,10 @@ packages, or AppImages in `~/Applications` (EmuDeck's layout) on Linux.
   like, playtime tracking, hold Select + Start to quit back to Spine.
 - **Helps:** missing BIOS files named with where they go, links to official
   emulator downloads, fix a wrong name or cover in a few clicks.
+- **Movies & TV:** point it at your movie and show folders. Posters, backdrops,
+  summaries and episode names come from TMDB (free key). Shows are split into
+  seasons; episodes get thumbnails and checkmarks. Plays in VLC or mpv, resumes
+  where you stopped (VLC), and a "Continue watching" row picks up the next episode.
 - **Extras:** categories you can click ("every Roguelite you own"), your own
   lists, Surprise me, RetroAchievements on game pages.
 
