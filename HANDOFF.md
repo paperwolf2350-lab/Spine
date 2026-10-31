@@ -66,7 +66,7 @@ Gotchas learned the hard way:
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
-## Where things stand (end of Oct 2026, v0.5.0)
+## Where things stand (end of Oct 2026, v0.6.0)
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
@@ -149,7 +149,29 @@ with posters/cover art, details, and seasons/episodes. Agreed approach:
 - Confirmed working on the owner's PC (Oct 31): folders, TMDB posters/details
   and playback all as intended.
 
-Next: TV seasons/episodes (step 2), then resume and Continue watching (step 3).
+**Step 2 is done (v0.6.0)**: TV shows.
+- `spine-core/src/tv.rs`: each folder in a TV folder is a show; same-named folders
+  merge (WIND BREAKER S01 + Wind Breaker S02). `Game.episodes` holds the files in
+  viewing order, grouped "Season N" / arc name / "Movies & specials". Seasons come
+  from S01E02, "Season N"/"S02" folders, "Show II" folders, or a folder named like
+  the show (season 1). Absolute numbering inside a season folder is renumbered
+  (JJK Season 2 025–047 → 1–23). NCOP/NCED/OP1/ED1 and "Extras" folders skipped.
+  Unnumbered files (movies in show folders) go to "Movies & specials".
+- `spine-scan <folder> --tv` prints how a folder is sorted. Checked against the
+  owner's full D:\anime listing (14 shows, all correct except arc order).
+- TMDB: `/search/tv` → `/tv/{id}` (poster, backdrop, logo, info) → `/tv/{id}/season/{n}`
+  for each season on disk; saved as `media/info/tv/<slug>.seasons.json`, stills at
+  `media/stills/tv/<slug>/s{n}e{m}.jpg`. Arcs (no season number) get no TMDB episode data.
+- App: `tv_roots` (Settings → TV), `add_tv_root` / `remove_tv_root`, `play` takes
+  an optional `episode` index. GameView carries `episodes` (EpisodeView).
+- UI: TV tile, show page with season chips and an episode list (thumbnail, S1 · E3,
+  title, two-line summary). Play button plays the first episode of the chosen season.
+- Owner's anime: D:\anime (external drive), many EMBER / [DB] / [Anime Time] releases.
+
+Next (step 3): watched checkmarks, "Next episode", resume (mpv `--start` +
+`--input-ipc-server`, VLC `--start-time`), "Continue watching" row.
+Known gaps: arc seasons are A–Z (Demon Slayer: Hashira Geiko-hen shows first);
+romaji names (Kimetsu no Yaiba) depend on TMDB search finding alternative titles.
 Known gaps for later: renaming a movie doesn't re-run the TMDB lookup; Surprise me
 can pick a movie; "Continue playing" lists movies too.
 

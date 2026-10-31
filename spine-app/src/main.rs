@@ -62,6 +62,9 @@ struct Saved {
     /// Folders with movies in them (Settings → Movies). Kept apart from ROM folders.
     #[serde(default)]
     movie_roots: Vec<String>,
+    /// Folders with TV shows in them (Settings → TV): one show per folder inside.
+    #[serde(default)]
+    tv_roots: Vec<String>,
 }
 
 impl Saved {
@@ -73,9 +76,24 @@ impl Saved {
     fn movie_roots(&self) -> Vec<PathBuf> {
         self.movie_roots.iter().map(PathBuf::from).collect()
     }
-    /// Nothing to show yet: no ROM folder and no movie folder.
+    fn tv_roots(&self) -> Vec<PathBuf> {
+        self.tv_roots.iter().map(PathBuf::from).collect()
+    }
+    /// Nothing to show yet: no ROM, movie or TV folder.
     fn empty(&self) -> bool {
-        self.roots().is_empty() && self.movie_roots.is_empty()
+        self.roots().is_empty() && self.movie_roots.is_empty() && self.tv_roots.is_empty()
+    }
+    /// Already used for games, movies or TV.
+    fn uses(&self, p: &Path) -> Option<&'static str> {
+        if self.roots().iter().any(|r| r == p) {
+            Some("one of your ROM folders")
+        } else if self.movie_roots().iter().any(|r| r == p) {
+            Some("in Movies")
+        } else if self.tv_roots().iter().any(|r| r == p) {
+            Some("in TV")
+        } else {
+            None
+        }
     }
 }
 
@@ -154,6 +172,21 @@ struct GameView {
     added: u64,
     /// The user gave it its name.
     renamed: bool,
+    /// TV shows: episodes in viewing order (the index is what `play` takes).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    episodes: Vec<EpisodeView>,
+}
+
+#[derive(Serialize, Clone)]
+struct EpisodeView {
+    group: String,
+    season: Option<u32>,
+    number: Option<u32>,
+    /// TMDB's name, else the one in the file name.
+    title: Option<String>,
+    overview: Option<String>,
+    still: Option<String>,
+    file: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -195,6 +228,7 @@ struct Boot {
     notes: Vec<String>,
     roots: Vec<RootView>,
     movie_roots: Vec<RootView>,
+    tv_roots: Vec<RootView>,
     hidden: Vec<HiddenView>,
     collections: BTreeMap<String, Vec<String>>,
 }
@@ -279,6 +313,7 @@ fn view(app: &App) -> Boot {
                                 offline: is_offline(&g.path),
                                 added: saved.first_seen.get(&g.id).copied().unwrap_or(0),
                                 renamed: saved.renames.contains_key(&g.id),
+                                episodes: if g.episodes.is_empty() { vec![] } else { episode_views(g, &media, &rel) },
                             })
                             .collect(),
                     }
@@ -289,9 +324,11 @@ fn view(app: &App) -> Boot {
         .unwrap_or_default();
     let roots = saved.roots().iter().map(|r| RootView { path: r.to_string_lossy().to_string(), online: !offline.contains(r) }).collect();
     let movie_roots = saved.movie_roots().iter().map(|r| RootView { path: r.to_string_lossy().to_string(), online: !offline.contains(r) }).collect();
+    let tv_roots = saved.tv_roots().iter().map(|r| RootView { path: r.to_string_lossy().to_string(), online: !offline.contains(r) }).collect();
     Boot {
         roots,
         movie_roots,
+        tv_roots,
         hidden,
         collections: saved.collections.clone(),
         rom_root: saved.rom_root,
@@ -302,6 +339,33 @@ fn view(app: &App) -> Boot {
         settings: saved.settings,
         notes: lib.as_ref().map(|l| l.notes.clone()).unwrap_or_default(),
     }
+}
+
+/// A show's episodes, with names, summaries and thumbnails from TMDB where known.
+fn episode_views(g: &spine_core::Game, media: &Path, rel: &dyn Fn(&Path) -> Option<String>) -> Vec<EpisodeView> {
+    let tmdb = spine_core::tv::load_seasons(media, &g.id);
+    g.episodes
+        .iter()
+        .map(|e| {
+            let t = match (e.season, e.number, &tmdb) {
+                (Some(s), Some(n), Some(t)) => t.seasons.get(&s).and_then(|v| v.iter().find(|x| x.number == n)),
+                _ => None,
+            };
+            let still = match (e.season, e.number) {
+                (Some(s), Some(n)) => Some(spine_core::tv::still_path(media, &g.id, s, n)).filter(|p| p.is_file()).and_then(|p| rel(&p)),
+                _ => None,
+            };
+            EpisodeView {
+                group: e.group.clone(),
+                season: e.season,
+                number: e.number,
+                title: t.and_then(|t| t.name.clone()).or_else(|| e.title.clone()),
+                overview: t.and_then(|t| t.overview.clone()),
+                still,
+                file: e.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default(),
+            }
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -379,11 +443,8 @@ async fn add_movie_root(handle: AppHandle) -> Result<Option<Boot>, String> {
     let app = handle.state::<App>();
     {
         let mut s = app.saved.lock().unwrap();
-        if s.movie_roots().iter().any(|r| r == &p) {
-            return Err("That folder is already in Movies.".into());
-        }
-        if s.roots().iter().any(|r| r == &p) {
-            return Err("That's one of your ROM folders. Choose a folder that only has movies.".into());
+        if let Some(w) = s.uses(&p) {
+            return Err(format!("That folder is already {w}."));
         }
         s.movie_roots.push(p.to_string_lossy().to_string());
     }
@@ -396,6 +457,32 @@ async fn add_movie_root(handle: AppHandle) -> Result<Option<Boot>, String> {
 #[tauri::command]
 fn remove_movie_root(path: String, app: State<App>) -> Boot {
     app.saved.lock().unwrap().movie_roots.retain(|r| r != &path);
+    app.save();
+    reload(&app);
+    view(&app)
+}
+
+/// Add a folder with TV shows in it (one show per folder inside).
+#[tauri::command]
+async fn add_tv_root(handle: AppHandle) -> Result<Option<Boot>, String> {
+    let Some(p) = handle.dialog().file().set_title("Choose a folder with TV shows").blocking_pick_folder().and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    let app = handle.state::<App>();
+    {
+        let mut s = app.saved.lock().unwrap();
+        if let Some(w) = s.uses(&p) {
+            return Err(format!("That folder is already {w}."));
+        }
+        s.tv_roots.push(p.to_string_lossy().to_string());
+    }
+    app.save();
+    reload(&app);
+    Ok(Some(view(&app)))
+}
+
+/// Stop reading a TV folder (nothing on disk is touched).
+#[tauri::command]
+fn remove_tv_root(path: String, app: State<App>) -> Boot {
+    app.saved.lock().unwrap().tv_roots.retain(|r| r != &path);
     app.save();
     reload(&app);
     view(&app)
@@ -425,11 +512,14 @@ fn fetch_media(handle: AppHandle) {
             let _ = handle.emit("fetch-progress", serde_json::json!({"stage": stage, "done": done, "total": total, "title": title}));
         };
         // Movies get their art from TMDB only, never from the game art sources.
-        let movies = Library { root: lib.root.clone(), systems: lib.systems.iter().filter(|s| s.id == spine_core::movies::SYSTEM_ID).cloned().collect(), notes: vec![], game_count: 0 };
-        lib.systems.retain(|s| s.id != spine_core::movies::SYSTEM_ID);
+        let is_video_shelf = |id: &str| id == spine_core::movies::SYSTEM_ID || id == spine_core::tv::SYSTEM_ID;
+        let videos = Library { root: lib.root.clone(), systems: lib.systems.iter().filter(|s| is_video_shelf(s.id)).cloned().collect(), notes: vec![], game_count: 0 };
+        lib.systems.retain(|s| !is_video_shelf(s.id));
         let mut movie_error = None;
         if let Some(key) = &creds.tmdb_key {
-            if let Err(e) = spine_core::movies::fetch_details(&movies, &media, key, &|d, t, title| emit("movies", d, t, title)) {
+            let r = spine_core::movies::fetch_details(&videos, &media, key, &|d, t, title| emit("movies", d, t, title))
+                .and_then(|_| spine_core::tv::fetch_details(&videos, &media, key, &|d, t, title| emit("tv", d, t, title)));
+            if let Err(e) = r {
                 movie_error = Some(e);
             }
         }
@@ -479,12 +569,12 @@ fn set_setting(key: String, value: serde_json::Value, app: State<App>) {
 
 /// Start a game. Emits "game-exited" {id, seconds} when the emulator closes.
 #[tauri::command]
-fn play(id: String, handle: AppHandle) -> Result<String, String> {
+fn play(id: String, episode: Option<usize>, handle: AppHandle) -> Result<String, String> {
     let app = handle.state::<App>();
     if let Some(r) = app.running.lock().unwrap().as_ref() {
         return Err(format!("{r} is still running."));
     }
-    let is_movie = id.starts_with("movies/");
+    let is_movie = id.starts_with("movies/") || id.starts_with("tv/");
     let (plan, title) = {
         let lib = app.library.lock().unwrap();
         let lib = lib.as_ref().ok_or("No library yet.")?;
@@ -495,7 +585,12 @@ fn play(id: String, handle: AppHandle) -> Result<String, String> {
         }
         let def = systems::system_by_id(sys.id).unwrap();
         let pref = app.saved.lock().unwrap().overrides.get(&id).cloned();
-        (launch::plan_preferred(def, game, &app.installed.lock().unwrap(), pref.as_deref()), game.title.clone())
+        // A TV episode plays like its show, with the episode's file.
+        let mut game = game.clone();
+        if let Some(i) = episode {
+            game.path = game.episodes.get(i).ok_or("Episode not found.")?.path.clone();
+        }
+        (launch::plan_preferred(def, &game, &app.installed.lock().unwrap(), pref.as_deref()), game.title.clone())
     };
     if let Some(why) = &plan.blocked {
         return Err(why.clone());
@@ -1108,9 +1203,15 @@ fn build_library(dir: &Path, saved: &Saved) -> (Library, Vec<PathBuf>, Installed
         spine_core::scan::merge_library(&mut lib, movies);
         offline.extend(movies_offline);
     }
+    let tv_roots = saved.tv_roots();
+    if !tv_roots.is_empty() {
+        let (shows, tv_offline) = spine_core::tv::scan_many(&tv_roots, &dir.join("media").join("cache"));
+        spine_core::scan::merge_library(&mut lib, shows);
+        offline.extend(tv_offline);
+    }
     reattach(&mut lib, &dir.join("media"), saved);
     let mut search: Vec<PathBuf> = vec![];
-    for r in roots.iter().chain(movie_roots.iter()) {
+    for r in roots.iter().chain(movie_roots.iter()).chain(tv_roots.iter()) {
         for p in launch::default_search_paths(r) {
             if !search.contains(&p) {
                 search.push(p);
@@ -1154,6 +1255,7 @@ fn folder_signature(saved: &Saved) -> Vec<(PathBuf, bool, Vec<u64>)> {
     let mt = |p: &Path| fs::metadata(p).and_then(|m| m.modified()).ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
     let mut dirs: Vec<PathBuf> = saved.roots();
     dirs.extend(saved.movie_roots());
+    dirs.extend(saved.tv_roots());
     if saved.settings.get("storeGames").and_then(|v| v.as_bool()) != Some(false) {
         dirs.push(spine_core::stores::epic_manifest_dir());
         if let Some(st) = spine_core::stores::steam_root() {
@@ -1267,7 +1369,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

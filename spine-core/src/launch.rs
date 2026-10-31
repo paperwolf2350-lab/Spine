@@ -245,7 +245,7 @@ pub fn plan(sys: &System, game: &Game, installed: &Installed) -> LaunchPlan {
             return p;
         }
         // Movies: when no player is installed, suggest VLC (the easiest to install).
-        if sys.id == "movies" {
+        if sys.id == "movies" || sys.id == "tv" {
             first_block = Some(p);
         } else {
             first_block.get_or_insert(p);
@@ -500,7 +500,7 @@ mod linux_tests {
     use crate::systems::system_by_id;
 
     fn game(path: &str) -> Game {
-        Game { id: "gba/x".into(), title: "X".into(), sort_key: "x".into(), letter: 'X', path: PathBuf::from(path), format: "gba".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![] }
+        Game { id: "gba/x".into(), title: "X".into(), sort_key: "x".into(), letter: 'X', path: PathBuf::from(path), format: "gba".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![], episodes: vec![] }
     }
 
     #[test]

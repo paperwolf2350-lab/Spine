@@ -1,7 +1,9 @@
 ## What's new
-- **Movies (first test version).** Settings → Movies → Add movie folder. Your films show up as a Movies shelf on Home, sorted A–Z like the games, and play in VLC or mpv (whichever you have installed).
-- Posters, banners, descriptions, year, length and genres come from TMDB. Add your free TMDB key in Settings → Scrapers.
-- TV shows aren't in yet: episode files (S01E02) and "Season" folders are skipped for now.
+- **TV shows (first test version).** Settings → TV → Add TV folder. Each folder inside it becomes a show on the new TV shelf.
+- Show pages list the episodes by season, with a season picker. Pick any episode to watch it in VLC or mpv.
+- Spine understands most download names: S01E02, "Show - 01", "Season 2" folders, seasons split across folders, and openings/endings it should skip. Movies inside a show folder appear under "Movies & specials".
+- Posters, descriptions, episode names and thumbnails come from TMDB (the same key as Movies).
+- Known for now: arc folders (like Demon Slayer's) are listed A–Z rather than in story order.
 
 ---
 

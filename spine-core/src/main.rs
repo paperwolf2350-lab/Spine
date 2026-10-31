@@ -23,6 +23,7 @@ fn main() -> ExitCode {
     let mut extra_search: Vec<PathBuf> = Vec::new();
     let mut want_covers = false;
     let mut media: Option<PathBuf> = None;
+    let mut tv = false;
     while let Some(a) = args.next() {
         match a.as_str() {
             "--out" => out = args.next().map(PathBuf::from),
@@ -30,6 +31,7 @@ fn main() -> ExitCode {
             "--launch" => launch_id = args.next(),
             "--emulators" => extra_search.extend(args.next().map(PathBuf::from)),
             "--covers" => want_covers = true,
+            "--tv" => tv = true,
             "--media" => media = args.next().map(PathBuf::from),
             "-h" | "--help" => {
                 println!("usage: spine-scan <ROM folder> [--list <console>] [--out library.json] [--covers] [--media <folder>] [--emulators <folder>] [--launch <game id>]");
@@ -46,6 +48,29 @@ fn main() -> ExitCode {
         eprintln!("usage: spine-scan <ROM folder> [--list <console>] [--out library.json] [--covers] [--media <folder>] [--emulators <folder>] [--launch <game id>]");
         return ExitCode::from(2);
     };
+    // spine-scan <TV folder> --tv: how Spine sorts the shows and episodes.
+    if tv {
+        let Some(lib) = spine_core::tv::scan_root(&root) else {
+            eprintln!("can't read {}", root.display());
+            return ExitCode::from(1);
+        };
+        for g in lib.systems.iter().flat_map(|s| s.games.iter()) {
+            println!("{}  [{}]{}", g.title, g.id, g.revision.as_ref().map(|y| format!(" ({y})")).unwrap_or_default());
+            let mut groups: Vec<(String, Vec<&spine_core::tv::Episode>)> = vec![];
+            for e in &g.episodes {
+                match groups.last_mut() {
+                    Some((name, v)) if *name == e.group => v.push(e),
+                    _ => groups.push((e.group.clone(), vec![e])),
+                }
+            }
+            for (name, eps) in groups {
+                let nums: Vec<String> = eps.iter().map(|e| e.number.map(|n| n.to_string()).unwrap_or_else(|| "-".into())).collect();
+                let first = eps.iter().find_map(|e| e.title.clone()).unwrap_or_default();
+                println!("    {name}: {} file(s), numbers {}  e.g. \"{first}\"", eps.len(), nums.join(","));
+            }
+        }
+        return ExitCode::SUCCESS;
+    }
 
     let started = std::time::Instant::now();
     let mut lib = match spine_core::scan(&root) {

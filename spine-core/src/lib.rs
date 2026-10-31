@@ -18,5 +18,6 @@ pub mod retroachievements;
 pub mod screenscraper;
 pub mod systems;
 pub mod title;
+pub mod tv;
 
 pub use scan::{scan, Game, Library, SystemLibrary};

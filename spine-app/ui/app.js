@@ -155,8 +155,11 @@ function seriesOf(g) {
 }
 const devOf = (g) => g.info?.developer || g.meta?.developer || null;
 // Movies use "movie / watched" words where games say "game / played".
-const isMovies = (s) => s && s.id === 'movies';
-const things = (s, n) => (isMovies(s) ? (n === 1 ? 'movie' : 'movies') : (n === 1 ? 'game' : 'games'));
+const isMovies = (s) => s && (s.id === 'movies' || s.id === 'tv'); // anything watched rather than played
+const isTv = (s) => s && s.id === 'tv';
+const things = (s, n) => (isTv(s) ? (n === 1 ? 'show' : 'shows') : isMovies(s) ? (n === 1 ? 'movie' : 'movies') : (n === 1 ? 'game' : 'games'));
+// "S1 · E3" for seasons, "E3" in an arc, nothing for specials.
+const epCode = (e) => (e.number == null ? '' : e.season != null ? `S${e.season} · E${e.number}` : `E${e.number}`);
 const fmtRuntime = (m) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? (m % 60) + ' min' : ''}`.trim() : `${m} min`);
 const yearOf = (g) => g.info?.year || g.meta?.year || null;
 function allItems() { return systems().flatMap((s) => s.games.map((g) => ({ s, g }))); }
@@ -240,6 +243,7 @@ const SYS_ICON = {
   neogeo: '<rect x="8" y="14" width="48" height="24" rx="2"/><rect x="18" y="10" width="28" height="8" rx="1"/><circle cx="16" cy="30" r="2"/>',
   arcade: '<path d="M18 4h28v40H18z"/><rect x="22" y="9" width="20" height="14" rx="1"/><path d="M18 28h28"/><path d="M27 28v-4"/><circle cx="27" cy="23" r="2"/><circle cx="37" cy="27" r="1.6"/>',
   atari2600: '<path d="M8 22l6-8h36l6 8v12c0 2-2 4-4 4H12c-2 0-4-2-4-4z"/><path d="M8 28h48M14 24h6M44 24h6"/>',
+  tv: '<rect x="6" y="12" width="52" height="32" rx="3"/><path d="M24 4l8 8 8-8"/><path d="M14 20h28v16H14z"/><circle cx="50" cy="22" r="2"/><circle cx="50" cy="30" r="2"/>',
   movies: '<rect x="8" y="18" width="48" height="26" rx="2"/><path d="M8 18l4-10 44 0-4 10"/><path d="M20 8l-4 10M32 8l-4 10M44 8l-4 10"/><path d="M28 25l10 6-10 6z"/>',
   pc: '<rect x="8" y="6" width="48" height="30" rx="2"/><path d="M26 36l-2 6h16l-2-6M20 42h24"/>',
   dos: '<rect x="8" y="6" width="48" height="30" rx="2"/><path d="M16 16l5 4-5 4M24 26h8"/><path d="M26 36l-2 6h16l-2-6"/>',
@@ -509,6 +513,20 @@ function detail() {
   ].join('');
 
   const movie = isMovies(s);
+  // TV: the chosen season (or arc), and its episodes with their place in the full list.
+  const tvEps = g.episodes || [];
+  const groups = [...new Set(tvEps.map((e) => e.group))];
+  S.epGroup = S.epGroup || {};
+  const group = groups.includes(S.epGroup[g.id]) ? S.epGroup[g.id] : groups[0];
+  const shown = tvEps.map((e, i) => ({ e, i })).filter((x) => x.e.group === group);
+  const tvFirst = shown.length ? shown[0].i : 0;
+  const thumbFallback = g.hero ? `<img src="${mediaUrl(g.hero)}" alt="" style="opacity:.35">` : '';
+  const episodesHtml = !tvEps.length ? '' : `<section class="eps" aria-label="Episodes">
+    <h3 style="font-family:var(--body);font-size:18px;font-weight:700">${tvEps.filter((e) => e.number != null).length} episodes</h3>
+    ${groups.length > 1 ? `<div class="seasons" role="tablist">${groups.map((gr) => `<button class="chip ${gr === group ? 'on' : ''}" role="tab" aria-selected="${gr === group}" data-nav data-key="grp-${esc(gr)}" data-act="epgroup" data-id="${esc(g.id)}" data-g="${esc(gr)}">${esc(gr)}</button>`).join('')}</div>` : ''}
+    <div class="eplist">${shown.map(({ e, i }) => `<button class="ep" data-nav data-key="ep-${i}" data-act="play" data-id="${esc(g.id)}" data-ep="${i}" title="${esc(e.file)}">
+      <span class="thumb">${e.still ? `<img src="${mediaUrl(e.still)}" alt="" loading="lazy">` : `${thumbFallback}<span style="position:relative">${e.number ?? ICON.film}</span>`}</span>
+      <span><span class="et"><span class="n">${esc(epCode(e))}</span>${esc(e.title || (e.number != null ? 'Episode ' + e.number : e.file))}</span>${e.overview ? `<span class="eo">${esc(e.overview)}</span>` : ''}</span></button>`).join('')}</div></section>`;
   const metaLine = [
     year ? `<span>${esc(year)}</span>` : null,
     i.runtime ? `<span>${esc(fmtRuntime(i.runtime))}</span>` : null,
@@ -539,7 +557,8 @@ function detail() {
       ${i.description ? `<p class="desc">${esc(i.description)}</p>` : ''}
       ${g.warnings.map((w) => `<div class="warning">${esc(w)}</div>`).join('')}
       <div class="actions">
-        <button class="btn primary" data-nav data-key="play" data-act="play" data-id="${esc(g.id)}">${glyph('A')}Play</button>
+        ${tvEps.length ? `<button class="btn primary" data-nav data-key="play" data-act="play" data-id="${esc(g.id)}" data-ep="${tvFirst}">${glyph('A')}Play ${esc(epCode(tvEps[tvFirst]) || 'episode')}</button>`
+          : `<button class="btn primary" data-nav data-key="play" data-act="play" data-id="${esc(g.id)}">${glyph('A')}Play</button>`}
         <button class="btn" data-nav data-key="fav" data-act="fav" data-id="${esc(g.id)}">${glyph('Y')}${isFav(g.id) ? 'Remove favorite' : 'Favorite'}</button>
         <button class="btn" data-nav data-key="addlist" data-act="lists" data-id="${esc(g.id)}">${ICON.list} ${Object.values(S.boot.collections || {}).some((l) => l.includes(g.id)) ? 'In your lists' : 'Add to list'}</button>
         ${S.spun === g.id ? `<button class="btn" data-nav data-key="spin" data-act="random" data-scope="${esc(S.spinScope || 'all')}">${ICON.dice} Spin again</button>` : ''}
@@ -550,11 +569,12 @@ function detail() {
       <div class="facts">
         <div class="fact"><span class="k">${s.id === 'pc' ? 'Opens with' : movie ? 'Plays in' : 'Emulator'}</span><span class="v">${esc(g.launcher || (s.emulator === 'system' ? opener(g) : s.emulator))}</span>
           ${s.id === 'pc' ? '<span class="n">Your PC</span>' : `<span class="n">${g.launcher ? `Chosen for this ${things(s, 1)}` : movie ? 'Default player' : 'Console default'}</span><button class="link" data-nav data-key="chemu" data-act="emu" data-id="${esc(g.id)}">Change for this ${things(s, 1)}</button>`}</div>
-        <div class="fact"><span class="k">${movie ? 'Watched' : 'Playtime'}</span><span class="v">${fmtTime(pt)}</span><span class="n">${lp ? (movie ? 'Last watched ' : 'Last played ') + ago(lp) : (g.format === 'steam' || g.format === 'epic') ? `${g.format === 'steam' ? 'Steam' : 'Epic'} keeps this one` : 'Tracked automatically'}</span></div>
-        <div class="fact"><span class="k">File</span><span class="v">${esc(g.format.toUpperCase())}${g.region ? ' · ' + esc(g.region) : ''}</span><span class="n" title="${esc(g.file)}">${esc(g.file)}</span>${extras.length ? `<span class="n">${esc(extras.join(' · '))}</span>` : ''}${isFav(g.id) ? `<span class="n" style="color:var(--accent);font-weight:600">${ICON.check} Favorite</span>` : ''}</div>
+        <div class="fact"><span class="k">${movie ? 'Watched' : 'Playtime'}</span><span class="v">${movie && !pt ? 'Not yet' : fmtTime(pt)}</span><span class="n">${lp ? (movie ? 'Last watched ' : 'Last played ') + ago(lp) : (g.format === 'steam' || g.format === 'epic') ? `${g.format === 'steam' ? 'Steam' : 'Epic'} keeps this one` : 'Tracked automatically'}</span></div>
+        ${tvEps.length ? `<div class="fact"><span class="k">Files</span><span class="v">${tvEps.length} video${tvEps.length === 1 ? '' : 's'}</span><span class="n">${groups.length} ${groups.length === 1 ? 'group' : 'groups'}: ${esc(groups.join(', '))}</span></div>` : `<div class="fact"><span class="k">File</span><span class="v">${esc(g.format.toUpperCase())}${g.region ? ' · ' + esc(g.region) : ''}</span><span class="n" title="${esc(g.file)}">${esc(g.file)}</span>${extras.length ? `<span class="n">${esc(extras.join(' · '))}</span>` : ''}${isFav(g.id) ? `<span class="n" style="color:var(--accent);font-weight:600">${ICON.check} Favorite</span>` : ''}</div>`}
       </div>
     </div>
    </div>
+   ${episodesHtml}
    ${shotsHtml(g)}
    ${movie ? '' : achHtml(g, s)}
    ${rows}
@@ -568,7 +588,7 @@ function playingOverlay() {
     ${p.error ? '' : '<div class="spinner"></div>'}
     <p style="font-size:15px;font-weight:600;letter-spacing:.08em;text-transform:uppercase">${p.error ? "Couldn't start" : p.started ? (p.movie ? 'Watching' : 'Playing') : (p.movie ? 'Opening' : 'Launching')}</p>
     <h2>${esc(p.title)}</h2>
-    ${p.error ? `<p class="err">${esc(p.error)}</p>` : `<p>${esc(p.emulator === 'system' ? `Opening with ${p.opener || OS_NAME}` : p.emulator)}</p><p style="font-size:15px">${p.closing ? 'Closing the game…' : exitComboOn() ? `Hold ${glyph('SELECT')} + ${glyph('START')} on your controller, or quit the game, to come back.` : 'Quit the game to come back here.'}</p>`}
+    ${p.error ? `<p class="err">${esc(p.error)}</p>` : `<p>${esc(p.emulator === 'system' ? `Opening with ${p.opener || OS_NAME}` : p.emulator)}</p><p style="font-size:15px">${p.closing ? (p.movie ? 'Closing the player…' : 'Closing the game…') : exitComboOn() ? `Hold ${glyph('SELECT')} + ${glyph('START')} on your controller, or ${p.movie ? 'close the player' : 'quit the game'}, to come back.` : p.movie ? 'Close the player to come back here.' : 'Quit the game to come back here.'}</p>`}
     ${p.error || p.emulator === 'system' ? `<button class="btn" data-nav data-key="closeplay" data-act="closeplay">${glyph('B')}Back to library</button>` : ''}
   </div></div>`;
 }
@@ -580,7 +600,7 @@ function settingsPanel() {
   const accent = st.accent || '#C8431F';
   const sw = ['#C8431F', '#2F5FBF', '#237A52', '#5B21B6', '#C99A1A', '#0E7490'].map((c) =>
     `<button class="swatch ${c === accent ? 'on' : ''}" style="background:${c}" data-nav data-key="acc-${c}" data-act="accent" data-c="${c}" aria-label="Accent ${c}"></button>`).join('');
-  const fetching = S.fetch ? `${S.fetch.stage === 'movies' ? 'Getting movie posters' : S.fetch.stage === 'details' ? 'Looking up details' : 'Downloading covers'} ${S.fetch.done}/${S.fetch.total}` : null;
+  const fetching = S.fetch ? `${S.fetch.stage === 'tv' ? 'Getting TV details' : S.fetch.stage === 'movies' ? 'Getting movie posters' : S.fetch.stage === 'details' ? 'Looking up details' : 'Downloading covers'} ${S.fetch.done}/${S.fetch.total}` : null;
   return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="Settings">
     <h2>Settings</h2>
     <div class="grp"><span class="k">Theme</span><div class="opts">
@@ -598,6 +618,10 @@ function settingsPanel() {
       <div class="roots">${(S.boot.movie_roots || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>
         <button class="btn small" data-nav data-key="rmmovie-${i}" data-act="rmmovieroot" data-p="${esc(r.path)}">Remove</button></div>`).join('')}</div>
       <div class="opts"><button class="btn" data-nav data-key="addmovieroot" data-act="addmovieroot">${ICON.plus} Add movie folder</button></div></div>
+    <div class="grp"><span class="k">TV</span><span class="note">Folders with your shows. Each folder inside is one show; Spine sorts the episodes into seasons and finds names and thumbnails on TMDB.</span>
+      <div class="roots">${(S.boot.tv_roots || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>
+        <button class="btn small" data-nav data-key="rmtv-${i}" data-act="rmtvroot" data-p="${esc(r.path)}">Remove</button></div>`).join('')}</div>
+      <div class="opts"><button class="btn" data-nav data-key="addtvroot" data-act="addtvroot">${ICON.plus} Add TV folder</button></div></div>
     <div class="grp"><span class="k">PC stores</span><span class="note">Games installed with Steam, Epic Games and GOG show up in PC Games, ready to play.</span><div class="opts">
       <button class="chip ${storesOn() ? 'on' : ''}" data-nav data-key="st-on" data-act="stores" data-v="on">Include them</button>
       <button class="chip ${!storesOn() ? 'on' : ''}" data-nav data-key="st-off" data-act="stores" data-v="off">Off</button></div></div>
@@ -1364,10 +1388,12 @@ const ACT = {
     const found = findGame(d.id);
     if (!found) return;
     stopPreview();
-    S.playing = { title: found.g.title, emulator: found.s.emulator, opener: opener(found.g), movie: isMovies(found.s) };
+    const ep = d.ep != null && d.ep !== '' ? Number(d.ep) : null;
+    const e = ep != null ? (found.g.episodes || [])[ep] : null;
+    S.playing = { title: e ? `${found.g.title} · ${[epCode(e), e.title].filter(Boolean).join(' ')}` : found.g.title, emulator: found.s.emulator, opener: opener(found.g), movie: isMovies(found.s) };
     render();
     try {
-      const emu = await api.call('play', { id: d.id });
+      const emu = await api.call('play', { id: d.id, episode: ep });
       S.playing = { ...S.playing, emulator: emu, started: true };
       S.boot.last_played = { ...(S.boot.last_played || {}), [d.id]: Math.floor(Date.now() / 1000) };
     } catch (e) {
@@ -1395,7 +1421,7 @@ const ACT = {
   async rmroot(d) {
     S.boot = await api.call('remove_root', { path: d.p });
     S.focusKey = 'addroot';
-    if (!S.boot.roots.length && !(S.boot.movie_roots || []).length) { S.panel = null; S.screen = 'welcome'; }
+    if (!S.boot.roots.length && !(S.boot.movie_roots || []).length && !(S.boot.tv_roots || []).length) { S.panel = null; S.screen = 'welcome'; }
     render();
     toast('Folder removed from Spine (nothing was deleted)');
   },
@@ -1414,6 +1440,25 @@ const ACT = {
   async rmmovieroot(d) {
     S.boot = await api.call('remove_movie_root', { path: d.p });
     S.focusKey = 'addmovieroot';
+    render();
+    toast('Folder removed from Spine (nothing was deleted)');
+  },
+  epgroup(d) { S.epGroup = S.epGroup || {}; S.epGroup[d.id] = d.g; S.focusKey = `grp-${d.g}`; render(); },
+  async addtvroot() {
+    try {
+      const b = await api.call('add_tv_root');
+      if (!b) return;
+      const count = (x) => (x.systems.find((s) => s.id === 'tv')?.games.length || 0);
+      const n = count(b) - count(S.boot);
+      S.boot = b; S.focusKey = 'addtvroot';
+      render();
+      toast(n > 0 ? `Found ${n} show${n === 1 ? '' : 's'}` : 'Folder added, but no shows found in it yet', 4000);
+      api.call('fetch_media');
+    } catch (e) { toast(String(e), 5000); }
+  },
+  async rmtvroot(d) {
+    S.boot = await api.call('remove_tv_root', { path: d.p });
+    S.focusKey = 'addtvroot';
     render();
     toast('Folder removed from Spine (nothing was deleted)');
   },
@@ -1639,7 +1684,7 @@ function renderToast() {
   if (S.fetch && S.fetch.total) {
     const pct = Math.round((100 * S.fetch.done) / S.fetch.total);
     el.hidden = false;
-    el.innerHTML = `<span>${S.fetch.stage === 'movies' ? 'Getting movie posters and details' : S.fetch.stage === 'details' ? 'Looking up game details' : S.fetch.stage === 'videos' ? 'Finding trailers' : S.fetch.stage === 'art' ? 'Getting banners, logos and screenshots' : S.fetch.stage === 'categories' ? 'Sorting games into categories' : 'Downloading covers'} ${S.fetch.done}/${S.fetch.total}</span><span class="bar"><i style="width:${pct}%"></i></span>`;
+    el.innerHTML = `<span>${S.fetch.stage === 'tv' ? 'Getting TV shows and episodes' : S.fetch.stage === 'movies' ? 'Getting movie posters and details' : S.fetch.stage === 'details' ? 'Looking up game details' : S.fetch.stage === 'videos' ? 'Finding trailers' : S.fetch.stage === 'art' ? 'Getting banners, logos and screenshots' : S.fetch.stage === 'categories' ? 'Sorting games into categories' : 'Downloading covers'} ${S.fetch.done}/${S.fetch.total}</span><span class="bar"><i style="width:${pct}%"></i></span>`;
     return;
   }
   el.hidden = true;
@@ -1683,7 +1728,7 @@ api.on('game-exited', (p) => {
   S.playing = null;
   S.focusKey = 'play';
   render();
-  if (p.seconds > 60) toast(`${String(p.id).startsWith('movies/') ? 'Watched' : 'Played'} ${fmtTime(p.seconds)}`);
+  if (p.seconds > 60) toast(`${/^(movies|tv)\//.test(String(p.id)) ? 'Watched' : 'Played'} ${fmtTime(p.seconds)}`);
 });
 
 // ---------------------------------------------------------------------------
@@ -1692,7 +1737,7 @@ api.on('game-exited', (p) => {
 (async function start() {
   S.boot = await api.call('boot');
   applyTheme();
-  const hasLibrary = S.boot.rom_root || (S.boot.movie_roots || []).length;
+  const hasLibrary = S.boot.rom_root || (S.boot.movie_roots || []).length || (S.boot.tv_roots || []).length;
   if (!hasLibrary) S.screen = 'welcome';
   else { S.screen = 'home'; S.sel = Math.max(0, tiles().findIndex((t) => t.kind === 'sys')); }
   render();

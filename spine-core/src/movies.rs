@@ -104,7 +104,7 @@ pub fn parse_name(raw: &str) -> (String, Option<String>) {
     (title, year.map(|(_, y)| y))
 }
 
-fn slug(s: &str) -> String {
+pub(crate) fn slug(s: &str) -> String {
     let mut out = String::new();
     for c in s.chars() {
         if c.is_ascii_alphanumeric() {
@@ -116,7 +116,7 @@ fn slug(s: &str) -> String {
     out.trim_end_matches('-').to_string()
 }
 
-fn is_video(p: &Path) -> bool {
+pub(crate) fn is_video(p: &Path) -> bool {
     p.extension().map_or(false, |e| VIDEO_EXTS.contains(&e.to_string_lossy().to_lowercase().as_str()))
 }
 
@@ -207,6 +207,7 @@ pub fn scan_root(root: &Path) -> Option<Library> {
                     meta: None,
                     info: None,
                     warnings: vec![],
+                    episodes: vec![],
                 };
                 by_id.insert(id, (g, size));
             }
@@ -229,8 +230,8 @@ pub fn scan_many(roots: &[PathBuf], cache: &Path) -> (Library, Vec<PathBuf>) {
 // TMDB
 // ---------------------------------------------------------------------------
 
-const API: &str = "https://api.themoviedb.org/3";
-const IMG: &str = "https://image.tmdb.org/t/p/";
+pub(crate) const API: &str = "https://api.themoviedb.org/3";
+pub(crate) const IMG: &str = "https://image.tmdb.org/t/p/";
 
 /// TMDB gives two kinds of key: a short "API key" (sent in the address) or a long
 /// "Read Access Token" (sent as a header). Either works.
@@ -243,7 +244,7 @@ fn auth(key: &str) -> (String, Vec<String>) {
     }
 }
 
-fn get_json(url: &str, key: &str) -> Result<serde_json::Value, String> {
+pub(crate) fn get_json(url: &str, key: &str) -> Result<serde_json::Value, String> {
     let (q, headers) = auth(key);
     let full = format!("{url}{q}");
     let bytes = covers::curl(&full, true, &headers).map_err(|e| if e.contains("401") { "TMDB didn't accept the key. Check it in Settings → Scrapers.".to_string() } else { e })?;
@@ -295,17 +296,17 @@ pub fn parse_details(json: &serde_json::Value) -> MovieDetails {
     MovieDetails { info, poster: s(&json["poster_path"]), backdrop: s(&json["backdrop_path"]), logo }
 }
 
-fn now() -> u64 {
+pub(crate) fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
-fn write_info(media: &Path, id: &str, info: &GameInfo) {
+pub(crate) fn write_info(media: &Path, id: &str, info: &GameInfo) {
     let p = info_path(media, id);
     let _ = fs::create_dir_all(p.parent().unwrap_or(Path::new(".")));
     let _ = fs::write(p, serde_json::to_string_pretty(info).unwrap_or_default());
 }
 
-fn needs_lookup(media: &Path, g: &Game) -> bool {
+pub(crate) fn needs_lookup(media: &Path, g: &Game) -> bool {
     match load_info(media, &g.id) {
         None => true,
         Some(i) => i.not_found_at.map_or(false, |t| now().saturating_sub(t) > 30 * 24 * 3600),
@@ -378,7 +379,7 @@ pub fn fetch_details(lib: &Library, media: &Path, key: &str, progress: &dyn Fn(u
     Ok(found)
 }
 
-fn art_base(media: &Path, kind: &str, id: &str) -> PathBuf {
+pub(crate) fn art_base(media: &Path, kind: &str, id: &str) -> PathBuf {
     let mut p = media.join(kind);
     for part in id.split('/') {
         p.push(part);

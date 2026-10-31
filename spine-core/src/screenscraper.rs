@@ -217,7 +217,7 @@ pub fn parse_search(json: &Value, want_title: &str) -> Option<GameInfo> {
 pub fn should_use_name(system: &str, current: &str) -> bool {
     let letters: Vec<char> = current.chars().filter(|c| c.is_alphabetic()).collect();
     let abbreviation = !current.contains(' ') && letters.len() <= 6 && letters.iter().all(|c| c.is_uppercase());
-    matches!(system, "switch" | "psvita" | "movies") || abbreviation
+    matches!(system, "switch" | "psvita" | "movies" | "tv") || abbreviation
 }
 
 #[derive(Debug, Default)]

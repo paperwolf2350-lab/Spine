@@ -1,7 +1,8 @@
 # Spine — to-do list
 
 ## Next up (planned)
-- **Movies & TV**, step 2: TV shows (seasons, episodes, watched marks). Then step 3: resume where you left off and a "Continue watching" row. Plan in HANDOFF.md.
+- **Movies & TV**, step 3: watched checkmarks, "Next episode", resume where you left off, and a "Continue watching" row. Plan in HANDOFF.md.
+- TV: put arc seasons (Demon Slayer) in story order.
 
 ## Waiting on accounts
 - **ScreenScraper developer key** (requested on their forum): turns on names
@@ -14,6 +15,7 @@
 
 ## Done
 
+- TV shows, step 2 (0.6.0): TV folders, seasons/arcs/specials, episode list with TMDB names and thumbnails.
 - Movies, step 1 (0.5.0): movie folders, TMDB posters and details, plays in VLC or mpv.
 - Interface sounds (Settings → Sounds).
 - Linux version: AppImage + .deb + one-line installer; Flatpak/AppImage emulators; Steam and Heroic games; controller exit combo; self-update.

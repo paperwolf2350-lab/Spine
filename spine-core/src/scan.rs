@@ -61,6 +61,9 @@ pub struct Game {
     pub info: Option<crate::screenscraper::GameInfo>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
+    /// TV shows: every episode file, in viewing order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub episodes: Vec<crate::tv::Episode>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -490,6 +493,7 @@ fn build_games(sys: &System, cands: Vec<Candidate>, notes: &mut Vec<String>) -> 
                 meta: None,
                 info: None,
                 warnings,
+                episodes: vec![],
             }
         })
         .collect();
