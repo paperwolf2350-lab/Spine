@@ -66,7 +66,7 @@ Gotchas learned the hard way:
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
-## Where things stand (end of Oct 2026, v0.6.2)
+## Where things stand (end of Oct 2026, v0.7.0)
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
@@ -168,8 +168,18 @@ with posters/cover art, details, and seasons/episodes. Agreed approach:
   title, two-line summary). Play button plays the first episode of the chosen season.
 - Owner's anime: D:\anime (external drive), many EMBER / [DB] / [Anime Time] releases.
 
-Next (step 3): watched checkmarks, "Next episode", resume (mpv `--start` +
-`--input-ipc-server`, VLC `--start-time`), "Continue watching" row.
+Step 3 is split in two releases (owner's choice). **0.7.0** (Oct 31): resume,
+watched and Next episode, VLC only (the owner uses VLC). `spine-core/src/player.rs`:
+VLC gets `--extraintf=http --http-host=127.0.0.1 --http-port=<free> --http-password=<random>`
+(+ `--start-time`), Spine polls `/requests/status.json` every 3 s and saves the last
+position on exit in spine-state.json `progress` (movie id, or "<show id>|<file name>"
+→ {pos, len, watched, at}). Watched = past 90% or within the last 60 s; under 30 s
+isn't resumable. `play` takes `from_start` (Start over); `set_watched` ticks/unticks.
+UI: `showNext` picks Resume / Next / Play from the most recent `at`; round check per
+episode, progress bar on thumbnails; movies get Resume + Start over + Mark as watched.
+Tested against real VLC 3.0.20 on Linux (start-time, status, password, play-to-end).
+Next: **0.7.1** "Continue watching" row on Home (and keep movies out of
+"Continue playing"). mpv resume not done (would need `--input-ipc-server`).
 **0.6.1** (from the owner's real TMDB data, Oct 31): TMDB lists many anime as one
 long season (Jujutsu Kaisen S1 = 59 eps, no S2; Wind Breaker S1 = 25). `tv::resolve`
 maps each file to a TMDB (season, episode): exact match; else for season N>1 that

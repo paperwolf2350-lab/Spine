@@ -71,6 +71,9 @@ struct Saved {
     /// Names the user typed for movies in show folders: "<show id>|<file name>" -> name.
     #[serde(default)]
     special_queries: BTreeMap<String, String>,
+    /// Where you left off and what you've watched: movie id, or "<show id>|<file name>".
+    #[serde(default)]
+    progress: BTreeMap<String, spine_core::player::Progress>,
 }
 
 impl Saved {
@@ -247,6 +250,7 @@ struct Boot {
     tv_roots: Vec<RootView>,
     hidden: Vec<HiddenView>,
     collections: BTreeMap<String, Vec<String>>,
+    progress: BTreeMap<String, spine_core::player::Progress>,
 }
 
 fn view(app: &App) -> Boot {
@@ -354,6 +358,7 @@ fn view(app: &App) -> Boot {
         favorites: saved.favorites,
         playtime: saved.playtime,
         last_played: saved.last_played,
+        progress: saved.progress.clone(),
         settings: saved.settings,
         notes: lib.as_ref().map(|l| l.notes.clone()).unwrap_or_default(),
     }
@@ -662,7 +667,7 @@ fn set_setting(key: String, value: serde_json::Value, app: State<App>) {
 
 /// Start a game. Emits "game-exited" {id, seconds} when the emulator closes.
 #[tauri::command]
-fn play(id: String, episode: Option<usize>, handle: AppHandle) -> Result<String, String> {
+fn play(id: String, episode: Option<usize>, from_start: Option<bool>, handle: AppHandle) -> Result<String, String> {
     let app = handle.state::<App>();
     if let Some(r) = app.running.lock().unwrap().as_ref() {
         return Err(format!("{r} is still running."));
@@ -680,11 +685,28 @@ fn play(id: String, episode: Option<usize>, handle: AppHandle) -> Result<String,
         let pref = app.saved.lock().unwrap().overrides.get(&id).cloned();
         // A TV episode plays like its show, with the episode's file.
         let mut game = game.clone();
+        let mut file = None;
         if let Some(i) = episode {
             game.path = game.episodes.get(i).ok_or("Episode not found.")?.path.clone();
+            file = game.path.file_name().map(|f| f.to_string_lossy().to_string());
         }
-        (launch::plan_preferred(def, &game, &app.installed.lock().unwrap(), pref.as_deref()), game.title.clone())
+        (launch::plan_preferred(def, &game, &app.installed.lock().unwrap(), pref.as_deref()), (game.title.clone(), file))
     };
+    let (title, ep_file) = title;
+    // Movies and episodes in VLC: remember where you stop, and start there next time.
+    let mut plan = plan;
+    let pkey = spine_core::player::key(&id, ep_file.as_deref());
+    let remote = (is_movie && plan.emulator == "VLC" && plan.blocked.is_none())
+        .then(spine_core::player::free_port)
+        .flatten()
+        .map(|port| (port, spine_core::player::password()));
+    if let Some((port, pw)) = &remote {
+        let saved = app.saved.lock().unwrap().progress.get(&pkey).copied();
+        let start = if from_start == Some(true) { None } else { spine_core::player::start_at(saved.as_ref()) };
+        let file_arg = plan.args.pop();
+        plan.args.extend(spine_core::player::vlc_args(*port, pw, start));
+        plan.args.extend(file_arg);
+    }
     if let Some(why) = &plan.blocked {
         return Err(why.clone());
     }
@@ -714,6 +736,19 @@ fn play(id: String, episode: Option<usize>, handle: AppHandle) -> Result<String,
             pad::close_game(pid, &|| !d.load(std::sync::atomic::Ordering::Relaxed));
         });
     }
+    // Ask VLC every few seconds how far in you are; the last answer is where you stopped.
+    let last_pos = std::sync::Arc::new(std::sync::Mutex::new(None::<(u64, u64)>));
+    if let Some((port, pw)) = remote.clone() {
+        let (d, last) = (done.clone(), last_pos.clone());
+        std::thread::spawn(move || {
+            while !d.load(std::sync::atomic::Ordering::Relaxed) {
+                if let Some(p) = spine_core::player::poll_vlc(port, &pw) {
+                    *last.lock().unwrap() = Some(p);
+                }
+                std::thread::sleep(std::time::Duration::from_secs(3));
+            }
+        });
+    }
     std::thread::spawn(move || {
         let started = std::time::Instant::now();
         let status = child.wait();
@@ -739,14 +774,41 @@ fn play(id: String, episode: Option<usize>, handle: AppHandle) -> Result<String,
             *app.saved.lock().unwrap().playtime.entry(id.clone()).or_insert(0) += secs;
             app.save();
         }
+        let progress = last_pos.lock().unwrap().map(|(pos, len)| {
+            let mut s = app.saved.lock().unwrap();
+            let p = spine_core::player::after_session(s.progress.get(&pkey).copied(), pos, len, now());
+            s.progress.insert(pkey.clone(), p);
+            p
+        });
+        if progress.is_some() {
+            app.save();
+        }
         *app.running.lock().unwrap() = None;
-        let _ = h.emit("game-exited", serde_json::json!({"id": id, "seconds": secs, "error": error}));
+        let _ = h.emit("game-exited", serde_json::json!({"id": id, "seconds": secs, "error": error, "key": pkey, "progress": progress}));
         if let Some(w) = h.get_webview_window("main") {
             let _ = w.unminimize();
             let _ = w.set_focus();
         }
     });
     Ok(emulator)
+}
+
+/// Tick or untick "watched" on a movie or episode ("<show id>|<file name>").
+#[tauri::command]
+fn set_watched(key: String, watched: bool, app: State<App>) -> Option<spine_core::player::Progress> {
+    let p = {
+        let mut s = app.saved.lock().unwrap();
+        if watched {
+            let p = s.progress.entry(key).or_default();
+            *p = spine_core::player::Progress { pos: 0, watched: true, at: now(), ..*p };
+            Some(*p)
+        } else {
+            s.progress.remove(&key);
+            None
+        }
+    };
+    app.save();
+    p
 }
 
 /// Give a game a different name (None = go back to the name from the file).
@@ -1462,7 +1524,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_watched])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

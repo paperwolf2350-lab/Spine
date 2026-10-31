@@ -182,6 +182,26 @@ function arcLabel(g, m, count) {
   return `Season ${m.season}${name}${part}`;
 }
 const epCode = (e) => (e.number == null ? '' : e.season != null ? `S${e.season} · E${e.number}` : `E${e.number}`);
+// Where you left off: movies by id, episodes by "<show id>|<file name>".
+const progKey = (g, i) => (i == null ? g.id : `${g.id}|${g.episodes[i].file}`);
+const progOf = (g, i) => (S.boot.progress || {})[progKey(g, i)] || null;
+const finished = (p) => !!p.len && (p.pos * 10 >= p.len * 9 || p.pos + 60 >= p.len);
+const canResume = (p) => !!p && p.pos >= 30 && !finished(p);
+const clock = (t) => { const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), x = t % 60; return `${h ? `${h}:${String(m).padStart(2, '0')}` : m}:${String(x).padStart(2, '0')}`; };
+// A show's main button: back into the episode you stopped in, else the next
+// unwatched one after the last you watched, else the first.
+function showNext(g) {
+  const eps = g.episodes || [];
+  const order = showGroups(g).flatMap((gr) => eps.map((e, i) => ({ e, i })).filter((x) => x.e.group === gr).map((x) => x.i));
+  let last = -1, lastAt = 0;
+  order.forEach((i, k) => { const p = progOf(g, i); if (p && p.at > lastAt) { lastAt = p.at; last = k; } });
+  if (last < 0) return { i: order[0], kind: 'play' };
+  const p = progOf(g, order[last]);
+  if (canResume(p)) return { i: order[last], kind: 'resume', pos: p.pos };
+  if (!p.watched) return { i: order[last], kind: 'play' };
+  const after = order.slice(last + 1).concat(order.slice(0, last)).find((i) => !progOf(g, i)?.watched);
+  return after != null ? { i: after, kind: 'next' } : { i: order[0], kind: 'play' };
+}
 const fmtRuntime = (m) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? (m % 60) + ' min' : ''}`.trim() : `${m} min`);
 const yearOf = (g) => g.info?.year || g.meta?.year || null;
 function allItems() { return systems().flatMap((s) => s.games.map((g) => ({ s, g }))); }
@@ -541,16 +561,18 @@ function detail() {
   S.epGroup = S.epGroup || {};
   const group = groups.includes(S.epGroup[g.id]) ? S.epGroup[g.id] : groups[0];
   const shown = tvEps.map((e, i) => ({ e, i })).filter((x) => x.e.group === group);
-  const tvFirst = shown.length ? shown[0].i : 0;
+  const next = tvEps.length ? showNext(g) : null;
+  const mp = tvEps.length ? null : progOf(g, null);
   const thumbFallback = g.hero ? `<img src="${mediaUrl(g.hero)}" alt="" style="opacity:.35">` : '';
   const episodesHtml = !tvEps.length ? '' : `<section class="eps" aria-label="Episodes">
     <h3 style="font-family:var(--body);font-size:18px;font-weight:700">${tvEps.filter((e) => e.number != null).length} episodes</h3>
     ${groups.length > 1 ? `<div class="seasons" role="tablist">${groups.map((gr) => `<button class="chip ${gr === group ? 'on' : ''}" role="tab" aria-selected="${gr === group}" data-nav data-key="grp-${esc(gr)}" data-act="epgroup" data-id="${esc(g.id)}" data-g="${esc(gr)}">${esc(gr)}</button>`).join('')}</div>` : ''}
     ${isArc(g, group) ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span class="note">${g.arcs?.[group] ? `Matched to ${esc(arcLabel(g, g.arcs[group], shown.length))} on TMDB.` : 'TMDB names its seasons differently, so this arc has no episode details yet.'}</span>
       <button class="btn small" data-nav data-key="arcpick" data-act="arcpick" data-id="${esc(g.id)}" data-g="${esc(group)}">${g.arcs?.[group] ? 'Change season' : 'Which season is this?'}</button></div>` : ''}
-    <div class="eplist">${shown.map(({ e, i }) => `<button class="ep" data-nav data-key="ep-${i}" data-act="play" data-id="${esc(g.id)}" data-ep="${i}" title="${esc(e.file)}">
-      <span class="thumb">${e.still ? `<img src="${mediaUrl(e.still)}" alt="" loading="lazy">` : `${thumbFallback}<span style="position:relative">${e.number ?? ICON.film}</span>`}</span>
-      <span><span class="et">${epCode(e) ? `<span class="n">${esc(epCode(e))}</span>` : ''}${esc(e.title || (e.number != null ? 'Episode ' + e.number : e.file))}</span>${e.note ? `<span class="eo" style="font-weight:600">${esc(e.note)}</span>` : ''}${e.overview ? `<span class="eo">${esc(e.overview)}</span>` : ''}</span></button>`).join('')}</div>
+    <div class="eplist">${shown.map(({ e, i }) => { const p = progOf(g, i); return `<div class="eprow"><button class="ep" data-nav data-key="ep-${i}" data-act="play" data-id="${esc(g.id)}" data-ep="${i}" title="${esc(e.file)}${canResume(p) ? ` · resumes at ${clock(p.pos)}` : ''}">
+      <span class="thumb">${e.still ? `<img src="${mediaUrl(e.still)}" alt="" loading="lazy">` : `${thumbFallback}<span style="position:relative">${e.number ?? ICON.film}</span>`}${p?.watched ? `<span class="seen" aria-label="Watched">${ICON.check}</span>` : ''}${canResume(p) ? `<span class="pbar" aria-label="Stopped at ${clock(p.pos)}"><i style="width:${Math.round((100 * p.pos) / p.len)}%"></i></span>` : ''}</span>
+      <span><span class="et">${epCode(e) ? `<span class="n">${esc(epCode(e))}</span>` : ''}${esc(e.title || (e.number != null ? 'Episode ' + e.number : e.file))}</span>${e.note ? `<span class="eo" style="font-weight:600">${esc(e.note)}</span>` : ''}${e.overview ? `<span class="eo">${esc(e.overview)}</span>` : ''}</span></button>
+      <button class="epcheck ${p?.watched ? 'on' : ''}" data-nav data-key="w-${i}" data-act="watched" data-k="${esc(progKey(g, i))}" data-on="${p?.watched ? 1 : 0}" title="${p?.watched ? 'Watched · click to unmark' : 'Mark as watched'}" aria-pressed="${!!p?.watched}" aria-label="Watched">${ICON.check}</button></div>`; }).join('')}</div>
     ${group === 'Movies & specials' ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span class="note">Wrong movie, or no details?</span><button class="btn small" data-nav data-key="spfix" data-act="spfix" data-id="${esc(g.id)}">Fix match</button></div>` : ''}</section>`;
   const metaLine = [
     year ? `<span>${esc(year)}</span>` : null,
@@ -582,8 +604,11 @@ function detail() {
       ${i.description ? `<p class="desc">${esc(i.description)}</p>` : ''}
       ${g.warnings.map((w) => `<div class="warning">${esc(w)}</div>`).join('')}
       <div class="actions">
-        ${tvEps.length ? `<button class="btn primary" data-nav data-key="play" data-act="play" data-id="${esc(g.id)}" data-ep="${tvFirst}">${glyph('A')}Play ${esc(epCode(tvEps[tvFirst]) || 'episode')}</button>`
+        ${next ? `<button class="btn primary" data-nav data-key="play" data-act="play" data-id="${esc(g.id)}" data-ep="${next.i}">${glyph('A')}${{ resume: 'Resume', next: 'Next:', play: 'Play' }[next.kind]} ${esc(epCode(tvEps[next.i]) || tvEps[next.i].title || 'episode')}${next.kind === 'resume' ? ` · ${clock(next.pos)}` : ''}</button>`
+          : canResume(mp) ? `<button class="btn primary" data-nav data-key="play" data-act="play" data-id="${esc(g.id)}">${glyph('A')}Resume · ${clock(mp.pos)}</button>
+            <button class="btn" data-nav data-key="restart" data-act="play" data-id="${esc(g.id)}" data-from="start">Start over</button>`
           : `<button class="btn primary" data-nav data-key="play" data-act="play" data-id="${esc(g.id)}">${glyph('A')}Play</button>`}
+        ${movie && !tvEps.length ? `<button class="btn ${mp?.watched ? 'on' : ''}" data-nav data-key="mwatched" data-act="watched" data-k="${esc(g.id)}" data-on="${mp?.watched ? 1 : 0}" aria-pressed="${!!mp?.watched}">${ICON.check} ${mp?.watched ? 'Watched' : 'Mark as watched'}</button>` : ''}
         <button class="btn" data-nav data-key="fav" data-act="fav" data-id="${esc(g.id)}">${glyph('Y')}${isFav(g.id) ? 'Remove favorite' : 'Favorite'}</button>
         <button class="btn" data-nav data-key="addlist" data-act="lists" data-id="${esc(g.id)}">${ICON.list} ${Object.values(S.boot.collections || {}).some((l) => l.includes(g.id)) ? 'In your lists' : 'Add to list'}</button>
         ${S.spun === g.id ? `<button class="btn" data-nav data-key="spin" data-act="random" data-scope="${esc(S.spinScope || 'all')}">${ICON.dice} Spin again</button>` : ''}
@@ -1478,7 +1503,7 @@ const ACT = {
     S.playing = { title: e ? `${found.g.title} · ${[epCode(e), e.title].filter(Boolean).join(' ')}` : found.g.title, emulator: found.s.emulator, opener: opener(found.g), movie: isMovies(found.s) };
     render();
     try {
-      const emu = await api.call('play', { id: d.id, episode: ep });
+      const emu = await api.call('play', { id: d.id, episode: ep, fromStart: d.from === 'start' });
       S.playing = { ...S.playing, emulator: emu, started: true };
       S.boot.last_played = { ...(S.boot.last_played || {}), [d.id]: Math.floor(Date.now() / 1000) };
     } catch (e) {
@@ -1527,6 +1552,16 @@ const ACT = {
     S.focusKey = 'addmovieroot';
     render();
     toast('Folder removed from Spine (nothing was deleted)');
+  },
+  async watched(d) {
+    const on = d.on !== '1';
+    const p = await api.call('set_watched', { key: d.k, watched: on });
+    const all = { ...(S.boot.progress || {}) };
+    if (p) all[d.k] = p; else delete all[d.k];
+    S.boot.progress = all;
+    SFX.play(on ? 'favOn' : 'favOff');
+    S.focusKey = d.key;
+    render();
   },
   epgroup(d) { S.epGroup = S.epGroup || {}; S.epGroup[d.id] = d.g; S.focusKey = `grp-${d.g}`; render(); },
   async addtvroot() {
@@ -1809,6 +1844,7 @@ api.on('game-exited', (p) => {
   setTimeout(() => SFX.play('welcome'), 250);
   if (S.ach) delete S.ach[p.id]; // pick up anything earned while playing
   padMute = true; // buttons still held from the exit combo shouldn't press anything here
+  if (p.progress) S.boot.progress = { ...(S.boot.progress || {}), [p.key]: p.progress };
   S.boot.playtime = { ...(S.boot.playtime || {}), [p.id]: ((S.boot.playtime || {})[p.id] || 0) + (S.playing?.emulator === 'system' ? 0 : p.seconds) };
   S.playing = null;
   S.focusKey = 'play';

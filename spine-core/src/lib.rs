@@ -12,6 +12,7 @@ pub mod hostenv;
 pub mod launch;
 pub mod meta;
 pub mod movies;
+pub mod player;
 pub mod scan;
 pub mod stores;
 pub mod retroachievements;

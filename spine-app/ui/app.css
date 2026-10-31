@@ -367,6 +367,14 @@ body.kb .cat.focused, body.kb .cat:focus-visible { box-shadow: 0 0 0 3px var(--b
 .eps { display: flex; flex-direction: column; gap: 14px; margin-top: 26px; }
 .eps .seasons { display: flex; flex-wrap: wrap; gap: 8px; }
 .eplist { display: flex; flex-direction: column; gap: 8px; }
+.eprow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.epcheck { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface); color: var(--muted); opacity: .7; }
+.epcheck:hover { background: var(--surface2); opacity: 1; }
+.epcheck.on { background: var(--accent); color: var(--accent-ink); opacity: 1; }
+body.kb .epcheck.focused, body.kb .epcheck:focus-visible { box-shadow: 0 0 0 3px var(--accent); opacity: 1; }
+.ep .thumb .seen { position: absolute; top: 6px; right: 6px; z-index: 1; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: flex; align-items: center; justify-content: center; }
+.ep .thumb .pbar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; z-index: 1; background: rgba(0, 0, 0, .55); }
+.ep .thumb .pbar i { display: block; height: 100%; background: var(--accent); }
 .ep { display: grid; grid-template-columns: 176px minmax(0, 1fr); gap: 16px; align-items: center; text-align: left; padding: 10px; border-radius: 14px; background: var(--surface); }
 .ep:hover { background: var(--surface2); }
 .ep .thumb { position: relative; width: 176px; aspect-ratio: 16 / 9; border-radius: 9px; overflow: hidden; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-family: var(--display, inherit); font-size: 28px; font-weight: 700; color: var(--muted); }

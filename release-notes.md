@@ -1,7 +1,8 @@
 ## What's new
-- **Movies inside show folders** (like Jujutsu Kaisen 0 or Goblin's Crown) now get their real title, year, length, summary and a picture from TMDB.
-- **Fix match:** if one comes out wrong or missing, open the show's "Movies & specials" tab, press **Fix match**, type its English title and search again.
-- Since 0.6.1: Season 2 details for shows TMDB lists as one long season, and "Which season is this?" for arcs.
+- **Resume where you left off:** stop a movie or episode in VLC, and next time it starts from that spot. Movies get a **Start over** button too.
+- **Watched checkmarks:** anything you watch past 90% (or into the end credits) is ticked off. Click the round check next to an episode, or **Mark as watched** on a movie, to tick or untick it yourself.
+- **Next episode:** a show's main button now picks up where you are: *Resume S1 · E3*, *Next: S1 · E4*, or *Play S1 · E1* for a new show. Episodes you stopped partway show a small progress bar.
+- Resume works with VLC. mpv still plays everything, it just doesn't remember the spot yet.
 
 ---
 
