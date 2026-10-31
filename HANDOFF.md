@@ -68,7 +68,7 @@ Gotchas learned the hard way:
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
-## Where things stand (end of Oct 2026, v0.7.1)
+## Where things stand (end of Oct 2026, v0.7.2)
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
@@ -184,6 +184,9 @@ Tested against real VLC 3.0.20 on Linux (start-time, status, password, play-to-e
 use `showNext`; fully watched shows and finished movies drop off; clicking opens the
 page with Resume focused). "Continue playing" is games only. TV/Movies list header
 says shows/movies; filter and sort say "watched" (`sortLabel`).
+**0.7.2**: search box says "titles" when movies/shows exist; detail hint uses `things()`.
+README has screenshots in `docs/screenshots/` (owner's PC, resized to 1600x900;
+the movie file name was painted out — keep release names out of public images).
 Movies & TV step 3 is done. Not done: mpv resume (would need `--input-ipc-server`),
 Surprise me can still pick a movie, "Fix match" for whole shows.
 **0.6.1** (from the owner's real TMDB data, Oct 31): TMDB lists many anime as one

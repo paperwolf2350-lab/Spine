@@ -309,11 +309,12 @@ function cover(g, s, extra = '') {
 
 function topbar() {
   const total = systems().reduce((n, s) => n + s.games.length, 0);
+  const media = systems().some((s) => isMovies(s) && s.games.length);
   const time = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   return `<header class="topbar">
     <button class="brand" data-nav data-key="brand" data-act="home" aria-label="Spine home">${LOGO(30, 'var(--accent)')}<span>Spine</span></button>
     <div class="spacer"></div>
-    <button class="searchbox" data-nav data-key="searchbtn" data-act="search">${ICON.search}<span>Search ${total.toLocaleString()} games</span><span style="margin-left:auto">${glyph('X')}</span></button>
+    <button class="searchbox" data-nav data-key="searchbtn" data-act="search">${ICON.search}<span>Search ${total.toLocaleString()} ${media ? 'titles' : 'games'}</span><span style="margin-left:auto">${glyph('X')}</span></button>
     <span class="clock" id="clock">${time}</span>
     <button class="iconbtn" data-nav data-key="gear" data-act="settings" aria-label="Settings">${ICON.gear}</button>
   </header>`;
@@ -650,7 +651,7 @@ function detail() {
    ${shotsHtml(g)}
    ${movie ? '' : achHtml(g, s)}
    ${rows}
-  </div></main>` + hints('Pick a category to see every game like it', [['A', 'Select'], ['B', 'Back'], ['Y', 'Favorite']]);
+  </div></main>` + hints(`Pick a category to see every ${things(s, 1)} like it`, [['A', 'Select'], ['B', 'Back'], ['Y', 'Favorite']]);
 }
 
 function playingOverlay() {
@@ -972,7 +973,7 @@ function searchPanel() {
   const hits = [];
   if (q) for (const s of systems()) for (const g of s.games) if (g.title.toLowerCase().includes(q)) { hits.push({ s, g }); if (hits.length >= 60) break; }
   return `<div class="search-panel" role="dialog" aria-label="Search">
-    <div class="top">${ICON.search}<label class="sr" for="q">Search games</label><input id="q" data-nav data-key="q" placeholder="Search your games" value="${esc(S.query)}" autocomplete="off" spellcheck="false">
+    <div class="top">${ICON.search}<label class="sr" for="q">Search your library</label><input id="q" data-nav data-key="q" placeholder="Search your library" value="${esc(S.query)}" autocomplete="off" spellcheck="false">
       <button class="btn" data-nav data-key="qclose" data-act="closepanel">${glyph('B')}Close</button></div>
     <div class="res">${q ? (() => { const cs = topCats(1).filter((c) => c.name.toLowerCase().includes(q)).slice(0, 10); return cs.length ? `<div class="cats" style="margin-bottom:22px">${cs.map((c) =>
       `<button class="cat" data-nav data-key="scat-${esc(c.name)}" data-act="category" data-type="tag" data-v="${esc(c.name)}">${esc(c.name)} <span class="n">${c.count}</span></button>`).join('')}</div>` : ''; })() : ''}<div class="tiles">${hits.map(({ s, g }) => `<button class="game" data-nav data-key="h-${g.id}" data-act="open" data-id="${esc(g.id)}" data-from="search">
