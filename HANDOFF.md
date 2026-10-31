@@ -63,6 +63,8 @@ Gotchas learned the hard way:
   point at bundled libraries and crash host programs (this broke updates and
   RetroArch on Mint until 0.4.5). On Linux, downloads use the built-in ureq
   downloader first.
+- `ureq` is a Linux-only dependency of spine-core: don't use it in shared code
+  (0.7.0 first failed on Windows CI). Check with `cargo check --tests --target x86_64-pc-windows-gnu`.
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
