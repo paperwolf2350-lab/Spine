@@ -1,8 +1,8 @@
 ## What's new
-- **Resume where you left off:** stop a movie or episode in VLC, and next time it starts from that spot. Movies get a **Start over** button too.
-- **Watched checkmarks:** anything you watch past 90% (or into the end credits) is ticked off. Click the round check next to an episode, or **Mark as watched** on a movie, to tick or untick it yourself.
-- **Next episode:** a show's main button now picks up where you are: *Resume S1 · E3*, *Next: S1 · E4*, or *Play S1 · E1* for a new show. Episodes you stopped partway show a small progress bar.
-- Resume works with VLC. mpv still plays everything, it just doesn't remember the spot yet.
+- **Continue watching:** a new row on Home with the shows and movies you're in the middle of: *Resume S1 · E3 · 12:34*, *Next: S1 · E4*, or where you stopped in a movie. Finished movies and shows drop off on their own.
+- **Continue playing** is games only now.
+- The TV and Movies pages say "13 shows" and "5 movies" instead of "games", and their filters say *Not watched* / *Most watched*.
+- Since 0.7.0: resume where you left off in VLC, watched checkmarks and a Next episode button.
 
 ---
 

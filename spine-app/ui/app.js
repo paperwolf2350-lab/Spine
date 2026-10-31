@@ -375,7 +375,26 @@ function home() {
       ${sysIcon(tileIcon(c), i === sel ? 72 : 60)}<span><span class="short">${esc(c.short)}</span>${c.kind === 'sys' && c.name !== c.short ? `<span class="name">${esc(c.name)}</span>` : ''}<span class="count">${c.count != null ? c.count + ' ' + things(c.sys, c.count) : 'Random pick'}</span></span></button>`).join('');
 
   const lp = S.boot.last_played || {};
-  const recent = Object.entries(lp).sort((a, b) => b[1] - a[1]).map(([id]) => findGame(id)).filter(Boolean).slice(0, 6);
+  const byLast = Object.entries(lp).sort((a, b) => b[1] - a[1]).map(([id]) => findGame(id)).filter(Boolean);
+  const recent = byLast.filter((x) => !isMovies(x.s)).slice(0, 6);
+  // Continue watching: shows with an episode to resume or a next one waiting, and
+  // movies stopped partway. Finished movies and shows drop off.
+  const watching = byLast.filter((x) => isMovies(x.s)).map((x) => {
+    if ((x.g.episodes || []).length) {
+      const n = showNext(x.g);
+      const any = (x.g.episodes || []).some((_, i) => progOf(x.g, i));
+      const allSeen = any && (x.g.episodes || []).every((_, i) => progOf(x.g, i)?.watched);
+      if (allSeen) return null;
+      const code = epCode(x.g.episodes[n.i]) || x.g.episodes[n.i].title || 'episode';
+      return { ...x, line: n.kind === 'resume' ? `Resume ${code} · ${clock(n.pos)}` : n.kind === 'next' ? `Next: ${code}` : `Play ${code}` };
+    }
+    const p = progOf(x.g, null);
+    if (p?.watched && !canResume(p)) return null;
+    return { ...x, line: canResume(p) ? `Resume · ${clock(p.pos)}${p.len ? ` of ${clock(p.len)}` : ''}` : 'Movie' };
+  }).filter(Boolean).slice(0, 6);
+  const watchHtml = watching.length ? `<section class="row"><h3>Continue watching</h3><div class="recent">${watching.map(({ s: rs, g, line }) => `<button class="item" data-nav data-key="watch-${g.id}" data-act="open" data-id="${esc(g.id)}" data-from="home">
+        ${cover(g, rs, 'nofav')}<span style="min-width:0;display:flex;flex-direction:column;gap:3px"><span class="t">${esc(g.title)}</span>
+        <span class="s">${esc(line)} · ${ago(lp[g.id])}</span></span></button>`).join('')}</div></section>` : '';
   const recentHtml = recent.length
     ? `<div class="recent">${recent.map(({ s: rs, g }) => `<button class="item" data-nav data-key="recent-${g.id}" data-act="open" data-id="${esc(g.id)}" data-from="home">
         ${cover(g, rs, 'nofav')}<span style="min-width:0;display:flex;flex-direction:column;gap:3px"><span class="t">${esc(g.title)}</span>
@@ -415,6 +434,7 @@ function home() {
     </section>
     ${(S.boot.roots || []).filter((r) => !r.online).map((r) => `<div class="offline-banner" style="margin-top:22px">${esc(r.path)} isn't connected. Its games stay listed (greyed out) and come back when you plug the drive in.</div>`).join('')}
     <section class="row"><h3>Continue playing</h3>${recentHtml}</section>
+    ${watchHtml}
     ${freshHtml}
     ${favHtml}
     ${(() => { const tc = topCats(3).slice(0, 18); return tc.length ? `<section class="row"><h3>Browse by category</h3><div class="cats big">${tc.map((c) =>
@@ -450,6 +470,8 @@ function stepLetter(dir) {
 function layoutFor(id) { return (settings().layouts || {})[id] || 'tiles'; }
 
 // Sorting the games screen (remembered).
+// Movies and shows say "watched" where games say "played".
+const sortLabel = (s, k) => (isMovies(s) ? SORTS[k].replace('played', 'watched') : SORTS[k]);
 const SORTS = { title: 'A–Z', played: 'Most played', recent: 'Last played', year: 'Newest first', added: 'Recently added', listed: 'List order' };
 const sortMode = () => settings().sort || 'title';
 const maxPlayers = (g) => { const m = String(g.info?.players || '').match(/\d+/g); return m ? Math.max(...m.map(Number)) : 0; };
@@ -506,13 +528,13 @@ function games() {
     <div class="gamesbar">
       <button class="iconbtn" data-nav data-key="gback" data-act="back" aria-label="Back to consoles">${ICON.back}</button>
       <span class="hdricon" style="background:${s.color}">${sysIcon(tileIcon(s), 30)}</span><h2>${esc(s.name)}</h2>
-      <span style="color:var(--muted)">${L.items.length} games</span>
+      <span style="color:var(--muted)">${L.items.length} ${things(s, L.items.length)}</span>
       <div class="spacer"></div>
       <button class="chip" data-nav data-key="rnd" data-act="random" data-scope="list">${ICON.dice} Random</button>
-      <button class="chip" data-nav data-key="sortby" data-act="sortby" title="Change the order">${ICON.sort} ${esc(SORTS[s.kind === 'coll' && sortMode() === 'title' ? 'listed' : sortMode()])}</button>
+      <button class="chip" data-nav data-key="sortby" data-act="sortby" title="Change the order">${ICON.sort} ${esc(sortLabel(s, s.kind === 'coll' && sortMode() === 'title' ? 'listed' : sortMode()))}</button>
       <button class="chip ${!S.filter || S.filter === 'all' ? 'on' : ''}" data-nav data-key="f-all" data-act="filter" data-f="all">All</button>
       ${s.kind === 'fav' ? '' : `<button class="chip ${S.filter === 'fav' ? 'on' : ''}" data-nav data-key="f-fav" data-act="filter" data-f="fav">Favorites</button>`}
-      <button class="chip ${S.filter === 'new' ? 'on' : ''}" data-nav data-key="f-new" data-act="filter" data-f="new">Not played</button>
+      <button class="chip ${S.filter === 'new' ? 'on' : ''}" data-nav data-key="f-new" data-act="filter" data-f="new">${isMovies(s) ? 'Not watched' : 'Not played'}</button>
       ${L.items.some((x) => maxPlayers(x.g) >= 2) ? `<button class="chip ${S.filter === 'multi' ? 'on' : ''}" data-nav data-key="f-multi" data-act="filter" data-f="multi">2+ players</button>` : ''}
       ${s.kind === 'coll' ? `<button class="chip" data-nav data-key="dellist" data-act="dellist" data-n="${esc(s.coll)}">Delete list</button>` : ''}
       <div class="seg" role="group" aria-label="Layout">${lay('tiles', 'Tiles')}${lay('list', 'List')}${lay('cards', 'Cards')}${lay('shelf', 'Shelf')}</div>
@@ -1362,7 +1384,7 @@ const ACT = {
     S.focusKey = 'sortby';
     document.getElementById('gamesscroll')?.scrollTo(0, 0);
     setSetting('sort', next);
-    toast(`Sorted: ${SORTS[next]}`, 1500);
+    toast(`Sorted: ${sortLabel(curList().tile, next)}`, 1500);
   },
   async dellist(d) {
     S.boot = await api.call('delete_collection', { name: d.n });

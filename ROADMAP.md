@@ -1,7 +1,7 @@
 # Spine — to-do list
 
 ## Next up (planned)
-- **Movies & TV**, step 3b: a "Continue watching" row on Home. Plan in HANDOFF.md.
+- Ideas: "Fix match" for whole shows; resume in mpv; keep Surprise me to games.
 
 ## Waiting on accounts
 - **ScreenScraper developer key** (requested on their forum): turns on names
@@ -14,6 +14,7 @@
 
 ## Done
 
+- "Continue watching" row; games-only "Continue playing"; shows/movies wording (0.7.1).
 - Resume where you left off (VLC), watched checkmarks and "Next episode" (0.7.0).
 - Movies in show folders looked up as TMDB movies, with Fix match (0.6.2).
 - TV details for long-season anime and arcs you match to a season (0.6.1).
