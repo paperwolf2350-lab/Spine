@@ -159,6 +159,28 @@ const isMovies = (s) => s && (s.id === 'movies' || s.id === 'tv'); // anything w
 const isTv = (s) => s && s.id === 'tv';
 const things = (s, n) => (isTv(s) ? (n === 1 ? 'show' : 'shows') : isMovies(s) ? (n === 1 ? 'movie' : 'movies') : (n === 1 ? 'game' : 'games'));
 // "S1 · E3" for seasons, "E3" in an arc, nothing for specials.
+// A show's tabs in viewing order: seasons, then arcs (by the season they were
+// matched to, else A–Z), then movies & specials.
+const isArc = (g, group) => (g.episodes || []).some((e) => e.group === group && e.season == null && e.number != null);
+function showGroups(g) {
+  const eps = g.episodes || [];
+  const all = [...new Set(eps.map((e) => e.group))];
+  const rank = (gr) => {
+    if (gr === 'Movies & specials') return [3, 0, 0, ''];
+    const e = eps.find((x) => x.group === gr);
+    if (e.season != null) return [0, e.season, 0, ''];
+    const m = g.arcs?.[gr];
+    return m ? [0, m.season, m.start, ''] : [1, 0, 0, gr.toLowerCase()];
+  };
+  return all.sort((a, b) => { const x = rank(a), y = rank(b); for (let i = 0; i < 4; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1; return 0; });
+}
+// "Season 2 · Entertainment District Arc (episodes 8–18)"
+function arcLabel(g, m, count) {
+  const t = (g.tmdb_seasons || []).find((x) => x.number === m.season);
+  const name = t?.name && !/^season \d+$/i.test(t.name) ? ` · ${t.name}` : '';
+  const part = t && count < t.episodes ? ` (episodes ${m.start}–${m.start + count - 1})` : '';
+  return `Season ${m.season}${name}${part}`;
+}
 const epCode = (e) => (e.number == null ? '' : e.season != null ? `S${e.season} · E${e.number}` : `E${e.number}`);
 const fmtRuntime = (m) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? (m % 60) + ' min' : ''}`.trim() : `${m} min`);
 const yearOf = (g) => g.info?.year || g.meta?.year || null;
@@ -515,7 +537,7 @@ function detail() {
   const movie = isMovies(s);
   // TV: the chosen season (or arc), and its episodes with their place in the full list.
   const tvEps = g.episodes || [];
-  const groups = [...new Set(tvEps.map((e) => e.group))];
+  const groups = showGroups(g);
   S.epGroup = S.epGroup || {};
   const group = groups.includes(S.epGroup[g.id]) ? S.epGroup[g.id] : groups[0];
   const shown = tvEps.map((e, i) => ({ e, i })).filter((x) => x.e.group === group);
@@ -524,6 +546,8 @@ function detail() {
   const episodesHtml = !tvEps.length ? '' : `<section class="eps" aria-label="Episodes">
     <h3 style="font-family:var(--body);font-size:18px;font-weight:700">${tvEps.filter((e) => e.number != null).length} episodes</h3>
     ${groups.length > 1 ? `<div class="seasons" role="tablist">${groups.map((gr) => `<button class="chip ${gr === group ? 'on' : ''}" role="tab" aria-selected="${gr === group}" data-nav data-key="grp-${esc(gr)}" data-act="epgroup" data-id="${esc(g.id)}" data-g="${esc(gr)}">${esc(gr)}</button>`).join('')}</div>` : ''}
+    ${isArc(g, group) ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span class="note">${g.arcs?.[group] ? `Matched to ${esc(arcLabel(g, g.arcs[group], shown.length))} on TMDB.` : 'TMDB names its seasons differently, so this arc has no episode details yet.'}</span>
+      <button class="btn small" data-nav data-key="arcpick" data-act="arcpick" data-id="${esc(g.id)}" data-g="${esc(group)}">${g.arcs?.[group] ? 'Change season' : 'Which season is this?'}</button></div>` : ''}
     <div class="eplist">${shown.map(({ e, i }) => `<button class="ep" data-nav data-key="ep-${i}" data-act="play" data-id="${esc(g.id)}" data-ep="${i}" title="${esc(e.file)}">
       <span class="thumb">${e.still ? `<img src="${mediaUrl(e.still)}" alt="" loading="lazy">` : `${thumbFallback}<span style="position:relative">${e.number ?? ICON.film}</span>`}</span>
       <span><span class="et"><span class="n">${esc(epCode(e))}</span>${esc(e.title || (e.number != null ? 'Episode ' + e.number : e.file))}</span>${e.overview ? `<span class="eo">${esc(e.overview)}</span>` : ''}</span></button>`).join('')}</div></section>`;
@@ -684,6 +708,30 @@ function scrapersPanel() {
       ${field('tmdb', 'API key', 'password', '', a.tmdb_key ? `Saved (${a.tmdb_key}). Type to replace.` : 'Paste your key')}
       ${a.tmdb_key ? `<button class="link" data-nav data-key="clr-tmdb" data-act="clearacc" data-f="tmdb_key">Remove key</button>` : ''}</div>
     <div class="opts"><button class="btn primary" data-nav data-key="accsave" data-act="saveacc">${glyph('A')}Save &amp; get covers</button></div>
+  </aside></div>`;
+}
+
+function arcPanel() {
+  if (S.panel !== 'arc' || !S.arcPick) return '';
+  const found = findGame(S.arcPick.id);
+  if (!found) return '';
+  const g = found.g, group = S.arcPick.group;
+  const count = (g.episodes || []).filter((e) => e.group === group && e.number != null).length;
+  const cur = g.arcs?.[group];
+  const opts = [];
+  for (const t of g.tmdb_seasons || []) {
+    opts.push({ season: t.number, start: 1 });
+    if (count < t.episodes) opts.push({ season: t.number, start: t.episodes - count + 1 });
+  }
+  const row = (o, i) => { const on = cur && cur.season === o.season && cur.start === o.start; const t = (g.tmdb_seasons || []).find((x) => x.number === o.season);
+    return `<button class="choice ${on ? 'on' : ''}" data-nav data-key="arc-${i}" data-act="setarc" data-s="${o.season}" data-st="${o.start}">
+      <span class="t">${esc(arcLabel(g, o, count))}</span><span class="n">${t ? `${t.episodes} episodes on TMDB` : ''}${t && count < t.episodes ? (o.start === 1 ? ' · this arc is the first part' : ' · this arc is the last part') : ''}</span></button>`; };
+  return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="Which season is this arc?">
+    <h2>Which season is ${esc(group)}?</h2>
+    <span class="note">${count} episode${count === 1 ? '' : 's'} in this folder. Pick the TMDB season it matches, and Spine gets its episode names, summaries and thumbnails.</span>
+    ${opts.length ? `<div class="choices">${opts.map(row).join('')}
+      ${cur ? `<button class="choice" data-nav data-key="arc-none" data-act="setarc" data-s=""><span class="t">Not matched</span><span class="n">Forget this match</span></button>` : ''}</div>`
+      : `<p class="note">Spine hasn't downloaded TMDB's season list for this show yet. Wait for "Getting TV shows" to finish, then try again.</p>`}
   </aside></div>`;
 }
 
@@ -932,7 +980,7 @@ function render() {
   const scrollers = {};
   app.querySelectorAll('.scroll').forEach((el) => { if (el.id) scrollers[el.id] = el.scrollTop; });
   const screens = { welcome, scanning, home, games, detail, loading: () => '' };
-  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + emulatorPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
+  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + emulatorPanel() + arcPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
   silenceDetached();
   Object.entries(scrollers).forEach(([id, top]) => { const el = document.getElementById(id); if (el) el.scrollTop = top; });
   const car = document.getElementById('carousel');
@@ -1161,6 +1209,15 @@ const ACT = {
     S.emu = { id: d.id, ...r };
     S.panel = 'emulator'; S.focusKey = null;
     render();
+  },
+  arcpick(d) { S.arcPick = { id: d.id, group: d.g }; S.panel = 'arc'; S.focusKey = null; render(); },
+  async setarc(d) {
+    const { id, group } = S.arcPick;
+    S.boot = await api.call('set_arc_season', { id, group, season: d.s ? Number(d.s) : null, start: d.s ? Number(d.st) : null });
+    S.epGroup = S.epGroup || {}; S.epGroup[id] = group;
+    S.panel = null; S.focusKey = 'arcpick';
+    render();
+    if (d.s) { toast('Matched. Getting episode details…', 4000); api.call('fetch_media'); } else toast('Match removed');
   },
   async setemu(d) {
     S.boot = await api.call('set_launcher', { id: S.emu.id, key: d.k || null });

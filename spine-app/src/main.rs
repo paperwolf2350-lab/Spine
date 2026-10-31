@@ -65,6 +65,9 @@ struct Saved {
     /// Folders with TV shows in them (Settings → TV): one show per folder inside.
     #[serde(default)]
     tv_roots: Vec<String>,
+    /// Which TMDB season each arc folder is: "<show id>|<arc name>" -> season.
+    #[serde(default)]
+    arc_seasons: BTreeMap<String, spine_core::tv::ArcMap>,
 }
 
 impl Saved {
@@ -175,6 +178,12 @@ struct GameView {
     /// TV shows: episodes in viewing order (the index is what `play` takes).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     episodes: Vec<EpisodeView>,
+    /// TV shows: TMDB's seasons, for "Which season is this?" on arcs.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    tmdb_seasons: Vec<spine_core::tv::TmdbSeason>,
+    /// TV shows: the arcs the user matched, by arc name.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    arcs: BTreeMap<String, spine_core::tv::ArcMap>,
 }
 
 #[derive(Serialize, Clone)]
@@ -313,7 +322,9 @@ fn view(app: &App) -> Boot {
                                 offline: is_offline(&g.path),
                                 added: saved.first_seen.get(&g.id).copied().unwrap_or(0),
                                 renamed: saved.renames.contains_key(&g.id),
-                                episodes: if g.episodes.is_empty() { vec![] } else { episode_views(g, &media, &rel) },
+                                episodes: if g.episodes.is_empty() { vec![] } else { episode_views(g, &media, &rel, &saved.arc_seasons) },
+                                tmdb_seasons: if g.episodes.iter().any(|e| e.season.is_none() && e.number.is_some()) { spine_core::tv::load_seasons(&media, &g.id).map(|s| s.list).unwrap_or_default() } else { vec![] },
+                                arcs: saved.arc_seasons.iter().filter_map(|(k, v)| k.strip_prefix(&format!("{}|", g.id)).map(|a| (a.to_string(), *v))).collect(),
                             })
                             .collect(),
                     }
@@ -342,19 +353,19 @@ fn view(app: &App) -> Boot {
 }
 
 /// A show's episodes, with names, summaries and thumbnails from TMDB where known.
-fn episode_views(g: &spine_core::Game, media: &Path, rel: &dyn Fn(&Path) -> Option<String>) -> Vec<EpisodeView> {
+fn episode_views(g: &spine_core::Game, media: &Path, rel: &dyn Fn(&Path) -> Option<String>, arcs: &BTreeMap<String, spine_core::tv::ArcMap>) -> Vec<EpisodeView> {
     let tmdb = spine_core::tv::load_seasons(media, &g.id);
+    let arc = |group: &str| arcs.get(&format!("{}|{group}", g.id)).copied();
+    let matched = tmdb.as_ref().map(|t| spine_core::tv::resolve(g, t, &arc)).unwrap_or_else(|| vec![None; g.episodes.len()]);
     g.episodes
         .iter()
-        .map(|e| {
-            let t = match (e.season, e.number, &tmdb) {
-                (Some(s), Some(n), Some(t)) => t.seasons.get(&s).and_then(|v| v.iter().find(|x| x.number == n)),
+        .zip(matched)
+        .map(|(e, m)| {
+            let t = match (m, &tmdb) {
+                (Some((s, n)), Some(t)) => t.seasons.get(&s).and_then(|v| v.iter().find(|x| x.number == n)),
                 _ => None,
             };
-            let still = match (e.season, e.number) {
-                (Some(s), Some(n)) => Some(spine_core::tv::still_path(media, &g.id, s, n)).filter(|p| p.is_file()).and_then(|p| rel(&p)),
-                _ => None,
-            };
+            let still = m.map(|(s, n)| spine_core::tv::still_path(media, &g.id, s, n)).filter(|p| p.is_file()).and_then(|p| rel(&p));
             EpisodeView {
                 group: e.group.clone(),
                 season: e.season,
@@ -488,6 +499,25 @@ fn remove_tv_root(path: String, app: State<App>) -> Boot {
     view(&app)
 }
 
+/// Say which TMDB season an arc folder is (None: forget the match).
+#[tauri::command]
+fn set_arc_season(id: String, group: String, season: Option<u32>, start: Option<u32>, app: State<App>) -> Boot {
+    {
+        let mut s = app.saved.lock().unwrap();
+        let k = format!("{id}|{group}");
+        match season {
+            Some(season) => {
+                s.arc_seasons.insert(k, spine_core::tv::ArcMap { season, start: start.unwrap_or(1).max(1) });
+            }
+            None => {
+                s.arc_seasons.remove(&k);
+            }
+        }
+    }
+    app.save();
+    view(&app)
+}
+
 /// Download missing covers / details in the background. Emits
 /// "fetch-progress" {stage, done, total, title} and "library-updated" at the end.
 #[tauri::command]
@@ -518,7 +548,10 @@ fn fetch_media(handle: AppHandle) {
         let mut movie_error = None;
         if let Some(key) = &creds.tmdb_key {
             let r = spine_core::movies::fetch_details(&videos, &media, key, &|d, t, title| emit("movies", d, t, title))
-                .and_then(|_| spine_core::tv::fetch_details(&videos, &media, key, &|d, t, title| emit("tv", d, t, title)));
+                .and_then(|_| {
+                    let arcs = app.saved.lock().unwrap().arc_seasons.clone();
+                    spine_core::tv::fetch_details(&videos, &media, key, &|id, group| arcs.get(&format!("{id}|{group}")).copied(), &|d, t, title| emit("tv", d, t, title))
+                });
             if let Err(e) = r {
                 movie_error = Some(e);
             }
@@ -1369,7 +1402,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

@@ -1,9 +1,6 @@
 ## What's new
-- **TV shows (first test version).** Settings → TV → Add TV folder. Each folder inside it becomes a show on the new TV shelf.
-- Show pages list the episodes by season, with a season picker. Pick any episode to watch it in VLC or mpv.
-- Spine understands most download names: S01E02, "Show - 01", "Season 2" folders, seasons split across folders, and openings/endings it should skip. Movies inside a show folder appear under "Movies & specials".
-- Posters, descriptions, episode names and thumbnails come from TMDB (the same key as Movies).
-- Known for now: arc folders (like Demon Slayer's) are listed A–Z rather than in story order.
+- **More shows get episode details.** For shows TMDB lists as one long season (like Jujutsu Kaisen and Wind Breaker), Spine now counts on into it, so Season 2 gets its episode names, summaries and thumbnails. Nothing to do: it happens on the next start.
+- **Arcs:** on an arc tab (like Demon Slayer's "Yuukaku-hen"), press **Which season is this?** and pick the matching TMDB season once. The arc gets its episode details and moves into story order.
 
 ---
 

@@ -42,6 +42,10 @@ pub struct Episode {
     /// The title from the file name, if it has one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    /// The number written in the file when it counts on across seasons
+    /// ("Jujutsu Kaisen - 025" is Season 2 episode 1, and episode 25 overall).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub absolute: Option<u32>,
 }
 
 fn re(cell: &'static OnceLock<Regex>, pat: &str) -> &'static Regex {
@@ -196,7 +200,7 @@ pub fn episodes_of(show_dir: &Path, show: &str) -> Vec<Episode> {
         let size = fs::metadata(&f).map(|m| m.len()).unwrap_or(0);
 
         if let Some((s, e, end)) = season_episode(&stem) {
-            found.push((Episode { path: f, group: format!("Season {s}"), season: Some(s), number: Some(e), title: title_after(&stem, end) }, true, size));
+            found.push((Episode { path: f, group: format!("Season {s}"), season: Some(s), number: Some(e), title: title_after(&stem, end), absolute: None }, true, size));
             continue;
         }
         let num = numbered(&stem);
@@ -205,7 +209,7 @@ pub fn episodes_of(show_dir: &Path, show: &str) -> Vec<Episode> {
             let clean = clean.trim_end_matches(|c: char| c == '-' || c.is_whitespace());
             let rest = without_show(clean, show);
             let t = if rest.chars().filter(|c| c.is_alphabetic()).count() >= 3 { rest } else { clean };
-            found.push((Episode { path: f, group: SPECIALS.into(), season: None, number: None, title: Some(t.to_string()) }, false, size));
+            found.push((Episode { path: f, group: SPECIALS.into(), season: None, number: None, title: Some(t.to_string()), absolute: None }, false, size));
             continue;
         }
         let (n, t) = num.unwrap();
@@ -231,7 +235,7 @@ pub fn episodes_of(show_dir: &Path, show: &str) -> Vec<Episode> {
         }
         let group = group.unwrap_or_else(|| format!("Season {}", season.unwrap_or(1)));
         let t = t.map(|t| without_show(&t, show).to_string()).filter(|t| !t.is_empty());
-        found.push((Episode { path: f, group, season, number: Some(n), title: t }, false, size));
+        found.push((Episode { path: f, group, season, number: Some(n), title: t, absolute: None }, false, size));
     }
 
     // Seasons numbered on from the last one ("Season 2" holding 025-047) start at 1.
@@ -246,6 +250,7 @@ pub fn episodes_of(show_dir: &Path, show: &str) -> Vec<Episode> {
         if let (Some(n), false, Some(l)) = (e.number, *coded, lowest.get(&e.group)) {
             if *l > 1 && e.season.is_some() {
                 e.number = Some(n - l + 1);
+                e.absolute = Some(n);
             }
         }
     }
@@ -363,6 +368,85 @@ pub struct Seasons {
     pub tmdb: u64,
     #[serde(default)]
     pub seasons: BTreeMap<u32, Vec<TmdbEpisode>>,
+    /// Every season TMDB has (not counting "Specials"), for matching arcs.
+    #[serde(default)]
+    pub list: Vec<TmdbSeason>,
+}
+
+/// One season as TMDB lists it.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct TmdbSeason {
+    pub number: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub episodes: u32,
+}
+
+/// The user's answer to "which season is this arc?": TMDB season, and the
+/// TMDB episode the arc's episode 1 is (1 unless it's the second half).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ArcMap {
+    pub season: u32,
+    #[serde(default = "one")]
+    pub start: u32,
+}
+
+fn one() -> u32 {
+    1
+}
+
+pub fn parse_season_list(json: &serde_json::Value) -> Vec<TmdbSeason> {
+    json["seasons"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| {
+                    let number = x["season_number"].as_u64()? as u32;
+                    (number > 0).then(|| TmdbSeason { number, name: x["name"].as_str().map(str::trim).filter(|n| !n.is_empty()).map(String::from), episodes: x["episode_count"].as_u64().unwrap_or(0) as u32 })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Which TMDB season and episode each of a show's files is (None: unknown).
+///   - an arc the user matched: that season, counted from its start;
+///   - Season N episode E, when TMDB has it;
+///   - Season N of a show TMDB lists as one long season ("Jujutsu Kaisen" 1–59):
+///     the number in the file ("025") or the count after the earlier seasons.
+pub fn resolve(g: &Game, data: &Seasons, arc: &dyn Fn(&str) -> Option<ArcMap>) -> Vec<Option<(u32, u32)>> {
+    let has = |s: u32, n: u32| data.seasons.get(&s).map_or(false, |v| v.iter().any(|e| e.number == n));
+    let missing = |s: u32| data.seasons.get(&s).map_or(true, |v| v.is_empty()) && !data.list.iter().any(|x| x.number == s && x.episodes > 0);
+    // Highest episode number on disk in each season, to count on from.
+    let mut highest: BTreeMap<u32, u32> = BTreeMap::new();
+    for e in &g.episodes {
+        if let (Some(s), Some(n)) = (e.season, e.number) {
+            let h = highest.entry(s).or_default();
+            *h = (*h).max(n);
+        }
+    }
+    g.episodes
+        .iter()
+        .map(|e| {
+            let n = e.number?;
+            if e.season.is_none() {
+                let m = arc(&e.group)?;
+                return Some((m.season, m.start + n - 1));
+            }
+            let s = e.season?;
+            if has(s, n) {
+                return Some((s, n));
+            }
+            if s > 1 && missing(s) {
+                if let Some(a) = e.absolute.filter(|a| has(1, *a)) {
+                    return Some((1, a));
+                }
+                let before: u32 = highest.range(..s).map(|(_, h)| h).sum();
+                return has(1, before + n).then_some((1, before + n));
+            }
+            None
+        })
+        .collect()
 }
 
 fn seasons_path(media: &Path, id: &str) -> PathBuf {
@@ -408,7 +492,8 @@ pub fn parse_season(json: &serde_json::Value) -> Vec<TmdbEpisode> {
 }
 
 /// Look up shows TMDB hasn't been asked about, and seasons not fetched yet.
-pub fn fetch_details(lib: &Library, media: &Path, key: &str, progress: &dyn Fn(usize, usize, &str)) -> Result<usize, String> {
+/// `arc(show id, arc name)` is the season the user matched an arc to.
+pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, &str) -> Option<ArcMap>, progress: &dyn Fn(usize, usize, &str)) -> Result<usize, String> {
     let shows: Vec<&Game> = lib.systems.iter().filter(|s| s.id == SYSTEM_ID).flat_map(|s| s.games.iter()).collect();
     let agent = covers::agent();
     let mut found = 0;
@@ -462,13 +547,31 @@ pub fn fetch_details(lib: &Library, media: &Path, key: &str, progress: &dyn Fn(u
                 img("w500", &d.logo, art_base(media, "logos", &g.id));
             }
             write_info(media, &g.id, &d.info);
-            saved = Some(Seasons { tmdb, seasons: BTreeMap::new() });
+            saved = Some(Seasons { tmdb, seasons: BTreeMap::new(), list: parse_season_list(&j) });
             found += 1;
         }
         // Episode names and thumbnails for the seasons on disk.
         let Some(mut seasons) = saved else { continue };
-        let wanted: std::collections::BTreeSet<u32> = g.episodes.iter().filter_map(|e| e.season).collect();
         let mut changed = false;
+        let has_arcs = g.episodes.iter().any(|e| e.season.is_none() && e.number.is_some());
+        // Shows looked up before 0.6.1 don't have TMDB's season list yet.
+        if seasons.list.is_empty() && has_arcs {
+            match get_json(&format!("{API}/tv/{}?language=en-US", seasons.tmdb), key) {
+                Ok(j) => {
+                    seasons.list = parse_season_list(&j);
+                    changed = !seasons.list.is_empty();
+                }
+                Err(e) if e.contains("key") => return Err(e),
+                Err(_) => {}
+            }
+        }
+        let arc_of = |group: &str| arc(&g.id, group);
+        let mut wanted: std::collections::BTreeSet<u32> = g.episodes.iter().filter_map(|e| e.season).collect();
+        wanted.extend(g.episodes.iter().filter(|e| e.season.is_none()).filter_map(|e| arc_of(&e.group)).map(|m| m.season));
+        // A later season TMDB doesn't have is probably counted on in season 1.
+        if wanted.iter().any(|s| *s > 1) {
+            wanted.insert(1);
+        }
         for s in wanted {
             if seasons.seasons.contains_key(&s) {
                 continue;
@@ -479,18 +582,18 @@ pub fn fetch_details(lib: &Library, media: &Path, key: &str, progress: &dyn Fn(u
                 Err(e) if e.contains("404") => vec![], // TMDB has no such season: don't ask again
                 Err(_) => continue,
             };
-            for te in &eps {
-                if let Some(p) = &te.still {
-                    if g.episodes.iter().any(|e| e.season == Some(s) && e.number == Some(te.number)) {
-                        let dest = still_path(media, &g.id, s, te.number);
-                        if !dest.is_file() {
-                            let _ = covers::download_image(&agent, &format!("{IMG}w300{p}"), &dest);
-                        }
-                    }
-                }
-            }
             seasons.seasons.insert(s, eps);
             changed = true;
+        }
+        // Thumbnails for every file Spine can match to a TMDB episode.
+        for (s, n) in resolve(g, &seasons, &arc_of).into_iter().flatten() {
+            let dest = still_path(media, &g.id, s, n);
+            if dest.is_file() {
+                continue;
+            }
+            if let Some(p) = seasons.seasons.get(&s).and_then(|v| v.iter().find(|e| e.number == n)).and_then(|e| e.still.clone()) {
+                let _ = covers::download_image(&agent, &format!("{IMG}w300{p}"), &dest);
+            }
         }
         if changed {
             let p = seasons_path(media, &g.id);
@@ -608,6 +711,42 @@ mod tests {
         assert_eq!(show("Jujutsu Kaisen").id, "tv/jujutsu-kaisen");
         assert!(scan_root(&base.join("unplugged")).is_none());
         let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn matches_long_seasons_and_arcs() {
+        let ep = |group: &str, season: Option<u32>, number: u32, absolute: Option<u32>| Episode { path: PathBuf::from("x.mkv"), group: group.into(), season, number: Some(number), title: None, absolute };
+        let tm = |n: u32| (1..=n).map(|number| TmdbEpisode { number, ..Default::default() }).collect::<Vec<_>>();
+        let mut g = Game { id: "tv/x".into(), title: "X".into(), sort_key: "x".into(), letter: 'X', path: PathBuf::new(), format: "mkv".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![], episodes: vec![] };
+        let none = |_: &str| None;
+
+        // Jujutsu Kaisen: TMDB has one season of 59; files say 001-024 and 025-047.
+        g.episodes = vec![ep("Season 1", Some(1), 24, None), ep("Season 2", Some(2), 1, Some(25)), ep("Season 2", Some(2), 23, Some(47))];
+        let jjk = Seasons { tmdb: 1, seasons: BTreeMap::from([(1, tm(59)), (2, vec![])]), list: vec![] };
+        assert_eq!(resolve(&g, &jjk, &none), vec![Some((1, 24)), Some((1, 25)), Some((1, 47))]);
+
+        // Wind Breaker: S01E01-13 and S02E01-12 on disk, TMDB has one season of 25.
+        g.episodes = vec![ep("Season 1", Some(1), 13, None), ep("Season 2", Some(2), 1, None), ep("Season 2", Some(2), 12, None)];
+        let wb = Seasons { tmdb: 1, seasons: BTreeMap::from([(1, tm(25)), (2, vec![])]), list: vec![] };
+        assert_eq!(resolve(&g, &wb, &none), vec![Some((1, 13)), Some((1, 14)), Some((1, 25))]);
+
+        // A real season 2 on TMDB is used as is.
+        let two = Seasons { tmdb: 1, seasons: BTreeMap::from([(1, tm(13)), (2, tm(12))]), list: vec![] };
+        assert_eq!(resolve(&g, &two, &none), vec![Some((1, 13)), Some((2, 1)), Some((2, 12))]);
+
+        // Demon Slayer arcs, matched by the user: Mugen Ressha-hen is season 2 from 1,
+        // Yuukaku-hen season 2 from episode 8; an unmatched arc stays unknown.
+        g.episodes = vec![ep("Season 1", Some(1), 26, None), ep("Mugen Ressha-hen", None, 7, None), ep("Yuukaku-hen", None, 1, None), ep("Hashira Geiko-hen", None, 1, None)];
+        let ds = Seasons { tmdb: 1, seasons: BTreeMap::from([(1, tm(26)), (2, tm(18))]), list: vec![] };
+        let arcs = |a: &str| match a {
+            "Mugen Ressha-hen" => Some(ArcMap { season: 2, start: 1 }),
+            "Yuukaku-hen" => Some(ArcMap { season: 2, start: 8 }),
+            _ => None,
+        };
+        assert_eq!(resolve(&g, &ds, &arcs), vec![Some((1, 26)), Some((2, 7)), Some((2, 8)), None]);
+
+        let list: serde_json::Value = serde_json::from_str(r#"{"seasons":[{"season_number":0,"name":"Specials","episode_count":5},{"season_number":2,"name":"Entertainment District Arc","episode_count":18}]}"#).unwrap();
+        assert_eq!(parse_season_list(&list), vec![TmdbSeason { number: 2, name: Some("Entertainment District Arc".into()), episodes: 18 }]);
     }
 
     #[test]

@@ -66,7 +66,7 @@ Gotchas learned the hard way:
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
-## Where things stand (end of Oct 2026, v0.6.0)
+## Where things stand (end of Oct 2026, v0.6.1)
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
@@ -170,8 +170,16 @@ with posters/cover art, details, and seasons/episodes. Agreed approach:
 
 Next (step 3): watched checkmarks, "Next episode", resume (mpv `--start` +
 `--input-ipc-server`, VLC `--start-time`), "Continue watching" row.
-Known gaps: arc seasons are A–Z (Demon Slayer: Hashira Geiko-hen shows first);
-romaji names (Kimetsu no Yaiba) depend on TMDB search finding alternative titles.
+**0.6.1** (from the owner's real TMDB data, Oct 31): TMDB lists many anime as one
+long season (Jujutsu Kaisen S1 = 59 eps, no S2; Wind Breaker S1 = 25). `tv::resolve`
+maps each file to a TMDB (season, episode): exact match; else for season N>1 that
+TMDB lacks, the file's own absolute number (`Episode.absolute`, "025") or the count
+after earlier seasons on disk. Arcs: `Seasons.list` (TMDB's season list) feeds a
+"Which season is this?" picker; answers live in spine-state.json `arc_seasons`
+("<show id>|<arc>" → {season, start}); `set_arc_season`. Matched arcs sort by season.
+Stills are now named by TMDB numbering. Checked on the owner's PC: Godzilla S.P,
+Kimetsu S1, Goblin Slayer S1/S2 matched fine.
+Remaining ideas: "Fix match" (re-search TMDB with a typed name) for movies and shows.
 Known gaps for later: renaming a movie doesn't re-run the TMDB lookup; Surprise me
 can pick a movie; "Continue playing" lists movies too.
 
