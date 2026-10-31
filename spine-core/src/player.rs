@@ -96,13 +96,23 @@ pub fn parse_vlc_status(json: &str) -> Option<(u64, u64)> {
     Some((t.max(0.0).round() as u64, len.round() as u64))
 }
 
-/// Ask VLC how far in it is.
+/// Ask VLC how far in it is. A plain request over a local connection (no
+/// proxies, no extra libraries; it only ever talks to this PC).
 pub fn poll_vlc(port: u16, password: &str) -> Option<(u64, u64)> {
-    // A plain agent: no proxy settings, this only ever talks to this PC.
-    let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(2)).build();
-    let auth = format!("Basic {}", base64(format!(":{password}").as_bytes()));
-    let body = agent.get(&format!("http://127.0.0.1:{port}/requests/status.json")).set("Authorization", &auth).call().ok()?.into_string().ok()?;
-    parse_vlc_status(&body)
+    use std::io::{Read, Write};
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let mut c = std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(2)).ok()?;
+    c.set_read_timeout(Some(Duration::from_secs(2))).ok()?;
+    let auth = base64(format!(":{password}").as_bytes());
+    write!(c, "GET /requests/status.json HTTP/1.0\r\nHost: 127.0.0.1\r\nAuthorization: Basic {auth}\r\nConnection: close\r\n\r\n").ok()?;
+    let mut buf = Vec::new();
+    c.take(1 << 20).read_to_end(&mut buf).ok()?;
+    let text = String::from_utf8_lossy(&buf);
+    let (head, body) = text.split_once("\r\n\r\n")?;
+    if !head.starts_with("HTTP/1.") || head.split(' ').nth(1) != Some("200") {
+        return None;
+    }
+    parse_vlc_status(body)
 }
 
 fn base64(data: &[u8]) -> String {
