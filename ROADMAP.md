@@ -2,11 +2,6 @@
 
 ## Next up (planned)
 
-## Waiting on accounts
-- **ScreenScraper developer key** (requested on their forum): turns on names
-  like "Tears of the Kingdom", descriptions, gameplay videos for consoles, and
-  categories for GameCube, PS2, Wii U, Switch, 3DS and Vita.
-
 ## Later
 - Linux: list Spine on Flathub, so it installs from Discover / GNOME Software.
 - macOS build.

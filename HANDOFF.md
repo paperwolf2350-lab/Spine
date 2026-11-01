@@ -72,9 +72,9 @@ Gotchas learned the hard way:
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
-- Linux: works on the owner's Linux Mint Cinnamon laptop (v0.4.5): games launch
-  through RetroArch. Not yet confirmed there: the Select+Start exit, Flatpak
-  standalone emulators, Steam/Heroic games. If the AppImage won't open:
+- Linux: works on the owner's Linux Mint Cinnamon laptop (confirmed on 0.7.6, Nov 1):
+  RetroArch games, Select+Start exit, Flatpak standalone emulators, Steam/Heroic
+  games and movies/TV in VLC all work. If the AppImage won't open:
   `sudo apt install libfuse2t64`, or use the .deb.
 - ScreenScraper: developer access approved; the owner entered keys in Settings.
   0.4.3 fixed matching (rank prefixes, CRC32, search-by-name fallback, retries old
