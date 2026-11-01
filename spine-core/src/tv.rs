@@ -412,6 +412,35 @@ pub fn forget_special(media: &Path, id: &str, file: &str) {
     let _ = fs::remove_file(special_still(media, id, file));
 }
 
+/// "Wind Breaker (2024)" -> ("Wind Breaker", Some("2024")): a year typed at the
+/// end narrows the search instead of being searched for as part of the name.
+pub fn split_year(t: &str) -> (String, Option<String>) {
+    static Y: OnceLock<Regex> = OnceLock::new();
+    match re(&Y, r"^(.*?)[\s(\[]+((?:19|20)\d\d)[)\]]?\s*$").captures(t.trim()) {
+        Some(c) if !c[1].trim().is_empty() => (c[1].trim().to_string(), Some(c[2].to_string())),
+        _ => (t.trim().to_string(), None),
+    }
+}
+
+/// Forget everything TMDB said about a whole show (details, poster, banner,
+/// logo, episode names and pictures), so the next lookup starts over ("Fix match").
+/// The user's own cover stays.
+pub fn forget_show(media: &Path, id: &str) {
+    let _ = fs::remove_file(seasons_path(media, id));
+    let _ = fs::remove_file(crate::screenscraper::info_path(media, id));
+    let cover = covers::cover_base(media, id);
+    for kind in ["heroes", "logos"] {
+        let b = art_base(media, kind, id);
+        for e in ["jpg", "png", "webp"] {
+            let _ = fs::remove_file(b.with_extension(e));
+        }
+    }
+    for e in ["jpg", "png"] {
+        let _ = fs::remove_file(cover.with_extension(e));
+    }
+    let _ = fs::remove_dir_all(art_base(media, "stills", id));
+}
+
 /// Names to search TMDB's movies for: the whole file name without tags
 /// ("Goblin Slayer Goblin's Crown"), then the part after the show's name.
 /// "Movie" and "Gekijouban" are left out: TMDB titles rarely start that way.
@@ -552,7 +581,8 @@ pub fn parse_season(json: &serde_json::Value) -> Vec<TmdbEpisode> {
 /// Look up shows TMDB hasn't been asked about, and seasons not fetched yet.
 /// `arc(show id, arc name)` is the season the user matched an arc to.
 /// `special_query(show id, file name)` is a name the user typed for a special ("Fix match").
-pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, &str) -> Option<ArcMap>, special_query: &dyn Fn(&str, &str) -> Option<String>, progress: &dyn Fn(usize, usize, &str)) -> Result<usize, String> {
+/// `show_query(show id)` is a name the user typed for the whole show ("Fix match").
+pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, &str) -> Option<ArcMap>, special_query: &dyn Fn(&str, &str) -> Option<String>, show_query: &dyn Fn(&str) -> Option<String>, progress: &dyn Fn(usize, usize, &str)) -> Result<usize, String> {
     let shows: Vec<&Game> = lib.systems.iter().filter(|s| s.id == SYSTEM_ID).flat_map(|s| s.games.iter()).collect();
     let agent = covers::agent();
     let mut found = 0;
@@ -560,14 +590,20 @@ pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, 
         progress(n, shows.len(), &g.title);
         let mut saved = load_seasons(media, &g.id);
         if needs_lookup(media, g) {
-            let q = utf8_percent_encode(&g.title, PATH_SEG).to_string();
-            let year = g.revision.as_deref();
+            // A name the user typed wins over the folder name, without the folder's year.
+            let typed = show_query(&g.id).map(|t| split_year(&t));
+            let wanted = typed.as_ref().map_or(g.title.as_str(), |t| t.0.as_str());
+            let q = utf8_percent_encode(wanted, PATH_SEG).to_string();
+            let year = match &typed {
+                Some((_, y)) => y.as_deref(),
+                None => g.revision.as_deref(),
+            };
             let mut hit = None;
             let mut failed = false;
             for y in [year, None] {
                 let url = format!("{API}/search/tv?query={q}&include_adult=false&language=en-US{}", y.map(|y| format!("&first_air_date_year={y}")).unwrap_or_default());
                 match get_json(&url, key) {
-                    Ok(j) => hit = pick_show(&j, &g.title, year),
+                    Ok(j) => hit = pick_show(&j, wanted, year),
                     Err(e) if e.contains("key") => return Err(e),
                     Err(_) => {
                         failed = true;
@@ -860,6 +896,10 @@ mod tests {
     #[test]
     fn special_names() {
         let sp = |file: &str, title: &str| Episode { path: PathBuf::from(file), group: SPECIALS.into(), season: None, number: None, title: Some(title.into()), absolute: None };
+        assert_eq!(split_year("Wind Breaker (2024)"), ("Wind Breaker".to_string(), Some("2024".to_string())));
+        assert_eq!(split_year(" Dandadan 2024 "), ("Dandadan".to_string(), Some("2024".to_string())));
+        assert_eq!(split_year("Mob Psycho 100"), ("Mob Psycho 100".to_string(), None));
+        assert_eq!(split_year("1883"), ("1883".to_string(), None));
         assert_eq!(special_queries(&sp("Jujutsu Kaisen 0.mkv", "Jujutsu Kaisen 0")), vec!["Jujutsu Kaisen 0"]);
         assert_eq!(special_queries(&sp("[DB]Goblin Slayer Goblin's Crown_-_(Dual Audio_10bit_BD1080p_x265).mkv", "Goblin's Crown")), vec!["Goblin Slayer Goblin's Crown", "Goblin's Crown"]);
         assert_eq!(special_queries(&sp("[DB]Kimetsu no Yaiba Movie Mugen Ressha-hen_-_(Dual Audio_10bit_BD1080p_x265).mkv", "Movie Mugen Ressha-hen")), vec!["Kimetsu no Yaiba Mugen Ressha-hen", "Mugen Ressha-hen"]);
@@ -880,5 +920,30 @@ mod tests {
         assert_eq!(eps.len(), 2);
         assert_eq!(eps[0], TmdbEpisode { number: 1, name: Some("Heaven and Hell".into()), overview: Some("Maru and Kiruko...".into()), still: Some("/s1.jpg".into()) });
         assert_eq!(eps[1].still, None);
+    }
+
+    #[test]
+    fn forget_show_clears_tmdb_files_but_keeps_own_cover() {
+        let media = std::env::temp_dir().join(format!("spine-forget-{}", std::process::id()));
+        let id = "tv/wind-breaker";
+        let files = [
+            crate::screenscraper::info_path(&media, id),
+            seasons_path(&media, id),
+            covers::cover_base(&media, id).with_extension("jpg"),
+            art_base(&media, "heroes", id).with_extension("jpg"),
+            art_base(&media, "logos", id).with_extension("png"),
+            still_path(&media, id, 1, 1),
+        ];
+        let own = covers::custom_base(&media, id).with_extension("png");
+        for f in files.iter().chain([&own]) {
+            fs::create_dir_all(f.parent().unwrap()).unwrap();
+            fs::write(f, "x").unwrap();
+        }
+        forget_show(&media, id);
+        for f in &files {
+            assert!(!f.exists(), "{} should be gone", f.display());
+        }
+        assert!(own.exists());
+        let _ = fs::remove_dir_all(&media);
     }
 }

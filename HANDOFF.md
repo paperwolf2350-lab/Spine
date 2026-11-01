@@ -68,7 +68,7 @@ Gotchas learned the hard way:
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
-## Where things stand (Nov 2026, v0.7.3)
+## Where things stand (Nov 2026, v0.7.4)
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
@@ -217,6 +217,17 @@ returns zoomed getBoundingClientRect values while scrollTop stays unzoomed, so
 `ACT.jump` landed on the wrong letter. It now divides by
 `box.getBoundingClientRect().height / box.offsetHeight`. Any new code that mixes
 rect positions with scrollTop/scrollLeft needs the same conversion.
+
+**0.7.4** (Nov 1): Fix match for whole shows: `set_show_query` stores a typed name in
+spine-state.json `show_queries` (show id -> name) and `tv::forget_show` deletes the
+show's TMDB info, seasons.json, downloaded cover/hero/logo and stills (own cover kept),
+so the next `fetch_media` looks it up again; `tv::split_year` turns "Name (2024)"
+into a year filter. UI: "Fix match" under a show's cover (`showPanel`).
+Resume in mpv: Spine writes `player::MPV_SCRIPT` (Lua) to media/cache/mpv and passes
+`--script=` + `--script-opts=spine-progress=%<len>%<file>` + `--start=`; the script
+writes "<pos> <len>" every 2 s and on unload; read like VLC's status (`Tracker` in
+main.rs). Flatpak mpv gets `--filesystem=` for that folder. Tested with real mpv 0.37
+(Linux). Surprise me (`ACT.random` scope 'all') skips movies/tv.
 
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

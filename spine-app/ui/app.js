@@ -352,7 +352,7 @@ function home() {
   const sel = Math.min(S.sel, T.length - 1);
   const t = T[sel];
   // Hero: a fan of covers from the selected tile.
-  const pool = t.kind === 'sys' ? t.sys.games.map((g) => ({ s: t.sys, g })) : t.kind === 'fav' ? favItems() : t.kind === 'coll' ? collItems(t.coll) : sys.flatMap((x) => x.games.map((g) => ({ s: x, g })));
+  const pool = t.kind === 'sys' ? t.sys.games.map((g) => ({ s: t.sys, g })) : t.kind === 'fav' ? favItems() : t.kind === 'coll' ? collItems(t.coll) : sys.filter((x) => t.kind !== 'random' || !isMovies(x)).flatMap((x) => x.games.map((g) => ({ s: x, g })));
   const withCovers = pool.filter((x) => x.g.cover);
   const src = withCovers.length >= 5 ? withCovers : pool;
   const step = t.kind === 'random' ? 37 : Math.max(1, Math.floor(src.length / 5));
@@ -615,6 +615,7 @@ function detail() {
       <div class="coverbtns">
         <button class="btn small" data-nav data-key="mycover" data-act="mycover" data-id="${esc(g.id)}">${ICON.image}${g.custom_cover ? 'Change cover' : 'My own cover'}</button>
         ${g.custom_cover ? `<button class="btn small" data-nav data-key="resetcover" data-act="resetcover" data-id="${esc(g.id)}">Reset</button>` : ''}
+        ${s.id === 'tv' ? `<button class="btn small" data-nav data-key="showfix" data-act="showfix" data-id="${esc(g.id)}">${ICON.pencil}Fix match</button>` : ''}
         ${movie ? '' : `<button class="btn small" data-nav data-key="myvideo" data-act="myvideo" data-id="${esc(g.id)}">${ICON.film}${g.custom_video ? 'Change video' : 'My own video'}</button>
         ${g.custom_video ? `<button class="btn small" data-nav data-key="resetvideo" data-act="resetvideo" data-id="${esc(g.id)}">Reset</button>` : ''}
         <button class="btn small" data-nav data-key="fixgame" data-act="fixgame" data-id="${esc(g.id)}">${ICON.pencil}Fix name or cover</button>`}
@@ -796,6 +797,24 @@ function specialPanel() {
       ${e.note ? `<span class="note">Now: ${esc(e.title || '')}${e.note.startsWith('Movie') ? ' · ' + esc(e.note) : ''}</span>` : ''}
       <label class="field"><span>Search TMDB for</span><input type="text" id="sq-${i}" data-nav data-key="sq-${i}" value="${esc(e.query || e.title || '')}" autocomplete="off" spellcheck="false"></label>
       <div class="opts"><button class="btn primary" data-nav data-key="sqgo-${i}" data-act="setspecial" data-i="${i}">Search again</button></div></div>`).join('')}
+  </aside></div>`;
+}
+
+// "Fix match" for a whole show: search TMDB by a typed name instead of the folder's.
+function showPanel() {
+  if (S.panel !== 'showfix' || !S.showFix) return '';
+  const found = findGame(S.showFix);
+  if (!found) return '';
+  const g = found.g;
+  const now = g.info?.name;
+  return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="Fix match">
+    <h2>Fix match</h2>
+    <span class="note">Spine looks this show up on TMDB by its folder name${g.show_query ? ' (you changed it)' : ''}. If the poster, details or episode names are wrong or missing, type the show's English title as TMDB lists it and search again. The poster, details and episode names are fetched fresh; your own cover, watched marks and season picks stay.</span>
+    <div class="grp"><span class="k">${esc(g.title)}</span>
+      ${now ? `<span class="note">Now matched to: ${esc(now)}</span>` : '<span class="note">Not found on TMDB yet.</span>'}
+      <label class="field"><span>Search TMDB for</span><input type="text" id="showq" data-nav data-key="showq" value="${esc(g.show_query || g.title)}" autocomplete="off" spellcheck="false"></label>
+      <div class="opts"><button class="btn primary" data-nav data-key="showgo" data-act="setshow">Search again</button>
+      ${g.show_query ? `<button class="btn" data-nav data-key="showreset" data-act="setshow" data-reset="1">Use the folder name</button>` : ''}</div></div>
   </aside></div>`;
 }
 
@@ -1044,7 +1063,7 @@ function render() {
   const scrollers = {};
   app.querySelectorAll('.scroll').forEach((el) => { if (el.id) scrollers[el.id] = el.scrollTop; });
   const screens = { welcome, scanning, home, games, detail, loading: () => '' };
-  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + emulatorPanel() + arcPanel() + specialPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
+  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
   silenceDetached();
   Object.entries(scrollers).forEach(([id, top]) => { const el = document.getElementById(id); if (el) el.scrollTop = top; });
   const car = document.getElementById('carousel');
@@ -1232,7 +1251,7 @@ const ACT = {
   home() { S.panel = null; S.screen = 'home'; S.focusKey = null; render(); },
   search(d) { if (!d || !d.keep) S.query = ''; S.panel = 'search'; S.focusKey = 'q'; render(); },
   settings() { S.panel = S.panel === 'settings' ? null : 'settings'; S.focusKey = S.panel ? (S.accounts && S.focusKey?.startsWith('acc') ? 'scrapers' : null) : 'gear'; render(); },
-  closepanel() { const was = S.panel; S.panel = null; S.focusKey = was === 'search' ? 'searchbtn' : was === 'emulator' ? 'chemu' : 'gear'; render(); },
+  closepanel() { const was = S.panel; S.panel = null; S.focusKey = was === 'search' ? 'searchbtn' : was === 'emulator' ? 'chemu' : was === 'showfix' ? 'showfix' : 'gear'; render(); },
   tile(d) {
     const t = tiles()[+d.i];
     if (!t) return;
@@ -1258,7 +1277,8 @@ const ACT = {
     let pool;
     const scope = d.scope === 'list' ? (curList()?.tile.id || 'all') : d.scope || 'all';
     if (scope === 'category') pool = curList().items.map((x) => x.g);
-    else if (scope === 'all') pool = systems().flatMap((s) => s.games);
+    // Surprise me picks games; movies and shows come up through their own Random button.
+    else if (scope === 'all') pool = systems().filter((s) => !isMovies(s)).flatMap((s) => s.games);
     else if (scope === 'favorites') pool = favItems().map((x) => x.g);
     else pool = systems().find((s) => s.id === scope)?.games || [];
     pool = pool.filter((g) => g.id !== S.spun);
@@ -1282,6 +1302,15 @@ const ACT = {
     const q = document.getElementById('sq-' + d.i)?.value || '';
     S.boot = await api.call('set_special_query', { id: S.spFix, file: e.file, query: q });
     S.panel = null; S.focusKey = 'spfix';
+    render();
+    toast('Searching TMDB…', 4000);
+    api.call('fetch_media');
+  },
+  showfix(d) { S.showFix = d.id; S.panel = 'showfix'; S.focusKey = 'showq'; render(); },
+  async setshow(d) {
+    const q = d.reset ? '' : document.getElementById('showq')?.value || '';
+    S.boot = await api.call('set_show_query', { id: S.showFix, query: q });
+    S.panel = null; S.focusKey = 'showfix';
     render();
     toast('Searching TMDB…', 4000);
     api.call('fetch_media');

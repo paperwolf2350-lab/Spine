@@ -71,6 +71,9 @@ struct Saved {
     /// Names the user typed for movies in show folders: "<show id>|<file name>" -> name.
     #[serde(default)]
     special_queries: BTreeMap<String, String>,
+    /// Names the user typed for whole TV shows ("Fix match"): show id -> name.
+    #[serde(default)]
+    show_queries: BTreeMap<String, String>,
     /// Where you left off and what you've watched: movie id, or "<show id>|<file name>".
     #[serde(default)]
     progress: BTreeMap<String, spine_core::player::Progress>,
@@ -187,6 +190,9 @@ struct GameView {
     /// TV shows: TMDB's seasons, for "Which season is this?" on arcs.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     tmdb_seasons: Vec<spine_core::tv::TmdbSeason>,
+    /// TV shows: the name the user typed for TMDB ("Fix match").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    show_query: Option<String>,
     /// TV shows: the arcs the user matched, by arc name.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     arcs: BTreeMap<String, spine_core::tv::ArcMap>,
@@ -335,6 +341,7 @@ fn view(app: &App) -> Boot {
                                 renamed: saved.renames.contains_key(&g.id),
                                 episodes: if g.episodes.is_empty() { vec![] } else { episode_views(g, &media, &rel, &saved.arc_seasons) },
                                 tmdb_seasons: if g.episodes.iter().any(|e| e.season.is_none() && e.number.is_some()) { spine_core::tv::load_seasons(&media, &g.id).map(|s| s.list).unwrap_or_default() } else { vec![] },
+                                show_query: saved.show_queries.get(&g.id).cloned(),
                                 arcs: saved.arc_seasons.iter().filter_map(|(k, v)| k.strip_prefix(&format!("{}|", g.id)).map(|a| (a.to_string(), *v))).collect(),
                             })
                             .collect(),
@@ -561,6 +568,25 @@ fn set_special_query(id: String, file: String, query: String, app: State<App>) -
     view(&app)
 }
 
+/// "Fix match" for a whole TV show: look it up on TMDB by this name instead of
+/// the folder's (empty: go back to the folder's name). What was found before is
+/// cleared, so the next lookup starts over.
+#[tauri::command]
+fn set_show_query(id: String, query: String, app: State<App>) -> Boot {
+    let q = query.trim().to_string();
+    {
+        let mut s = app.saved.lock().unwrap();
+        if q.is_empty() {
+            s.show_queries.remove(&id);
+        } else {
+            s.show_queries.insert(id.clone(), q);
+        }
+    }
+    app.save();
+    spine_core::tv::forget_show(&app.media(), &id);
+    view(&app)
+}
+
 /// Say which TMDB season an arc folder is (None: forget the match).
 #[tauri::command]
 fn set_arc_season(id: String, group: String, season: Option<u32>, start: Option<u32>, app: State<App>) -> Boot {
@@ -611,11 +637,11 @@ fn fetch_media(handle: AppHandle) {
         if let Some(key) = &creds.tmdb_key {
             let r = spine_core::movies::fetch_details(&videos, &media, key, &|d, t, title| emit("movies", d, t, title))
                 .and_then(|_| {
-                    let (arcs, queries) = {
+                    let (arcs, queries, shows) = {
                         let s = app.saved.lock().unwrap();
-                        (s.arc_seasons.clone(), s.special_queries.clone())
+                        (s.arc_seasons.clone(), s.special_queries.clone(), s.show_queries.clone())
                     };
-                    spine_core::tv::fetch_details(&videos, &media, key, &|id, group| arcs.get(&format!("{id}|{group}")).copied(), &|id, file| queries.get(&format!("{id}|{file}")).cloned(), &|d, t, title| emit("tv", d, t, title))
+                    spine_core::tv::fetch_details(&videos, &media, key, &|id, group| arcs.get(&format!("{id}|{group}")).copied(), &|id, file| queries.get(&format!("{id}|{file}")).cloned(), &|id| shows.get(id).cloned(), &|d, t, title| emit("tv", d, t, title))
                 });
             if let Err(e) = r {
                 movie_error = Some(e);
@@ -693,18 +719,37 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, handle: Ap
         (launch::plan_preferred(def, &game, &app.installed.lock().unwrap(), pref.as_deref()), (game.title.clone(), file))
     };
     let (title, ep_file) = title;
-    // Movies and episodes in VLC: remember where you stop, and start there next time.
+    // Movies and episodes in VLC or mpv: remember where you stop, and start there next time.
     let mut plan = plan;
     let pkey = spine_core::player::key(&id, ep_file.as_deref());
-    let remote = (is_movie && plan.emulator == "VLC" && plan.blocked.is_none())
-        .then(spine_core::player::free_port)
-        .flatten()
-        .map(|port| (port, spine_core::player::password()));
-    if let Some((port, pw)) = &remote {
-        let saved = app.saved.lock().unwrap().progress.get(&pkey).copied();
-        let start = if from_start == Some(true) { None } else { spine_core::player::start_at(saved.as_ref()) };
+    let saved_pos = app.saved.lock().unwrap().progress.get(&pkey).copied();
+    let start = if from_start == Some(true) { None } else { spine_core::player::start_at(saved_pos.as_ref()) };
+    let tracker = if !is_movie || plan.blocked.is_some() {
+        None
+    } else if plan.emulator == "VLC" {
+        spine_core::player::free_port().map(|port| Tracker::Vlc(port, spine_core::player::password()))
+    } else if plan.emulator == "mpv" {
+        // Spine's little script for mpv, and the file it writes, in media/cache/mpv.
+        let dir = app.media().join("cache").join("mpv");
+        let script = dir.join("spine-progress.lua");
+        let out = dir.join("position.txt");
+        let _ = fs::remove_file(&out);
+        (fs::create_dir_all(&dir).is_ok() && fs::write(&script, spine_core::player::MPV_SCRIPT).is_ok()).then(|| {
+            // The Flatpak only sees folders it's given: share this one for this run.
+            if plan.args.first().map(String::as_str) == Some("run") && plan.program.to_string_lossy().ends_with("flatpak") {
+                plan.args.insert(1, format!("--filesystem={}", dir.display()));
+            }
+            Tracker::Mpv(script, out)
+        })
+    } else {
+        None
+    };
+    if let Some(t) = &tracker {
         let file_arg = plan.args.pop();
-        plan.args.extend(spine_core::player::vlc_args(*port, pw, start));
+        plan.args.extend(match t {
+            Tracker::Vlc(port, pw) => spine_core::player::vlc_args(*port, pw, start),
+            Tracker::Mpv(script, out) => spine_core::player::mpv_args(script, out, start),
+        });
         plan.args.extend(file_arg);
     }
     if let Some(why) = &plan.blocked {
@@ -736,13 +781,13 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, handle: Ap
             pad::close_game(pid, &|| !d.load(std::sync::atomic::Ordering::Relaxed));
         });
     }
-    // Ask VLC every few seconds how far in you are; the last answer is where you stopped.
+    // Ask the player every few seconds how far in you are; the last answer is where you stopped.
     let last_pos = std::sync::Arc::new(std::sync::Mutex::new(None::<(u64, u64)>));
-    if let Some((port, pw)) = remote.clone() {
+    if let Some(t) = tracker.clone() {
         let (d, last) = (done.clone(), last_pos.clone());
         std::thread::spawn(move || {
             while !d.load(std::sync::atomic::Ordering::Relaxed) {
-                if let Some(p) = spine_core::player::poll_vlc(port, &pw) {
+                if let Some(p) = t.poll() {
                     *last.lock().unwrap() = Some(p);
                 }
                 std::thread::sleep(std::time::Duration::from_secs(3));
@@ -774,6 +819,12 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, handle: Ap
             *app.saved.lock().unwrap().playtime.entry(id.clone()).or_insert(0) += secs;
             app.save();
         }
+        // mpv writes its last position as it closes: read it once more.
+        if let Some(Tracker::Mpv(_, out)) = &tracker {
+            if let Some(p) = fs::read_to_string(out).ok().and_then(|t| spine_core::player::parse_mpv_progress(&t)) {
+                *last_pos.lock().unwrap() = Some(p);
+            }
+        }
         let progress = last_pos.lock().unwrap().map(|(pos, len)| {
             let mut s = app.saved.lock().unwrap();
             let p = spine_core::player::after_session(s.progress.get(&pkey).copied(), pos, len, now());
@@ -791,6 +842,23 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, handle: Ap
         }
     });
     Ok(emulator)
+}
+
+/// How Spine follows a movie's position: VLC's web remote (port, password), or
+/// the file Spine's script makes mpv write (script, file).
+#[derive(Clone)]
+enum Tracker {
+    Vlc(u16, String),
+    Mpv(PathBuf, PathBuf),
+}
+
+impl Tracker {
+    fn poll(&self) -> Option<(u64, u64)> {
+        match self {
+            Tracker::Vlc(port, pw) => spine_core::player::poll_vlc(*port, pw),
+            Tracker::Mpv(_, out) => fs::read_to_string(out).ok().and_then(|t| spine_core::player::parse_mpv_progress(&t)),
+        }
+    }
 }
 
 /// Tick or untick "watched" on a movie or episode ("<show id>|<file name>").
@@ -1524,7 +1592,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_watched])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

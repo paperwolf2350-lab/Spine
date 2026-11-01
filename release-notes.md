@@ -1,6 +1,7 @@
 ## What's new
-- Fix: clicking a letter in the A–Z column jumps to that letter again. It went to the wrong place when Interface size was above 100% (including "Auto" on larger screens).
-- Since 0.7.0: resume where you left off in VLC, watched checkmarks, Next episode, and a "Continue watching" row on Home.
+- **Fix match for whole shows:** if a show has the wrong poster, details or episode names (or none), open it and choose Fix match under the cover. Type the show's name as TMDB lists it (a year at the end, like "(2024)", narrows the search). Your own cover, watched marks and season picks stay.
+- **Resume in mpv:** movies and episodes played in mpv now remember where you stopped and get watched checkmarks, just like VLC.
+- **Surprise me picks games only.** Movies and shows still have their own Random button on their shelves.
 
 ---
 

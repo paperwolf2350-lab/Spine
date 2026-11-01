@@ -3,6 +3,10 @@
 //! VLC is started with its web remote turned on, listening only on this PC
 //! (127.0.0.1) with a random password. While it plays, Spine asks it every few
 //! seconds how far in you are; when it closes, the last answer is saved.
+//!
+//! mpv is started with a small script of Spine's that writes "<seconds> <length>"
+//! to a file every couple of seconds and once more as the video closes; Spine
+//! reads that file the same way.
 
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -127,6 +131,45 @@ fn base64(data: &[u8]) -> String {
     out
 }
 
+/// The script mpv runs for Spine (mpv has Lua built in). It only writes one
+/// small file, named by Spine in `--script-opts=spine-progress=<file>`.
+pub const MPV_SCRIPT: &str = r#"-- Spine: saves how far into the video you are, so Spine can resume it later.
+local out = mp.get_opt("spine-progress")
+if not out then return end
+local function save()
+  local pos = mp.get_property_number("time-pos")
+  local len = mp.get_property_number("duration")
+  if pos and len and len > 0 then
+    local f = io.open(out, "w")
+    if f then
+      f:write(string.format("%d %d\n", math.floor(pos + 0.5), math.floor(len + 0.5)))
+      f:close()
+    end
+  end
+end
+mp.add_periodic_timer(2, save)
+mp.add_hook("on_unload", 50, save)
+"#;
+
+/// Extra mpv options: Spine's script, the file it writes, and where to start.
+/// They go before the file name.
+pub fn mpv_args(script: &std::path::Path, out: &std::path::Path, start: Option<u64>) -> Vec<String> {
+    // "%<length>%value" keeps a comma or "=" in the folder name from splitting the option.
+    let out = out.display().to_string();
+    let mut a = vec![format!("--script={}", script.display()), format!("--script-opts=spine-progress=%{}%{out}", out.len())];
+    if let Some(s) = start {
+        a.push(format!("--start={s}"));
+    }
+    a
+}
+
+/// (seconds in, length) from the file Spine's mpv script writes.
+pub fn parse_mpv_progress(text: &str) -> Option<(u64, u64)> {
+    let mut it = text.split_whitespace().map(|x| x.parse::<u64>().ok());
+    let (pos, len) = (it.next()??, it.next()??);
+    (len > 0).then_some((pos.min(len), len))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,6 +205,18 @@ mod tests {
         assert_eq!(parse_vlc_status(j), Some((755, 1440)));
         assert_eq!(parse_vlc_status(r#"{"time":0,"length":0,"state":"stopped"}"#), None);
         assert_eq!(parse_vlc_status("not json"), None);
+    }
+
+    #[test]
+    fn mpv_progress() {
+        assert_eq!(parse_mpv_progress("754 1440\n"), Some((754, 1440)));
+        assert_eq!(parse_mpv_progress("1500 1440"), Some((1440, 1440)));
+        assert_eq!(parse_mpv_progress("12 0"), None);
+        assert_eq!(parse_mpv_progress("75"), None); // caught mid-write
+        assert_eq!(parse_mpv_progress(""), None);
+        let a = mpv_args(std::path::Path::new("/s/spine.lua"), std::path::Path::new("/s/pos.txt"), Some(60));
+        assert_eq!(a, vec!["--script=/s/spine.lua".to_string(), "--script-opts=spine-progress=%10%/s/pos.txt".into(), "--start=60".into()]);
+        assert!(MPV_SCRIPT.contains("on_unload") && MPV_SCRIPT.contains("%d %d\\n"));
     }
 
     #[test]
