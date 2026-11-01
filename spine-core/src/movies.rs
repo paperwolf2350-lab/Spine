@@ -321,15 +321,20 @@ fn search_name(g: &Game) -> String {
 }
 
 /// Look up every movie TMDB hasn't been asked about yet. Returns how many were found.
-pub fn fetch_details(lib: &Library, media: &Path, key: &str, progress: &dyn Fn(usize, usize, &str)) -> Result<usize, String> {
+/// `typed(movie id)` is a name the user typed for it ("Fix match"), maybe ending in a year.
+pub fn fetch_details(lib: &Library, media: &Path, key: &str, typed: &dyn Fn(&str) -> Option<String>, progress: &dyn Fn(usize, usize, &str)) -> Result<usize, String> {
     let todo: Vec<&Game> = lib.systems.iter().filter(|s| s.id == SYSTEM_ID).flat_map(|s| s.games.iter()).filter(|g| needs_lookup(media, g)).collect();
     let agent = covers::agent();
     let mut found = 0;
     for (n, g) in todo.iter().enumerate() {
         progress(n, todo.len(), &g.title);
-        let name = search_name(g);
+        let typed = typed(&g.id).map(|t| crate::tv::split_year(&t));
+        let name = typed.as_ref().map_or_else(|| search_name(g), |t| t.0.clone());
         let q = utf8_percent_encode(&name, PATH_SEG).to_string();
-        let year = g.revision.as_deref();
+        let year = match &typed {
+            Some((_, y)) => y.as_deref(),
+            None => g.revision.as_deref(),
+        };
         let (mut hit, mut failed) = (None, false);
         for y in [year, None] {
             let url = format!("{API}/search/movie?query={q}&include_adult=false&language=en-US{}", y.map(|y| format!("&year={y}")).unwrap_or_default());

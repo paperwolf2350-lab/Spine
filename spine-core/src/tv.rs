@@ -422,8 +422,8 @@ pub fn split_year(t: &str) -> (String, Option<String>) {
     }
 }
 
-/// Forget everything TMDB said about a whole show (details, poster, banner,
-/// logo, episode names and pictures), so the next lookup starts over ("Fix match").
+/// Forget everything TMDB said about a whole show or a movie (details, poster,
+/// banner, logo, episode names and pictures), so the next lookup starts over ("Fix match").
 /// The user's own cover stays.
 pub fn forget_show(media: &Path, id: &str) {
     let _ = fs::remove_file(seasons_path(media, id));

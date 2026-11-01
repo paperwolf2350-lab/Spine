@@ -615,7 +615,7 @@ function detail() {
       <div class="coverbtns">
         <button class="btn small" data-nav data-key="mycover" data-act="mycover" data-id="${esc(g.id)}">${ICON.image}${g.custom_cover ? 'Change cover' : 'My own cover'}</button>
         ${g.custom_cover ? `<button class="btn small" data-nav data-key="resetcover" data-act="resetcover" data-id="${esc(g.id)}">Reset</button>` : ''}
-        ${s.id === 'tv' ? `<button class="btn small" data-nav data-key="showfix" data-act="showfix" data-id="${esc(g.id)}">${ICON.pencil}Fix match</button>` : ''}
+        ${movie ? `<button class="btn small" data-nav data-key="showfix" data-act="showfix" data-id="${esc(g.id)}">${ICON.pencil}Fix match</button>` : ''}
         ${movie ? '' : `<button class="btn small" data-nav data-key="myvideo" data-act="myvideo" data-id="${esc(g.id)}">${ICON.film}${g.custom_video ? 'Change video' : 'My own video'}</button>
         ${g.custom_video ? `<button class="btn small" data-nav data-key="resetvideo" data-act="resetvideo" data-id="${esc(g.id)}">Reset</button>` : ''}
         <button class="btn small" data-nav data-key="fixgame" data-act="fixgame" data-id="${esc(g.id)}">${ICON.pencil}Fix name or cover</button>`}
@@ -800,21 +800,22 @@ function specialPanel() {
   </aside></div>`;
 }
 
-// "Fix match" for a whole show: search TMDB by a typed name instead of the folder's.
+// "Fix match" for a whole show or a movie: search TMDB by a typed name instead of the folder's or file's.
 function showPanel() {
   if (S.panel !== 'showfix' || !S.showFix) return '';
   const found = findGame(S.showFix);
   if (!found) return '';
   const g = found.g;
   const now = g.info?.name;
+  const tv = found.s.id === 'tv';
   return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="Fix match">
     <h2>Fix match</h2>
-    <span class="note">Spine looks this show up on TMDB by its folder name${g.show_query ? ' (you changed it)' : ''}. If the poster, details or episode names are wrong or missing, type the show's English title as TMDB lists it and search again. The poster, details and episode names are fetched fresh; your own cover, watched marks and season picks stay.</span>
+    <span class="note">Spine looks this ${tv ? 'show' : 'movie'} up on TMDB by its ${tv ? 'folder' : 'file'} name${g.show_query ? ' (you changed it)' : ''}. If the poster or details${tv ? ' or episode names' : ''} are wrong or missing, type its English title as TMDB lists it (add the year, like "(2010)", if there are several) and search again. Everything is fetched fresh; your own cover${tv ? ', watched marks and season picks stay' : ' and watched mark stay'}.</span>
     <div class="grp"><span class="k">${esc(g.title)}</span>
       ${now ? `<span class="note">Now matched to: ${esc(now)}</span>` : '<span class="note">Not found on TMDB yet.</span>'}
       <label class="field"><span>Search TMDB for</span><input type="text" id="showq" data-nav data-key="showq" value="${esc(g.show_query || g.title)}" autocomplete="off" spellcheck="false"></label>
       <div class="opts"><button class="btn primary" data-nav data-key="showgo" data-act="setshow">Search again</button>
-      ${g.show_query ? `<button class="btn" data-nav data-key="showreset" data-act="setshow" data-reset="1">Use the folder name</button>` : ''}</div></div>
+      ${g.show_query ? `<button class="btn" data-nav data-key="showreset" data-act="setshow" data-reset="1">Use the ${tv ? 'folder' : 'file'} name</button>` : ''}</div></div>
   </aside></div>`;
 }
 

@@ -68,7 +68,7 @@ Gotchas learned the hard way:
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
-## Where things stand (Nov 2026, v0.7.4)
+## Where things stand (Nov 2026, v0.7.5)
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
@@ -228,6 +228,10 @@ Resume in mpv: Spine writes `player::MPV_SCRIPT` (Lua) to media/cache/mpv and pa
 writes "<pos> <len>" every 2 s and on unload; read like VLC's status (`Tracker` in
 main.rs). Flatpak mpv gets `--filesystem=` for that folder. Tested with real mpv 0.37
 (Linux). Surprise me (`ACT.random` scope 'all') skips movies/tv.
+
+**0.7.5**: Fix match for movies too: same `show_queries` map, `set_show_query`,
+`tv::forget_show` and `showPanel`; `movies::fetch_details` takes a `typed(id)` name
+(split with `tv::split_year`).
 
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

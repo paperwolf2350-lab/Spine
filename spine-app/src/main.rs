@@ -71,7 +71,7 @@ struct Saved {
     /// Names the user typed for movies in show folders: "<show id>|<file name>" -> name.
     #[serde(default)]
     special_queries: BTreeMap<String, String>,
-    /// Names the user typed for whole TV shows ("Fix match"): show id -> name.
+    /// Names the user typed for whole TV shows and movies ("Fix match"): id -> name.
     #[serde(default)]
     show_queries: BTreeMap<String, String>,
     /// Where you left off and what you've watched: movie id, or "<show id>|<file name>".
@@ -190,7 +190,7 @@ struct GameView {
     /// TV shows: TMDB's seasons, for "Which season is this?" on arcs.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     tmdb_seasons: Vec<spine_core::tv::TmdbSeason>,
-    /// TV shows: the name the user typed for TMDB ("Fix match").
+    /// TV shows and movies: the name the user typed for TMDB ("Fix match").
     #[serde(skip_serializing_if = "Option::is_none")]
     show_query: Option<String>,
     /// TV shows: the arcs the user matched, by arc name.
@@ -568,8 +568,8 @@ fn set_special_query(id: String, file: String, query: String, app: State<App>) -
     view(&app)
 }
 
-/// "Fix match" for a whole TV show: look it up on TMDB by this name instead of
-/// the folder's (empty: go back to the folder's name). What was found before is
+/// "Fix match" for a whole TV show or a movie: look it up on TMDB by this name
+/// instead of the folder's or file's (empty: go back to that name). What was found before is
 /// cleared, so the next lookup starts over.
 #[tauri::command]
 fn set_show_query(id: String, query: String, app: State<App>) -> Boot {
@@ -635,7 +635,8 @@ fn fetch_media(handle: AppHandle) {
         lib.systems.retain(|s| !is_video_shelf(s.id));
         let mut movie_error = None;
         if let Some(key) = &creds.tmdb_key {
-            let r = spine_core::movies::fetch_details(&videos, &media, key, &|d, t, title| emit("movies", d, t, title))
+            let typed = app.saved.lock().unwrap().show_queries.clone();
+            let r = spine_core::movies::fetch_details(&videos, &media, key, &|id| typed.get(id).cloned(), &|d, t, title| emit("movies", d, t, title))
                 .and_then(|_| {
                     let (arcs, queries, shows) = {
                         let s = app.saved.lock().unwrap();

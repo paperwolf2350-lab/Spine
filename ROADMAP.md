@@ -1,7 +1,6 @@
 # Spine — to-do list
 
 ## Next up (planned)
-- Ideas: "Fix match" for the Movies shelf (renaming a movie doesn't look it up again).
 
 ## Waiting on accounts
 - **ScreenScraper developer key** (requested on their forum): turns on names
@@ -14,6 +13,7 @@
 
 ## Done
 
+- Fix match for movies (0.7.5).
 - Fix match for whole shows; resume and watched marks in mpv; Surprise me picks games only (0.7.4).
 - A–Z column jumps to the right letter at every Interface size (0.7.3).
 - "Continue watching" row; games-only "Continue playing"; shows/movies wording (0.7.1).

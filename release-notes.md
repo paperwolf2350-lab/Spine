@@ -1,7 +1,6 @@
 ## What's new
-- **Fix match for whole shows:** if a show has the wrong poster, details or episode names (or none), open it and choose Fix match under the cover. Type the show's name as TMDB lists it (a year at the end, like "(2024)", narrows the search). Your own cover, watched marks and season picks stay.
-- **Resume in mpv:** movies and episodes played in mpv now remember where you stopped and get watched checkmarks, just like VLC.
-- **Surprise me picks games only.** Movies and shows still have their own Random button on their shelves.
+- **Fix match for movies:** if a movie has the wrong poster or details (or none), open it and choose Fix match under the poster. Type its name as TMDB lists it, with the year if there are several (like "Dune (2021)"). Your own cover and watched mark stay.
+- Since 0.7.4: Fix match for whole TV shows, resume in mpv, and Surprise me picks games only.
 
 ---
 
