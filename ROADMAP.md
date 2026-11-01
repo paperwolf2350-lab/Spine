@@ -3,7 +3,7 @@
 ## Next up (planned)
 
 ## Later
-- macOS build.
+- Nothing planned. (macOS skipped Nov 1: no Mac to test on.)
 
 ## Done
 
