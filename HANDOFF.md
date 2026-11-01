@@ -86,7 +86,8 @@ Gotchas learned the hard way:
   via `option_env!` at build time). Users only add their own optional account.
 
 Ideas already discussed (not started):
-- List Spine on Flathub for one-click Linux installs.
+- Flathub: dropped (Nov 1). Its policy (May 2026) rejects AI-written apps and AI-made
+  manifests/submissions, and Spine needs to start host programs. Don't suggest it again.
 - YouTube showcase video. The script is drafted as a Claude Doc ("Spine — YouTube
   Showcase Script", https://claude.ai/artifact/QmH3FRGe7udhD1cHcKxtMV). The owner's
   mic is broken, so the voice will be TTS. The owner records the footage with OBS

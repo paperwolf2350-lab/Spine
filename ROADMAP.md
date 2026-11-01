@@ -3,7 +3,6 @@
 ## Next up (planned)
 
 ## Later
-- Linux: list Spine on Flathub, so it installs from Discover / GNOME Software.
 - macOS build.
 
 ## Done
