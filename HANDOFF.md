@@ -68,7 +68,7 @@ Gotchas learned the hard way:
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
-## Where things stand (end of Oct 2026, v0.7.2)
+## Where things stand (Nov 2026, v0.7.3)
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
@@ -210,6 +210,13 @@ Demon Slayer Mugen Train) matched automatically, no Fix match needed.
 Remaining ideas: "Fix match" for whole shows and for the Movies shelf.
 Known gaps for later: renaming a movie doesn't re-run the TMDB lookup; Surprise me
 can pick a movie; "Continue playing" lists movies too.
+
+**0.7.3** (Nov 1): A–Z column fix. With Interface size above 100% (incl. Auto on
+big screens) `document.documentElement.style.zoom` is set; newer WebView2/Chromium
+returns zoomed getBoundingClientRect values while scrollTop stays unzoomed, so
+`ACT.jump` landed on the wrong letter. It now divides by
+`box.getBoundingClientRect().height / box.offsetHeight`. Any new code that mixes
+rect positions with scrollTop/scrollLeft needs the same conversion.
 
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.
