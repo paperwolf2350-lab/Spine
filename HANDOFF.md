@@ -88,14 +88,12 @@ Gotchas learned the hard way:
 Ideas already discussed (not started):
 - Flathub: dropped (Nov 1). Its policy (May 2026) rejects AI-written apps and AI-made
   manifests/submissions, and Spine needs to start host programs. Don't suggest it again.
-- YouTube showcase video. The script is drafted as a Claude Doc ("Spine — YouTube
-  Showcase Script", https://claude.ai/artifact/QmH3FRGe7udhD1cHcKxtMV). The owner's
-  mic is broken, so the voice will be TTS. The owner records the footage with OBS
-  (no mic needed) and Claude helps with the rest: rewriting the script for TTS,
-  suggesting voices, a shot list, captions, title/description/chapters, and edit
-  advice. Recording tips: mute trailer audio (copyright claims), don't show
-  Settings → Scrapers with keys filled in, let covers load first, and test
-  Select+Start on Linux before filming it.
+- YouTube showcase video: DONE (Nov 1), ready for the owner to upload. 3:32 cut with a
+  Kokoro TTS narrator (voice bm_george, speed 0.95; Apache 2.0, made in the workspace with
+  kokoro-onnx + model files from its GitHub releases), owner's OBS clips, soft crossfades, end card,
+  plus a 1280x720 thumbnail. Script, title ideas and the description with chapters are in the
+  "6-minute cut (TTS)" tab of https://claude.ai/artifact/QmH3FRGe7udhD1cHcKxtMV. The owner
+  prefers long continuous takes over quick cuts. Description says Spine was coded with Claude.
 
 ## Next feature: Movies & TV
 
