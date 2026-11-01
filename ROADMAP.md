@@ -1,6 +1,7 @@
 # Spine — to-do list
 
 ## Next up (planned)
+- Small fix: the Surprise me tile says "from all 759 games" but counts movies and shows too (it only picks games since 0.7.4).
 
 ## Later
 - Nothing planned. (macOS skipped Nov 1: no Mac to test on.)
