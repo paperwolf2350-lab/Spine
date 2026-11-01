@@ -68,7 +68,7 @@ Gotchas learned the hard way:
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
-## Where things stand (Nov 2026, v0.7.5)
+## Where things stand (Nov 2026, v0.7.6)
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
@@ -232,6 +232,13 @@ main.rs). Flatpak mpv gets `--filesystem=` for that folder. Tested with real mpv
 **0.7.5**: Fix match for movies too: same `show_queries` map, `set_show_query`,
 `tv::forget_show` and `showPanel`; `movies::fetch_details` takes a `typed(id)` name
 (split with `tv::split_year`).
+
+**0.7.6**: Linux layout. WebKitGTK (the AppImage's engine) doesn't scale `100vh` with
+the root `zoom`, so `#app { height: calc(100vh / var(--z)) }` came out 1/zoom too short
+and Home's flex column squeezed the hero (consoles row hidden). `#app` is now
+`position: fixed` with top/right/bottom/left 0, and `#homescroll > *` don't shrink.
+Checked in real WebKitGTK 2.52 under Xvfb (python3.12 + gi WebKit2 4.1) before/after.
+Avoid vh/vw for layout: zoom handling differs between engines.
 
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

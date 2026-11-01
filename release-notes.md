@@ -1,6 +1,6 @@
 ## What's new
-- **Fix match for movies:** if a movie has the wrong poster or details (or none), open it and choose Fix match under the poster. Type its name as TMDB lists it, with the year if there are several (like "Dune (2021)"). Your own cover and watched mark stay.
-- Since 0.7.4: Fix match for whole TV shows, resume in mpv, and Surprise me picks games only.
+- **Linux fix:** on larger screens the interface no longer ends partway down the window, and the row of consoles on Home shows again (Linux Mint and other systems where Spine runs on WebKitGTK).
+- Since 0.7.4: Fix match for movies and whole TV shows, resume in mpv, and Surprise me picks games only.
 
 ---
 

@@ -13,6 +13,7 @@
 
 ## Done
 
+- Linux: interface fills the window at every Interface size; consoles row back on Home (0.7.6).
 - Fix match for movies (0.7.5).
 - Fix match for whole shows; resume and watched marks in mpv; Surprise me picks games only (0.7.4).
 - A–Z column jumps to the right letter at every Interface size (0.7.3).
