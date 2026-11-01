@@ -1,7 +1,6 @@
 # Spine — to-do list
 
 ## Next up (planned)
-- **Fix:** clicking a letter in the A–Z column on a console's page no longer jumps to that letter (reported Oct 31, v0.7.2).
 - Ideas: "Fix match" for whole shows; resume in mpv; keep Surprise me to games.
 
 ## Waiting on accounts
@@ -15,6 +14,7 @@
 
 ## Done
 
+- A–Z column jumps to the right letter at every Interface size (0.7.3).
 - "Continue watching" row; games-only "Continue playing"; shows/movies wording (0.7.1).
 - Resume where you left off (VLC), watched checkmarks and "Next episode" (0.7.0).
 - Movies in show folders looked up as TMDB movies, with Fix match (0.6.2).

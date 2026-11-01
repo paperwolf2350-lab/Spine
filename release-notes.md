@@ -1,5 +1,5 @@
 ## What's new
-- Small wording fixes: the search box says "titles" once you have movies or shows, and movie and show pages say "every movie/show like it" instead of "game".
+- Fix: clicking a letter in the A–Z column jumps to that letter again. It went to the wrong place when Interface size was above 100% (including "Auto" on larger screens).
 - Since 0.7.0: resume where you left off in VLC, watched checkmarks, Next episode, and a "Continue watching" row on Home.
 
 ---

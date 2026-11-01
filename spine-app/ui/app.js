@@ -1503,7 +1503,11 @@ const ACT = {
     if (!c) return;
     const el = has(c);
     const box = document.getElementById('gamesscroll');
-    box.scrollTo({ top: el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 10, behavior: 'smooth' });
+    // With Interface size above 100%, screen positions come zoomed but scrollTop
+    // doesn't (newer WebView2/Chromium): convert back to the list's own pixels.
+    const br = box.getBoundingClientRect();
+    const k = box.offsetHeight ? br.height / box.offsetHeight : 1;
+    box.scrollTo({ top: (el.getBoundingClientRect().top - br.top) / k + box.scrollTop - 10, behavior: 'smooth' });
     const btn = el.matches('[data-nav]') ? el : el.querySelector('[data-nav]');
     if (btn) focusEl(btn, false, false);
     markLetter(c);
