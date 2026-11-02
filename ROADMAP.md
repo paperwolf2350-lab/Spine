@@ -11,6 +11,7 @@ Owner's Nov 2 streaming list is done (0.16 lists, 0.17 filters). Ask the owner w
 
 ## Done
 
+- Channels home: consoles with one or two games show their covers over moving banner art; Streaming tile shows your posters (0.17.1).
 - Streaming filters: genre/year from the addon (whole catalog), Anime only, decade and minimum rating on loaded results with automatic extra pages (0.17.0).
 - Streaming lists: Continue watching, Favorites (Y), Watch later and your own lists as tabs inside the Streaming tile (0.16.0).
 - Settings in sections (Look, Library, Streaming, Controller & sound, Updates & window; LB/RB switch) and your own Home tile order, used by every Home style; Surprise me counts games only (0.15.0).

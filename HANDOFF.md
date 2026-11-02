@@ -438,6 +438,13 @@ With client filters on, `streamLoad` auto-loads up to 8 more pages until 24 matc
 Filters only on catalog tabs (not Search or your lists). Tested in Playwright with real Cinemeta pages
 and against live Cinemeta (`cargo test -- --ignored live_cinemeta`, now checks a genre page).
 
+**0.17.1**: Channels tiles with 1–2 covers (`chTileArt`) get a "featured" look: covers stand still
+(right of the name label, two fan out) over the first game's hero (or its cover, heavily blurred), panning
+slowly (`.ch-show`, `chpan`). 0 covers: `.ch-plain` = gradient + glow in the console color. 3+ is the
+old drifting strip. Streaming tile pool = `chStreamPosters()` (stream_recent newest first, then
+stream_lists; addon https URLs, not mediaUrl). Surprise me's dice = `chBadge`; `.ch-art` has
+`isolation: isolate` so the dice tint stays under the name label. Tested in Playwright, Cream + Midnight.
+
 **Next session**: the owner's streaming list is done; ask what's next (ROADMAP "Later ideas"). Streaming code lives in
 `ui/stream.js` + `stream.css` and `spine-core/src/addons.rs`; keep new streaming features there.
 UI tests: recreate the Playwright mock (`window.__SPINE_MOCK__`; Chrome is at /usr/bin/google-chrome;

@@ -1,9 +1,6 @@
 ## What's new
-- **Streaming filters:** a row of filters above every addon catalog in the Streaming tile.
-  - **Genre** (or **Year**, on catalogs like Cinemeta's "New"): the addon sends only those titles, so it covers the whole catalog, not just what's on screen.
-  - **Anime only**, **decade** (2020s, 2010s… Before 1980) and **minimum rating** (★ 6+, 7+, 8+): Spine keeps loading more of the catalog until it finds enough matches. "Anime only" is a best guess from genre and country; an anime catalog addon is exact.
-  - Filters stay set while you switch catalogs; **Clear filters** resets them.
-- Fixed: chosen items in list pickers showed two checkmarks.
+- **Channels home: small consoles look finished.** A console with only one or two games now shows those covers standing in front of the game's own banner art, which slowly pans behind them, instead of a plain colored box. A console with no art at all gets a soft glowing color with its icon.
+- **Streaming tile shows posters** in the Channels home: what you watched last and the titles in your streaming lists. Until you have some, it keeps its icon.
 
 ---
 
