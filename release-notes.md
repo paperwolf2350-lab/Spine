@@ -1,6 +1,7 @@
 ## What's new
-- **Search addons.** The Movies and TV screens have a new **Search addons** tab that searches only your streaming addons, so the regular search keeps finding just your own games, movies and shows. On that tab, typing (or X) goes straight into its search box.
-- Since 0.12.0: Stremio-style streaming addons, with their catalogs, details and episode lists on the Movies and TV screens.
+- **Streaming has its own tile on Home.** Everything from your streaming addons now lives under Streaming: switch between Movies and Shows, search your addons, and browse each catalog (LB / RB step through the tabs, LT / RT switch Movies and Shows). It works in every Home style.
+- **Movies and TV are your own files again**, with nothing from addons mixed in.
+- Since 0.12.0: Stremio-style streaming addons with catalogs, search, details and episode lists.
 
 ---
 

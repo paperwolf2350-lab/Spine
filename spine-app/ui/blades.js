@@ -31,7 +31,7 @@ function bladePreview(c, it) {
         ${inf.description ? `<p class="desc">${esc(inf.description)}</p>` : ''}</div>`;
   }
   // Openers and Surprise me: the console's icon over a mosaic of its covers.
-  const pool = c.kind === 'sys' ? c.sys.games : c.kind === 'fav' ? favItems().map((x) => x.g) : c.kind === 'coll' ? collItems(c.coll).map((x) => x.g)
+  const pool = c.kind === 'stream' ? [] : c.kind === 'sys' ? c.sys.games : c.kind === 'fav' ? favItems().map((x) => x.g) : c.kind === 'coll' ? collItems(c.coll).map((x) => x.g)
     : systems().filter((x) => !isMovies(x)).flatMap((x) => x.games);
   const covers = pool.filter((g) => g.cover);
   const step = Math.max(1, Math.floor(covers.length / 8));
@@ -52,7 +52,7 @@ function homeBlades() {
   const dir = S.blade.dir; S.blade.dir = 0;
   const list = items.map((it) => `<button class="bl-item${it.off ? ' off' : ''}" data-nav data-key="${esc(it.key)}" ${it.attrs}>
       ${it.thumb}<span class="t">${esc(it.title)}</span>${it.fav ? `<span class="wv-fav">${ICON.heart}</span>` : ''}</button>`).join('');
-  const count = cat.kind === 'recent' ? `${items.length} recently played` : cat.count != null ? `${cat.count.toLocaleString()} ${cat.kind === 'sys' ? things(cat.sys, cat.count) : cat.count === 1 ? 'game' : 'games'}` : 'Random pick';
+  const count = cat.kind === 'recent' ? `${items.length} recently played` : cat.count != null ? `${cat.count.toLocaleString()} ${cat.kind === 'sys' ? things(cat.sys, cat.count) : cat.count === 1 ? 'game' : 'games'}` : cat.label || 'Random pick';
   return topbar() + `<main class="main blades" id="blades" style="--bc:${cat.color}">
       <div class="bl-tabs left" style="--n:${i}">${left}</div>
       <section class="bl-panel ${dir > 0 ? 'in-r' : dir < 0 ? 'in-l' : ''}">

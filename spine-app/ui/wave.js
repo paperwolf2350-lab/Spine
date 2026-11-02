@@ -55,6 +55,8 @@ function waveItems(c) {
     thumb: `<span class="wv-thumb icon" style="background:${c.color}">${sysIcon(tileIcon(c), 44)}</span>`, title, sub, opener: true,
   });
   if (c.kind === 'recent') return c.recent.map((x) => game(x, true));
+  if (c.kind === 'stream') return [{ key: 'wv-streaming-open', attrs: `data-act="tile" data-i="${c.ti}"`, thumb: `<span class="wv-thumb icon" style="background:${c.color}">${sysIcon('streaming', 44)}</span>`,
+    title: 'Open Streaming', sub: `Catalogs and search from your ${c.label}`, opener: true }];
   if (c.kind === 'random') {
     const n = systems().filter((x) => !isMovies(x)).reduce((k, x) => k + x.games.length, 0);
     return [{ key: 'wv-random-go', attrs: 'data-act="random" data-scope="all"', thumb: `<span class="wv-thumb icon" style="background:${c.color}">${sysIcon('random', 44)}</span>`,

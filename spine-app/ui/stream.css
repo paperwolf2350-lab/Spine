@@ -16,3 +16,4 @@ span.cat { cursor: default; }
 .ssearch .srow input { flex: 1; min-width: 0; }
 .sgroup { margin-bottom: 26px; }
 .sgroup h3 { font-family: var(--body); font-size: 18px; font-weight: 700; margin: 0 0 14px; }
+.seg.skinds button { width: auto; padding: 0 18px; font-size: 15px; font-weight: 600; white-space: nowrap; }

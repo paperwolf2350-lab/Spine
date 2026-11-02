@@ -8,7 +8,7 @@ const CH_PER_PAGE = 12; // 4 across, 3 down
 function chPageOf(i) { return Math.floor(i / CH_PER_PAGE); }
 
 function chTileArt(t) {
-  const pool = t.kind === 'sys' ? t.sys.games.map((g) => ({ s: t.sys, g })) : t.kind === 'fav' ? favItems() : t.kind === 'coll' ? collItems(t.coll)
+  const pool = t.kind === 'stream' ? [] : t.kind === 'sys' ? t.sys.games.map((g) => ({ s: t.sys, g })) : t.kind === 'fav' ? favItems() : t.kind === 'coll' ? collItems(t.coll)
     : systems().filter((x) => !isMovies(x)).flatMap((x) => x.games.map((g) => ({ s: x, g })));
   const withCovers = pool.filter((x) => x.g.cover);
   const step = t.kind === 'random' ? 29 : Math.max(1, Math.floor(withCovers.length / 7));
@@ -34,7 +34,7 @@ function homeChannels() {
   for (let k = 0; k < CH_PER_PAGE; k++) {
     const i = first + k, t = T[i];
     if (!t) { slots.push('<span class="ch-tile empty" aria-hidden="true"></span>'); continue; }
-    const count = t.count != null ? `${t.count.toLocaleString()} ${t.kind === 'sys' ? things(t.sys, t.count) : t.count === 1 ? 'game' : 'games'}` : 'Random pick';
+    const count = t.count != null ? `${t.count.toLocaleString()} ${t.kind === 'sys' ? things(t.sys, t.count) : t.count === 1 ? 'game' : 'games'}` : t.label || 'Random pick';
     slots.push(`<button class="ch-tile" style="--chip:${t.color}" data-nav data-key="con-${esc(t.id)}" data-act="tile" data-i="${i}" aria-label="${esc(t.name)}, ${esc(count)}">
         <span class="ch-art">${chTileArt(t)}</span>
         <span class="ch-name"><span class="n">${esc(t.short)}</span><span class="c">${esc(count)}</span></span>

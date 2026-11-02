@@ -79,11 +79,13 @@ function tiles() {
     if (items.length) t.push({ kind: 'coll', id: 'coll:' + name, coll: name, name, short: name, color: PAL[hash(name) % PAL.length], count: items.length });
   }
   systems().forEach((s, i) => t.push({ kind: 'sys', id: s.id, name: s.name, short: s.short, color: s.color, count: s.games.length, sys: s, i }));
+  const st = streamHomeTile();
+  if (st) t.push(st);
   t.push({ kind: 'random', id: 'random', name: 'Surprise me', short: 'Surprise me', color: RANDOM_COLOR, count: null });
   return t;
 }
 // Tiles you can open as a game list (everything except Surprise me).
-const browsable = () => tiles().filter((t) => t.kind !== 'random');
+const browsable = () => tiles().filter((t) => t.kind !== 'random' && t.kind !== 'stream');
 function favItems() {
   const out = [];
   for (const s of systems()) for (const g of s.games) if (isFav(g.id)) out.push({ s, g });
@@ -94,7 +96,7 @@ function collItems(name) {
   const ids = (S.boot?.collections || {})[name] || [];
   return ids.map((id) => findGame(id)).filter(Boolean);
 }
-const tileIcon = (t) => (t.kind === 'fav' ? 'favorites' : t.kind === 'random' ? 'random' : t.kind === 'cat' ? 'category' : t.kind === 'coll' ? 'collection' : t.id);
+const tileIcon = (t) => (t.kind === 'stream' ? 'streaming' : t.kind === 'fav' ? 'favorites' : t.kind === 'random' ? 'random' : t.kind === 'cat' ? 'category' : t.kind === 'coll' ? 'collection' : t.id);
 const sortTitle = (t) => t.replace(/^the /i, '').toLowerCase();
 // What the games screen is showing.
 function curList() {
@@ -288,6 +290,7 @@ const SYS_ICON = {
   arcade: '<path d="M18 4h28v40H18z"/><rect x="22" y="9" width="20" height="14" rx="1"/><path d="M18 28h28"/><path d="M27 28v-4"/><circle cx="27" cy="23" r="2"/><circle cx="37" cy="27" r="1.6"/>',
   atari2600: '<path d="M8 22l6-8h36l6 8v12c0 2-2 4-4 4H12c-2 0-4-2-4-4z"/><path d="M8 28h48M14 24h6M44 24h6"/>',
   tv: '<rect x="6" y="12" width="52" height="32" rx="3"/><path d="M24 4l8 8 8-8"/><path d="M14 20h28v16H14z"/><circle cx="50" cy="22" r="2"/><circle cx="50" cy="30" r="2"/>',
+  streaming: '<rect x="7" y="17" width="50" height="28" rx="4"/><path d="M28 25l9 6-9 6z"/><path d="M26 11a9 9 0 0 1 12 0"/><path d="M21 6a16 16 0 0 1 22 0"/>',
   movies: '<rect x="8" y="18" width="48" height="26" rx="2"/><path d="M8 18l4-10 44 0-4 10"/><path d="M20 8l-4 10M32 8l-4 10M44 8l-4 10"/><path d="M28 25l10 6-10 6z"/>',
   pc: '<rect x="8" y="6" width="48" height="30" rx="2"/><path d="M26 36l-2 6h16l-2-6M20 42h24"/>',
   dos: '<rect x="8" y="6" width="48" height="30" rx="2"/><path d="M16 16l5 4-5 4M24 26h8"/><path d="M26 36l-2 6h16l-2-6"/>',
@@ -358,7 +361,7 @@ function home() {
   const sel = Math.min(S.sel, T.length - 1);
   const t = T[sel];
   // Hero: a fan of covers from the selected tile.
-  const pool = t.kind === 'sys' ? t.sys.games.map((g) => ({ s: t.sys, g })) : t.kind === 'fav' ? favItems() : t.kind === 'coll' ? collItems(t.coll) : sys.filter((x) => t.kind !== 'random' || !isMovies(x)).flatMap((x) => x.games.map((g) => ({ s: x, g })));
+  const pool = t.kind === 'stream' ? [] : t.kind === 'sys' ? t.sys.games.map((g) => ({ s: t.sys, g })) : t.kind === 'fav' ? favItems() : t.kind === 'coll' ? collItems(t.coll) : sys.filter((x) => t.kind !== 'random' || !isMovies(x)).flatMap((x) => x.games.map((g) => ({ s: x, g })));
   const withCovers = pool.filter((x) => x.g.cover);
   const src = withCovers.length >= 5 ? withCovers : pool;
   const step = t.kind === 'random' ? 37 : Math.max(1, Math.floor(src.length / 5));
@@ -374,12 +377,15 @@ function home() {
   } else if (t.kind === 'fav') {
     status = `${t.count} favorite${t.count === 1 ? '' : 's'} from ${new Set(favItems().map((x) => x.s.id)).size} consoles`;
     cta = 'Open favorites';
+  } else if (t.kind === 'stream') {
+    status = `Movies and shows from your ${t.label} · catalogs and search`;
+    cta = 'Open Streaming';
   } else {
     status = `Can't decide? Spine picks something from all ${sys.reduce((n, x) => n + x.games.length, 0).toLocaleString()} games.`;
     cta = 'Surprise me';
   }
-  const cards = T.map((c, i) => `<button class="console ${i === sel ? 'sel' : ''} ${c.kind}" style="background:${c.color};--chip:${c.color}" data-nav data-key="con-${c.id}" data-act="tile" data-i="${i}" data-focus="selcon" aria-label="${esc(c.name)}${c.count != null ? ', ' + c.count + ' ' + things(c.sys, c.count) : ''}">
-      ${sysIcon(tileIcon(c), i === sel ? 72 : 60)}<span><span class="short">${esc(c.short)}</span>${c.kind === 'sys' && c.name !== c.short ? `<span class="name">${esc(c.name)}</span>` : ''}<span class="count">${c.count != null ? c.count + ' ' + things(c.sys, c.count) : 'Random pick'}</span></span></button>`).join('');
+  const cards = T.map((c, i) => `<button class="console ${i === sel ? 'sel' : ''} ${c.kind}" style="background:${c.color};--chip:${c.color}" data-nav data-key="con-${c.id}" data-act="tile" data-i="${i}" data-focus="selcon" aria-label="${esc(c.name)}${c.count != null ? ', ' + c.count + ' ' + things(c.sys, c.count) : c.label ? ', ' + c.label : ''}">
+      ${sysIcon(tileIcon(c), i === sel ? 72 : 60)}<span><span class="short">${esc(c.short)}</span>${c.kind === 'sys' && c.name !== c.short ? `<span class="name">${esc(c.name)}</span>` : ''}<span class="count">${c.count != null ? c.count + ' ' + things(c.sys, c.count) : c.label || 'Random pick'}</span></span></button>`).join('');
 
   const lp = S.boot.last_played || {};
   const byLast = Object.entries(lp).sort((a, b) => b[1] - a[1]).map(([id]) => findGame(id)).filter(Boolean);
@@ -495,8 +501,6 @@ function games() {
   if (!L) { S.screen = 'home'; return home(); }
   const s = L.tile;
   const isColl = s.kind !== 'sys';
-  const sc = streamActive(s); // an addon catalog instead of your own files
-  if (sc && !S_STREAM.cache[sc.ck]) setTimeout(() => streamLoad(sc.ck));
   const layout = layoutFor(s.id);
   const pt0 = S.boot.playtime || {};
   const lp0 = S.boot.last_played || {};
@@ -508,15 +512,14 @@ function games() {
   items.forEach((x) => { sysOf[x.g.id] = x.s; });
   const so = (g) => sysOf[g.id];
   const pt = S.boot.playtime || {};
-  const letters = new Set(bySort || sc ? [] : list.map((g) => g.letter));
+  const letters = new Set(bySort ? [] : list.map((g) => g.letter));
   const firstOf = {};
   list.forEach((g) => { if (!(g.letter in firstOf)) firstOf[g.letter] = g.id; });
   const anchor = (g) => (!bySort && firstOf[g.letter] === g.id ? ` id="L-${g.letter === '#' ? 'num' : g.letter}"` : '');
   const sub = (g) => (isColl ? so(g).short + ' · ' : '') + ([g.info?.year, g.info?.genre].filter(Boolean).join(' · ') || g.format.toUpperCase());
 
   let body;
-  if (sc) body = streamGrid(sc);
-  else if (!list.length) body = `<div class="nofav">${S.filter === 'fav' || s.kind === 'fav' ? `No favorites ${isColl ? '' : 'here '}yet. Open a game and press ${glyph('Y')} to add it.` : S.filter === 'new' ? "You've played everything here." : S.filter === 'multi' ? 'No multiplayer games found here (player counts come from ScreenScraper).' : 'Nothing here yet.'}</div>`;
+  if (!list.length) body = `<div class="nofav">${S.filter === 'fav' || s.kind === 'fav' ? `No favorites ${isColl ? '' : 'here '}yet. Open a game and press ${glyph('Y')} to add it.` : S.filter === 'new' ? "You've played everything here." : S.filter === 'multi' ? 'No multiplayer games found here (player counts come from ScreenScraper).' : 'Nothing here yet.'}</div>`;
   else if (layout === 'list') body = `<div class="list">${list.map((g) => `<button class="game letter-anchor"${anchor(g)} data-nav data-key="g-${g.id}" data-act="open" data-id="${esc(g.id)}">
       ${cover(g, so(g), 'nofav')}<span class="t">${esc(g.title)}</span><span class="c">${esc(sub(g))}</span><span class="c r">${esc(pt[g.id] ? fmtTime(pt[g.id]) : '')}</span>
       <span class="f">${isFav(g.id) ? ICON.heartA : ''}</span></button>`).join('')}</div>`;
@@ -538,19 +541,18 @@ function games() {
     <div class="gamesbar">
       <button class="iconbtn" data-nav data-key="gback" data-act="back" aria-label="Back to consoles">${ICON.back}</button>
       <span class="hdricon" style="background:${s.color}">${sysIcon(tileIcon(s), 30)}</span><h2>${esc(s.name)}</h2>
-      <span style="color:var(--muted)">${sc ? esc(sc.addonName) : `${L.items.length} ${things(s, L.items.length)}`}</span>
+      <span style="color:var(--muted)">${L.items.length} ${things(s, L.items.length)}</span>
       <div class="spacer"></div>
-      ${sc ? '' : `<button class="chip" data-nav data-key="rnd" data-act="random" data-scope="list">${ICON.dice} Random</button>
+      <button class="chip" data-nav data-key="rnd" data-act="random" data-scope="list">${ICON.dice} Random</button>
       <button class="chip" data-nav data-key="sortby" data-act="sortby" title="Change the order">${ICON.sort} ${esc(sortLabel(s, s.kind === 'coll' && sortMode() === 'title' ? 'listed' : sortMode()))}</button>
       <button class="chip ${!S.filter || S.filter === 'all' ? 'on' : ''}" data-nav data-key="f-all" data-act="filter" data-f="all">All</button>
       ${s.kind === 'fav' ? '' : `<button class="chip ${S.filter === 'fav' ? 'on' : ''}" data-nav data-key="f-fav" data-act="filter" data-f="fav">Favorites</button>`}
       <button class="chip ${S.filter === 'new' ? 'on' : ''}" data-nav data-key="f-new" data-act="filter" data-f="new">${isMovies(s) ? 'Not watched' : 'Not played'}</button>
       ${L.items.some((x) => maxPlayers(x.g) >= 2) ? `<button class="chip ${S.filter === 'multi' ? 'on' : ''}" data-nav data-key="f-multi" data-act="filter" data-f="multi">2+ players</button>` : ''}
       ${s.kind === 'coll' ? `<button class="chip" data-nav data-key="dellist" data-act="dellist" data-n="${esc(s.coll)}">Delete list</button>` : ''}
-      <div class="seg" role="group" aria-label="Layout">${lay('tiles', 'Tiles')}${lay('list', 'List')}${lay('cards', 'Cards')}${lay('shelf', 'Shelf')}</div>`}
+      <div class="seg" role="group" aria-label="Layout">${lay('tiles', 'Tiles')}${lay('list', 'List')}${lay('cards', 'Cards')}${lay('shelf', 'Shelf')}</div>
     </div>
-    ${streamTabs(s)}
-    <div class="games-wrap">${sc ? '' : `<nav class="rail" aria-label="Jump to letter">${rail}</nav>`}<div class="games scroll" id="gamesscroll">${body}</div></div>
+    <div class="games-wrap"><nav class="rail" aria-label="Jump to letter">${rail}</nav><div class="games scroll" id="gamesscroll">${body}</div></div>
   </main>` + hints(`${s.kind === 'cat' ? 'Across your whole library · LT / RT letter' : (isColl ? 'Every console' : L.emulator === 'system' ? 'Opens with their store or your PC' : 'Launches with ' + L.emulator) + ' · LB / RB console · LT / RT letter'}`, [['A', 'Open'], ['B', 'Back'], ['Y', 'Favorite'], ['R3', 'Random'], ['Select', 'Layout']]);
 }
 
@@ -1083,7 +1085,7 @@ function render() {
   if (keep && !S.focusKey) S.focusKey = keep;
   const scrollers = {};
   app.querySelectorAll('.scroll').forEach((el) => { if (el.id) scrollers[el.id] = el.scrollTop; });
-  const screens = { welcome, scanning, home, games, detail, sdetail, loading: () => '' };
+  const screens = { welcome, scanning, home, games, detail, stream, sdetail, loading: () => '' };
   app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + addonPanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
   silenceDetached();
   Object.entries(scrollers).forEach(([id, top]) => { const el = document.getElementById(id); if (el) el.scrollTop = top; });
@@ -1282,6 +1284,7 @@ const ACT = {
     if (!t) return;
     S.sel = +d.i;
     if (t.kind === 'random') return ACT.random({ scope: 'all' });
+    if (t.kind === 'stream') { S.panel = null; S.screen = 'stream'; S.focusKey = null; render(); document.getElementById('gamesscroll')?.scrollTo(0, 0); return restoreFocus(); }
     S.cat = null;
     S.con = browsable().findIndex((b) => b.id === t.id);
     S.filter = 'all'; S.screen = 'games'; S.focusKey = null;
@@ -1524,7 +1527,7 @@ const ACT = {
     const ds = document.getElementById('detailscroll'); if (ds) ds.scrollTop = 0; S.panel = null; S.screen = 'detail'; S.focusKey = 'play'; render(); },
   back() {
     if (S.panel) return ACT.closepanel();
-    if (S.screen === 'sdetail') { S.screen = 'games'; S.focusKey = S.sitem ? `si-${S.sitem.item.id}` : null; return render(); }
+    if (S.screen === 'sdetail') { S.screen = 'stream'; S.focusKey = S.sitem ? `si-${S.sitem.item.id}` : null; return render(); }
     if (S.screen === 'detail') {
       const id = S.game;
       S.spun = null;
@@ -1538,8 +1541,8 @@ const ACT = {
       S.cat = null; S.screen = r.screen; S.game = r.game; S.from = r.from; S.focusKey = r.focusKey;
       return render();
     }
-    if (S.screen === 'games') {
-      const id = curList()?.tile.id;
+    if (S.screen === 'games' || S.screen === 'stream') {
+      const id = S.screen === 'stream' ? 'streaming' : curList()?.tile.id;
       S.screen = 'home'; S.sel = Math.max(0, tiles().findIndex((t) => t.id === id)); S.focusKey = `con-${id}`;
       if (S.wave) S.wave.cat = id;
       if (S.blade) S.blade.cat = id;
@@ -1853,6 +1856,7 @@ function press(btn) {
     if (btn === 'B' || btn === 'A') return ACT.closeshot();
     return;
   }
+  if (S.screen === 'stream' && !S.panel && !S.playing && streamKey(btn)) return;
   if (S.screen === 'home' && waveOn() && !S.panel && !S.playing && systems().length && waveKey(btn)) return;
   if (S.screen === 'home' && channelsOn() && !S.panel && !S.playing && channelsKey(btn)) return;
   if (S.screen === 'home' && bladesOn() && !S.panel && !S.playing && systems().length && bladesKey(btn)) return;

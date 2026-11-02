@@ -1,10 +1,14 @@
-// Streaming addons (Stremio-style): catalogs on the Movies and TV screens, and a
-// details page for titles that aren't on your drives. Loaded before app.js.
+// Streaming addons (Stremio-style): the Streaming tile on Home opens its own screen
+// (screen 'stream') with Movies / Shows, a Search tab and each addon catalog, plus a
+// details page (screen 'sdetail'). Kept apart from your own Movies and TV on purpose.
+// Loaded before app.js.
 // The backend never sends an addon's link here (it can hold your keys), only a `key`.
 
-// Which addon catalog types belong on which screen.
+// Which addon catalog types go under Movies and under Shows.
 const STREAM_TYPES = { movies: ['movie'], tv: ['series', 'anime'] };
-const S_STREAM = { tab: {}, cache: {}, meta: {}, season: {}, search: {} };
+const STREAM_KINDS = [['movies', 'Movies'], ['tv', 'Shows']];
+const STREAM_COLOR = '#0E6E77';
+const S_STREAM = { kind: null, tab: {}, cache: {}, meta: {}, season: {}, search: {} };
 
 function streamAddons() { return S.boot?.addons || []; }
 // Browsable catalogs for the Movies or TV screen, in addon order.
@@ -35,12 +39,29 @@ function streamSearchCats(sysId) {
   }
   return out;
 }
-// The catalog shown on this screen right now (null = your own files).
-function streamActive(s) {
-  if (!s || s.kind !== 'sys') return null;
-  const ck = S_STREAM.tab[s.id];
-  if (ck === `search:${s.id}`) return streamSearchCats(s.id).length ? { ck, search: true, sys: s.id, label: 'Search', addonName: 'Search your addons' } : null;
-  return ck ? streamCats(s.id).find((c) => c.ck === ck) || null : null;
+// The Home tile: shown once any addon is added.
+function streamHomeTile() {
+  const n = streamAddons().length;
+  if (!n) return null;
+  return { kind: 'stream', id: 'streaming', name: 'Streaming', short: 'Streaming', color: STREAM_COLOR, count: null, label: `${n} addon${n === 1 ? '' : 's'}` };
+}
+// Movies / Shows that have something to browse or search.
+function streamKinds() { return STREAM_KINDS.filter(([k]) => streamCats(k).length || streamSearchCats(k).length); }
+function streamKind() {
+  const ks = streamKinds().map(([k]) => k);
+  if (!ks.includes(S_STREAM.kind)) S_STREAM.kind = ks[0] || 'movies';
+  return S_STREAM.kind;
+}
+// Tabs for a kind: Search first (when an addon can search), then every catalog.
+function streamTabList(kind) {
+  const out = [];
+  if (streamSearchCats(kind).length) out.push({ ck: `search:${kind}`, search: true, sys: kind, label: 'Search', addonName: 'Searches your addons' });
+  return out.concat(streamCats(kind));
+}
+// The tab shown right now: the one picked last, else the first catalog (else Search).
+function streamCur(kind) {
+  const list = streamTabList(kind);
+  return list.find((c) => c.ck === S_STREAM.tab[kind]) || list.find((c) => !c.search) || list[0] || null;
 }
 
 const streamImg = (u, cls = '') => (u ? `<img ${cls ? `class="${cls}" ` : ''}src="${esc(u)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : '');
@@ -49,17 +70,56 @@ const streamCover = (it, src) => `<div class="cover ph scover" style="background
 // Stremio's poster service hands out small posters by default; pages look better with bigger ones.
 const bigPoster = (u) => (u || '').replace('/poster/small/', '/poster/medium/');
 
-function streamTabs(s) {
-  const cats = streamCats(s.id);
-  const canSearch = streamSearchCats(s.id).length > 0;
-  if (!cats.length && !canSearch) return '';
-  const cur = streamActive(s);
-  const sk = `search:${s.id}`;
+function streamTabs(kind) {
+  const cur = streamCur(kind);
   return `<div class="streamtabs" role="tablist" aria-label="Catalogs">
-    <button class="chip ${!cur ? 'on' : ''}" role="tab" aria-selected="${!cur}" data-nav data-key="st-own" data-act="stab" data-s="${esc(s.id)}" data-ck="">${s.id === 'tv' ? 'Your shows' : 'Your movies'}</button>
-    ${canSearch ? `<button class="chip ${cur?.search ? 'on' : ''}" role="tab" aria-selected="${!!cur?.search}" data-nav data-key="st-${sk}" data-act="stab" data-s="${esc(s.id)}" data-ck="${sk}" title="Search your addons (not your own files)">${ICON.search} Search addons</button>` : ''}
-    ${cats.map((c) => `<button class="chip ${cur?.ck === c.ck ? 'on' : ''}" role="tab" aria-selected="${cur?.ck === c.ck}" data-nav data-key="st-${esc(c.ck)}" data-act="stab" data-s="${esc(s.id)}" data-ck="${esc(c.ck)}" title="${esc(c.addonName)}">${esc(c.label)}</button>`).join('')}
+    ${streamTabList(kind).map((c) => `<button class="chip ${cur?.ck === c.ck ? 'on' : ''}" role="tab" aria-selected="${cur?.ck === c.ck}" data-nav data-key="st-${esc(c.ck)}" data-act="stab" data-s="${esc(kind)}" data-ck="${esc(c.ck)}" title="${esc(c.addonName)}">${c.search ? ICON.search + ' ' : ''}${esc(c.label)}</button>`).join('')}
   </div>`;
+}
+
+// The Streaming screen.
+function stream() {
+  if (!streamAddons().length) { S.screen = 'home'; return home(); }
+  const kinds = streamKinds();
+  const kind = streamKind();
+  const cur = streamCur(kind);
+  if (cur && !cur.search && !S_STREAM.cache[cur.ck]) setTimeout(() => streamLoad(cur.ck));
+  const body = !kinds.length
+    ? `<div class="nofav">Your addons don't have catalogs or search. Add a catalog addon in Settings → Streaming addons, for example Cinemeta:<br><span class="path">https://v3-cinemeta.strem.io/manifest.json</span></div>`
+    : cur ? streamGrid(cur) : '';
+  return topbar() + `<main class="main">
+    <div class="gamesbar">
+      <button class="iconbtn" data-nav data-key="sgback" data-act="back" aria-label="Back to Home">${ICON.back}</button>
+      <span class="hdricon" style="background:${STREAM_COLOR}">${sysIcon('streaming', 30)}</span><h2>Streaming</h2>
+      <span style="color:var(--muted)">${esc(cur ? (cur.search ? cur.addonName : `From ${cur.addonName}`) : '')}</span>
+      <div class="spacer"></div>
+      ${kinds.length > 1 ? `<div class="seg skinds" role="group" aria-label="Movies or shows">${kinds.map(([k, l]) => `<button class="${k === kind ? 'on' : ''}" data-nav data-key="sk-${k}" data-act="skind" data-k="${k}">${l}</button>`).join('')}</div>` : ''}
+    </div>
+    ${kinds.length ? streamTabs(kind) : ''}
+    <div class="games-wrap"><div class="games scroll" id="gamesscroll">${body}</div></div>
+  </main>` + hints('Movies and shows from your streaming addons', [['A', 'Open'], ['B', 'Back'], ['LB / RB', 'Catalog'], kinds.length > 1 ? ['LT / RT', 'Movies / Shows'] : null].filter(Boolean));
+}
+
+// Controller on the Streaming screen: LB/RB step through the tabs, LT/RT switch Movies / Shows.
+function streamKey(btn) {
+  if (S.screen !== 'stream') return false;
+  const kind = streamKind();
+  if (btn === 'LB' || btn === 'RB') {
+    const list = streamTabList(kind);
+    if (list.length < 2) return true;
+    const i = Math.max(0, list.findIndex((c) => c.ck === streamCur(kind)?.ck));
+    const next = list[(i + (btn === 'RB' ? 1 : list.length - 1)) % list.length];
+    STREAM_ACT.stab({ s: kind, ck: next.ck });
+    return true;
+  }
+  if (btn === 'LT' || btn === 'RT') {
+    const ks = streamKinds().map(([k]) => k);
+    if (ks.length < 2) return true;
+    const i = ks.indexOf(kind);
+    STREAM_ACT.skind({ k: ks[(i + (btn === 'RT' ? 1 : ks.length - 1)) % ks.length] });
+    return true;
+  }
+  return false;
 }
 
 function streamGrid(c) {
@@ -113,7 +173,7 @@ async function streamSearch(sys, q) {
       if (!g.idx.length) g.error = String(e || 'Something went wrong.');
     }
     if (--g.pending === 0) g.loading = false;
-    if (S_STREAM.search[sys] === st && S.screen === 'games') render();
+    if (S_STREAM.search[sys] === st && S.screen === 'stream') render();
   }));
 }
 // Remember what's typed in the addon search box across redraws.
@@ -124,7 +184,7 @@ document.addEventListener('input', (e) => {
 });
 // On the Search tab, typing or X goes to the addon search box, not the library search.
 function streamSearchFocus() {
-  if (S.screen !== 'games' || S.panel) return false;
+  if (S.screen !== 'stream' || S.panel) return false;
   const el = document.getElementById('sq');
   if (!el) return false;
   if (document.activeElement !== el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); S.focusKey = 'sq'; }
@@ -137,7 +197,7 @@ async function streamLoad(ck) {
   const d = S_STREAM.cache[ck] || (S_STREAM.cache[ck] = { items: [], done: false, loading: false, error: null });
   if (d.loading || d.done) return;
   d.loading = true; d.error = null;
-  if (S.screen === 'games') render();
+  if (S.screen === 'stream') render();
   try {
     const page = await api.call('addon_catalog', { key: c.addon, kind: c.type, id: c.id, skip: d.items.length });
     const seen = new Set(d.items.map((x) => x.id));
@@ -148,7 +208,7 @@ async function streamLoad(ck) {
     d.error = String(e || 'Something went wrong.');
   }
   d.loading = false;
-  if (S.screen === 'games') render();
+  if (S.screen === 'stream') render();
 }
 
 async function streamMeta(it, addon) {
@@ -164,7 +224,7 @@ async function streamMeta(it, addon) {
 // Details page for a title from an addon catalog.
 function sdetail() {
   const x = S.sitem;
-  if (!x) { S.screen = 'games'; return games(); }
+  if (!x) { S.screen = 'stream'; return stream(); }
   const k = `${x.item.type}:${x.item.id}`;
   const m = S_STREAM.meta[k];
   const loading = m === 'loading';
@@ -216,15 +276,12 @@ function sdetail() {
 // ---- Settings → Addons
 function addonSettings() {
   const list = streamAddons();
-  const sys = systems().map((s) => s.id);
-  const hidden = list.some((a) => a.catalogs.some((c) => !c.needs_input)) && !sys.includes('movies') && !sys.includes('tv');
-  return `<div class="grp"><span class="k">Streaming addons</span><span class="note">Stremio-style addons add catalogs like Popular and Trending to your Movies and TV screens. Paste an addon's link (the same one you'd use in Stremio or Nuvio). Links with your keys in them stay on this PC and are never shown again.</span>
+  return `<div class="grp"><span class="k">Streaming addons</span><span class="note">Stremio-style addons add a Streaming tile to Home with their catalogs (Popular, Trending...) and a search. Paste an addon's link (the same one you'd use in Stremio or Nuvio). Links with your keys in them stay on this PC and are never shown again.</span>
     ${list.length ? `<div class="roots">${list.map((a, i) => `<div class="root addonrow">${a.logo ? `<img class="alogo" src="${esc(a.logo)}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">` : '<span class="alogo"></span>'}
       <span class="rp" title="${esc(a.description || '')}">${esc(a.name)}${a.version ? ` <span class="rs">${esc(a.version)}</span>` : ''}</span>
       <span class="rs">${esc(addonWhat(a))}</span>
       <span class="abtns">${i > 0 ? `<button class="btn small" data-nav data-key="aup-${a.key}" data-act="mvaddon" data-k="${a.key}" data-up="1" aria-label="Move up">↑</button>` : ''}
       <button class="btn small" data-nav data-key="arm-${a.key}" data-act="rmaddon" data-k="${a.key}">Remove</button></span></div>`).join('')}</div>` : ''}
-    ${hidden ? '<span class="note">Add a movie or TV folder too: addon catalogs show up on those screens.</span>' : ''}
     <div class="opts"><button class="btn" data-nav data-key="addaddon" data-act="addaddon">${ICON.plus} Add addon</button></div></div>`;
 }
 function addonWhat(a) {
@@ -249,6 +306,11 @@ function addonPanel() {
 }
 
 const STREAM_ACT = {
+  skind(d) {
+    S_STREAM.kind = d.k; S.focusKey = `sk-${d.k}`;
+    render();
+    const g = document.getElementById('gamesscroll'); if (g) g.scrollTop = 0;
+  },
   stab(d) {
     S_STREAM.tab[d.s] = d.ck || null;
     const search = (d.ck || '').startsWith('search:');

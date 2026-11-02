@@ -350,12 +350,12 @@ App: `App.addons`, Boot `addons` (AddonView: key, name, version, logo, catalogs,
 commands `add_addon`, `remove_addon`, `move_addon`, `addon_catalog`, `addon_meta`.
 UI: `ui/stream.js` + `stream.css` (state in `S_STREAM`, actions in `STREAM_ACT`, merged into ACT).
 Settings → Streaming addons (`addonSettings`, add panel `addonPanel`, S.panel 'addon').
-Movies/TV screens get catalog tabs (`streamTabs`; movie catalogs on Movies, series/anime on TV);
+(0.12.0 put catalog tabs on the Movies/TV screens; moved to the Streaming tile in 0.12.2.)
 an active tab swaps the grid (`streamGrid`, "Show more" pages) and hides rail/sort/filters.
 Details page = screen `sdetail` (`sdetail()`), poster/backdrop/logo straight from the addon's
 https URLs (CSP is null), images fall back to a title card on error. Episodes are focusable
 buttons with `noop` for now: 0.13 makes them (and a movie's Play) open the source picker.
-Limits: catalogs need a Movies or TV folder to exist (tabs live on those screens); no addon search yet.
+
 Tested in Chrome (Playwright, mock backend fed with real Cinemeta JSON, real posters via proxy).
 
 **0.12.1** (owner's request: keep addon results out of the library search): "Search addons" tab
@@ -364,6 +364,18 @@ picks one searchable catalog per addon and type (prefers a search-only one). `ad
 `addons::fetch_search` (`/catalog/<type>/<id>/search=<q>.json`). Results grouped per addon, kept after
 Back; the input uses `data-enter` (press A in an input runs that action). On this tab, typed letters
 and X focus the addon box (`streamSearchFocus`) instead of opening the library search.
+
+**0.12.2** (owner's call: keep local files and addons apart, build streaming out in its own space):
+addon stuff moved off the Movies/TV screens into a **Streaming** Home tile (`streamHomeTile()`,
+kind 'stream', id 'streaming', shown once any addon exists; not in `browsable()`, so LB/RB in a
+library never lands on it). `ACT.tile` opens screen `'stream'` (`stream()` in stream.js): Movies /
+Shows switch (`S_STREAM.kind`, `.seg.skinds`), tabs = Search (when an addon can search) + every
+catalog (`streamTabList`), default tab = first catalog. Keys: `streamKey` (LB/RB tabs, LT/RT kind).
+Back from 'stream' -> Home on the tile (same code as leaving a library); sdetail -> 'stream'.
+Home styles: the tile has `label` ("2 addons") used where `count` is null, empty cover pool;
+Wave/Blades/Cube list one "Open Streaming" item (`waveItems`). Icon `SYS_ICON.streaming`.
+Name clash to remember: `streamTile()` = a poster card in results, `streamHomeTile()` = the Home tile.
+Future streaming work goes in stream.js/stream.css and the 'stream' / 'sdetail' screens only.
 
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

@@ -60,8 +60,8 @@ packages, or AppImages in `~/Applications` (EmuDeck's layout) on Linux.
   summaries and episode names come from TMDB (free key). Shows are split into
   seasons; episodes get thumbnails and checkmarks. Plays in VLC or mpv, resumes
   where you stopped (VLC), and a "Continue watching" row picks up the next episode.
-- **Streaming addons:** add Stremio-style addons by link and browse their catalogs
-  (Popular, Trending...) on the Movies and TV screens. Spine comes with none built in.
+- **Streaming addons:** add Stremio-style addons by link, and a Streaming tile on Home
+  lets you browse and search their catalogs. Spine comes with none built in.
 - **Extras:** categories you can click ("every Roguelite you own"), your own
   lists, Surprise me, RetroAchievements on game pages.
 

@@ -36,13 +36,13 @@ function cubeSlotCat(belt, s) {
 
 function cubeFaceHtml(c, extra = '') {
   if (!c) return `<span class="cb-in empty"><span class="nm">Nothing here yet</span></span>`;
-  const items = c.kind === 'recent' ? c.recent : c.kind === 'fav' ? favItems() : c.kind === 'coll' ? collItems(c.coll)
+  const items = c.kind === 'stream' ? [] : c.kind === 'recent' ? c.recent : c.kind === 'fav' ? favItems() : c.kind === 'coll' ? collItems(c.coll)
     : c.kind === 'sys' ? c.sys.games.map((g) => ({ s: c.sys, g })) : systems().filter((x) => !isMovies(x)).flatMap((x) => x.games.map((g) => ({ s: x, g })));
   const covers = items.filter((x) => x.g.cover);
   const step = Math.max(1, Math.floor(covers.length / 3));
   const stickers = covers.filter((_, k) => k % step === 0).slice(0, 3)
     .map((x, k) => `<img class="st st${k}" src="${mediaUrl(x.g.cover)}" alt="" decoding="async">`).join('');
-  const count = c.kind === 'recent' ? `${c.recent.length} recently played` : c.count != null ? `${c.count.toLocaleString()} ${c.kind === 'sys' ? things(c.sys, c.count) : c.count === 1 ? 'game' : 'games'}` : 'Random pick';
+  const count = c.kind === 'recent' ? `${c.recent.length} recently played` : c.count != null ? `${c.count.toLocaleString()} ${c.kind === 'sys' ? things(c.sys, c.count) : c.count === 1 ? 'game' : 'games'}` : c.label || 'Random pick';
   return `<span class="cb-in" style="--fc:${c.color}">${stickers}<span class="ic">${sysIcon(tileIcon(c), 92)}</span>
     <span class="nm">${esc(c.name)}</span><span class="ct">${esc(count)}</span>${extra}</span>`;
 }
