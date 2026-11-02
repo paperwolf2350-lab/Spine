@@ -362,7 +362,7 @@ pub fn fetch_search(a: &Stored, typ: &str, id: &str, query: &str) -> Result<Vec<
 
 /// One way to watch a title, as an addon offered it. `url` usually holds the user's
 /// debrid key (TorBox, Real-Debrid...): it stays in the backend, never in the interface.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Source {
     pub url: String,
     /// The addon's first line ("Torrentio\n[TB+] 4k") and the rest (file name, size, seeders...).

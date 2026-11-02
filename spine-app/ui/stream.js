@@ -86,7 +86,7 @@ function stream() {
   if (cur && !cur.search && !S_STREAM.cache[cur.ck]) setTimeout(() => streamLoad(cur.ck));
   const body = !kinds.length
     ? `<div class="nofav">Your addons don't have catalogs or search. Add a catalog addon in Settings → Streaming addons, for example Cinemeta:<br><span class="path">https://v3-cinemeta.strem.io/manifest.json</span></div>`
-    : cur ? streamGrid(cur) : '';
+    : cur ? (cur.search ? '' : streamContinueRow(kind)) + streamGrid(cur) : '';
   return topbar() + `<main class="main">
     <div class="gamesbar">
       <button class="iconbtn" data-nav data-key="sgback" data-act="back" aria-label="Back to Home">${ICON.back}</button>
@@ -221,18 +221,73 @@ async function streamMeta(it, addon) {
   if (S.screen === 'sdetail' && S.sitem && S.sitem.item.id === it.id) render();
 }
 
+// ---- Resume, watched marks and Continue watching (positions saved as "stream/<type>:<id>").
+const sKey = (type, vid) => `stream/${type}:${vid}`;
+const sProg = (type, vid) => (S.boot.progress || {})[sKey(type, vid)] || null;
+const sHasLink = (type, vid) => (S.boot.stream_links || []).includes(sKey(type, vid));
+const epCodeOf = (e) => (e && e.season != null && e.episode != null ? `S${e.season} E${e.episode}` : e?.title || '');
+// Episodes in viewing order (specials last, as the backend sorts them).
+function sEpisodes(x) { const m = S_STREAM.meta[`${x.item.type}:${x.item.id}`]; return (m && m !== 'loading' && m.episodes) || []; }
+// What a show's main button does: back into the episode you stopped in, else the next one
+// after the last you watched, else nothing (the page then offers the season's first episode).
+function sShowNext(x) {
+  const eps = sEpisodes(x).filter((e) => e.season !== 0);
+  let last = -1, at = 0;
+  eps.forEach((e, i) => { const p = sProg(x.item.type, e.id); if (p && p.at >= at) { at = p.at; last = i; } });
+  if (last < 0) return null;
+  const e = eps[last], p = sProg(x.item.type, e.id);
+  if (canResume(p) && sHasLink(x.item.type, e.id)) return { kind: 'resume', e, pos: p.pos };
+  if (p.watched || finished(p)) return eps[last + 1] ? { kind: 'next', e: eps[last + 1] } : null;
+  return { kind: 'again', e };
+}
+// What Continue watching needs to show a title again (sent with each play).
+function streamInfo(vid) {
+  const x = S.sitem; if (!x) return null;
+  const it = { ...x.item, ...((m) => (m && m !== 'loading' ? m : {}))(S_STREAM.meta[`${x.item.type}:${x.item.id}`]) };
+  const eps = sEpisodes(x);
+  const i = eps.findIndex((e) => e.id === vid);
+  const e = eps[i];
+  return { item: `${x.item.type}:${x.item.id}`, type: x.item.type, id: x.item.id, name: it.name, poster: it.poster || null, background: it.background || null, year: it.year || null,
+    addon: x.addon || null, addonName: x.addonName || null,
+    episode: e ? { id: e.id, season: e.season, episode: e.episode, title: e.title } : null, last: e ? !eps.slice(i + 1).some((n) => n.season !== 0) : true };
+}
+// Continue watching for Movies or Shows: newest first; finished movies and shows with
+// nothing left drop off.
+function streamContinue(kind) {
+  const types = STREAM_TYPES[kind];
+  return Object.values(S.boot.stream_recent || {}).filter((r) => types.includes(r.type)).sort((a, b) => (b.at || 0) - (a.at || 0)).map((r) => {
+    const vid = r.episode ? r.episode.id : r.id;
+    const p = sProg(r.type, vid);
+    const done = p && (p.watched || finished(p));
+    if (done && (!r.episode || r.last)) return null;
+    const code = r.episode ? epCodeOf(r.episode) : '';
+    const line = canResume(p) ? `Resume ${code ? code + ' · ' : ''}${clock(p.pos)}` : done ? `Next after ${code}` : code ? `Watch ${code}` : 'Watch';
+    return { r, line, pct: canResume(p) && p.len ? Math.round((100 * p.pos) / p.len) : 0 };
+  }).filter(Boolean).slice(0, 12);
+}
+function streamContinueRow(kind) {
+  const list = streamContinue(kind);
+  if (!list.length) return '';
+  return `<section class="morerow scontinue"><h3>Continue watching</h3><div class="strip">${list.map(({ r, line, pct }) => `<button class="game" data-nav data-key="cw-${esc(r.item)}" data-act="scontinue" data-item="${esc(r.item)}">
+      <span class="cwimg">${streamCover({ name: r.name, year: r.year }, bigPoster(r.poster))}${pct ? `<span class="pbar"><i style="width:${pct}%"></i></span>` : ''}</span>
+      <span class="t">${esc(r.name)}</span><span class="s">${esc(line)}</span></button>`).join('')}</div></section>`;
+}
+
 // Details page for a title from an addon catalog.
 function sdetail() {
   const x = S.sitem;
   if (!x) { S.screen = 'stream'; return stream(); }
   const k = `${x.item.type}:${x.item.id}`;
+  const T = x.item.type;
   const m = S_STREAM.meta[k];
   const loading = m === 'loading';
   const it = m && m !== 'loading' ? { ...x.item, ...Object.fromEntries(Object.entries(m).filter(([, v]) => v != null && !(Array.isArray(v) && !v.length))) } : x.item;
   const eps = (m && m !== 'loading' && m.episodes) || [];
+  const next = eps.length ? sShowNext(x) : null;
   const seasonOf = (e) => (e.season == null ? 'Other' : e.season === 0 ? 'Specials' : `Season ${e.season}`);
   const groups = [...new Set(eps.map(seasonOf))];
-  const group = groups.includes(S_STREAM.season[k]) ? S_STREAM.season[k] : groups[0];
+  // Open on the season you're in the middle of.
+  const group = groups.includes(S_STREAM.season[k]) ? S_STREAM.season[k] : next ? seasonOf(next.e) : groups[0];
   const shown = eps.filter((e) => seasonOf(e) === group);
   const epTitle = (e) => `${it.name} · ${e.season != null && e.episode != null ? `S${e.season} E${e.episode} ` : ''}${e.title}`;
   const backLabel = x.catLabel || 'Back';
@@ -245,26 +300,49 @@ function sdetail() {
   const people = [it.director?.length ? `Directed by ${it.director.slice(0, 2).join(', ')}` : null, it.cast?.length ? `With ${it.cast.slice(0, 4).join(', ')}` : null].filter(Boolean);
   const day = (d) => { if (!d) return ''; const t = new Date(d + 'T12:00:00'); return isNaN(t) ? d : t.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); };
   const upcoming = (e) => e.released && new Date(e.released + 'T00:00:00') > new Date();
+  // An episode row resumes where you stopped (same source), otherwise opens the source list.
+  const epRow = (e) => {
+    const p = sProg(T, e.id), resume = canResume(p) && sHasLink(T, e.id);
+    const act = resume ? `data-act="sresume" data-k="${esc(T)}" data-v="${esc(e.id)}"` : `data-act="sources" data-k="${esc(T)}" data-id="${esc(e.id)}"`;
+    return `<div class="eprow"><button class="ep ${upcoming(e) ? 'soon' : ''}" data-nav data-key="sep-${esc(e.id)}" ${act} data-t="${esc(epTitle(e))}" title="${resume ? `Resume at ${clock(p.pos)}` : `Choose a source for ${esc(e.title)}`}">
+      <span class="thumb">${e.thumbnail ? streamImg(e.thumbnail) : `<span style="position:relative">${e.episode ?? ICON.film}</span>`}${p?.watched ? `<span class="seen" aria-label="Watched">${ICON.check}</span>` : ''}${canResume(p) ? `<span class="pbar" aria-label="Stopped at ${clock(p.pos)}"><i style="width:${Math.round((100 * p.pos) / (p.len || 1))}%"></i></span>` : ''}</span>
+      <span><span class="et">${e.season != null && e.episode != null ? `<span class="n">S${e.season} · E${e.episode}</span>` : ''}${esc(e.title)}</span>
+      ${e.released ? `<span class="eo" style="font-weight:600">${upcoming(e) ? 'Coming ' : ''}${esc(day(e.released))}</span>` : ''}${e.overview ? `<span class="eo">${esc(e.overview)}</span>` : ''}</span></button>
+      <button class="epcheck ${p?.watched ? 'on' : ''}" data-nav data-key="sw-${esc(e.id)}" data-act="watched" data-k="${esc(sKey(T, e.id))}" data-on="${p?.watched ? 1 : 0}" title="${p?.watched ? 'Watched · click to unmark' : 'Mark as watched'}" aria-pressed="${!!p?.watched}" aria-label="Watched">${ICON.check}</button></div>`;
+  };
   const epsHtml = !eps.length ? '' : `<section class="eps" aria-label="Episodes">
     <h3 style="font-family:var(--body);font-size:18px;font-weight:700">Episodes</h3>
     ${groups.length > 1 ? `<div class="seasons" role="tablist">${groups.map((g) => `<button class="chip ${g === group ? 'on' : ''}" role="tab" aria-selected="${g === group}" data-nav data-key="sgrp-${esc(g)}" data-act="sseason" data-g="${esc(g)}">${esc(g)}</button>`).join('')}</div>` : ''}
-    <div class="eplist">${shown.map((e) => `<div class="eprow"><button class="ep ${upcoming(e) ? 'soon' : ''}" data-nav data-key="sep-${esc(e.id)}" data-act="sources" data-k="${esc(x.item.type)}" data-id="${esc(e.id)}" data-t="${esc(epTitle(e))}" title="Choose a source for ${esc(e.title)}">
-      <span class="thumb">${e.thumbnail ? streamImg(e.thumbnail) : `<span style="position:relative">${e.episode ?? ICON.film}</span>`}</span>
-      <span><span class="et">${e.season != null && e.episode != null ? `<span class="n">S${e.season} · E${e.episode}</span>` : ''}${esc(e.title)}</span>
-      ${e.released ? `<span class="eo" style="font-weight:600">${upcoming(e) ? 'Coming ' : ''}${esc(day(e.released))}</span>` : ''}${e.overview ? `<span class="eo">${esc(e.overview)}</span>` : ''}</span></button></div>`).join('')}</div></section>`;
+    <div class="eplist">${shown.map(epRow).join('')}</div></section>`;
   const first = shown.find((e) => !upcoming(e)) || shown[0];
-  const canStream = streamAddons().some((a) => a.stream.includes(x.item.type));
-  const action = !canStream
-    ? `<span class="note">To watch, add a source addon (one set up with your TorBox key, for example) in Settings → Streaming addons.</span>`
-    : x.item.type === 'movie' || !eps.length
-      ? (loading && x.item.type !== 'movie' ? '' : `<button class="btn primary" data-nav data-key="play" data-act="sources" data-k="${esc(x.item.type)}" data-id="${esc(x.item.id)}" data-t="${esc(it.name)}">${glyph('A')}Choose a source</button>`)
-      : first ? `<button class="btn primary" data-nav data-key="play" data-act="sources" data-k="${esc(x.item.type)}" data-id="${esc(first.id)}" data-t="${esc(epTitle(first))}">${glyph('A')}Choose a source · ${first.season != null ? `S${first.season} E${first.episode}` : esc(first.title)}</button><span class="note">or pick any episode below</span>` : '';
+  const canStream = streamAddons().some((a) => a.stream.includes(T));
+  const srcBtn = (vid, title, label, primary = true, key = 'play') => `<button class="btn ${primary ? 'primary' : ''}" data-nav data-key="${key}" data-act="sources" data-k="${esc(T)}" data-id="${esc(vid)}" data-t="${esc(title)}">${primary ? glyph('A') : ''}${label}</button>`;
+  let action;
+  if (!canStream) action = `<span class="note">To watch, add a source addon (one set up with your TorBox key, for example) in Settings → Streaming addons.</span>`;
+  else if (T === 'movie' || (!eps.length && !loading)) {
+    const p = sProg(T, x.item.id), link = sHasLink(T, x.item.id);
+    action = (canResume(p) && link
+      ? `<button class="btn primary" data-nav data-key="play" data-act="sresume" data-k="${esc(T)}" data-v="${esc(x.item.id)}" data-t="${esc(it.name)}">${glyph('A')}Resume · ${clock(p.pos)}</button>
+         <button class="btn" data-nav data-key="restart" data-act="sresume" data-k="${esc(T)}" data-v="${esc(x.item.id)}" data-t="${esc(it.name)}" data-from="start">Start over</button>
+         ${srcBtn(x.item.id, it.name, 'Other source', false, 'othersrc')}`
+      : srcBtn(x.item.id, it.name, 'Choose a source'))
+      + `<button class="btn ${p?.watched ? 'on' : ''}" data-nav data-key="mwatched" data-act="watched" data-k="${esc(sKey(T, x.item.id))}" data-on="${p?.watched ? 1 : 0}" aria-pressed="${!!p?.watched}">${ICON.check} ${p?.watched ? 'Watched' : 'Mark as watched'}</button>`;
+  } else if (next?.kind === 'resume') {
+    action = `<button class="btn primary" data-nav data-key="play" data-act="sresume" data-k="${esc(T)}" data-v="${esc(next.e.id)}" data-t="${esc(epTitle(next.e))}">${glyph('A')}Resume ${esc(epCodeOf(next.e))} · ${clock(next.pos)}</button>
+      ${srcBtn(next.e.id, epTitle(next.e), 'Other source', false, 'othersrc')}`;
+  } else if (next) {
+    action = srcBtn(next.e.id, epTitle(next.e), `${next.kind === 'next' ? 'Next:' : 'Watch'} ${esc(epCodeOf(next.e))}`) + `<span class="note">Choose a source for it, or pick any episode below</span>`;
+  } else if (first) {
+    action = srcBtn(first.id, epTitle(first), `Choose a source · ${first.season != null ? `S${first.season} E${first.episode}` : esc(first.title)}`) + `<span class="note">or pick any episode below</span>`;
+  } else action = '';
+  const inContinue = !!(S.boot.stream_recent || {})[k];
   const bg = it.background;
   return topbar() + `<main class="main"><div class="backdrop" aria-hidden="true">${it.poster ? streamImg(it.poster) : ''}</div>
   <div class="detail scroll ${bg ? 'has-hero' : ''}" id="detailscroll">
    ${bg ? `<div class="herobanner" aria-hidden="true">${streamImg(bg)}</div>` : ''}
    <div class="detail-top">
-    <div class="left"><div class="media">${streamCover(it, bigPoster(it.poster))}</div></div>
+    <div class="left"><div class="media">${streamCover(it, bigPoster(it.poster))}</div>
+      ${inContinue ? `<div class="coverbtns"><button class="btn small" data-nav data-key="sforget" data-act="sforget" data-item="${esc(k)}">Remove from Continue watching</button></div>` : ''}</div>
     <div class="right">
       <button class="back" data-nav data-key="sback" data-act="back">${ICON.back}${esc(backLabel)}</button>
       ${it.logo ? `<h2 class="haslogo"><img class="gamelogo" src="${esc(it.logo)}" alt="${esc(it.name)}" referrerpolicy="no-referrer" onerror="this.parentNode.classList.remove('haslogo'); this.replaceWith(this.alt)"></h2>` : `<h2>${esc(it.name)}</h2>`}
@@ -277,8 +355,8 @@ function sdetail() {
     </div>
    </div>
    ${epsHtml}
-   ${loading && x.item.type !== 'movie' ? '<div class="nofav" style="padding:30px 0">Getting episodes…</div>' : ''}
-  </div></main>` + hints('From a streaming addon', [['A', 'Choose a source'], ['B', 'Back']]);
+   ${loading && T !== 'movie' ? '<div class="nofav" style="padding:30px 0">Getting episodes…</div>' : ''}
+  </div></main>` + hints('From a streaming addon', [['A', 'Select'], ['B', 'Back']]);
 }
 
 // ---- "Choose a source": what your source addons offer for a movie or episode.
@@ -342,9 +420,16 @@ function addonPanel() {
   </aside></div>`;
 }
 
+// After a play starts: the interface's copy of Continue watching and Resume links.
+function streamPlayed(type, vid, info) {
+  const k = sKey(type, vid);
+  if (!(S.boot.stream_links || []).includes(k)) S.boot.stream_links = [...(S.boot.stream_links || []), k];
+  if (info?.item) S.boot.stream_recent = { ...(S.boot.stream_recent || {}), [info.item]: { ...info, key: `${type}:${vid}`, at: Math.floor(Date.now() / 1000) } };
+}
+
 const STREAM_ACT = {
   async sources(d) {
-    const req = { title: d.t, kind: d.k, id: d.id, loading: true, groups: [] };
+    const req = { title: d.t, kind: d.k, id: d.id, info: streamInfo(d.id), loading: true, groups: [] };
     S.src = req; S.srcFrom = document.activeElement?.dataset?.key || 'play';
     S.panel = 'sources'; S.focusKey = null; render();
     try {
@@ -358,6 +443,36 @@ const STREAM_ACT = {
     req.loading = false;
     if (S.panel === 'sources') { S.focusKey = 'src-0'; render(); }
   },
+  // Resume (or Start over) with the source played last time.
+  async sresume(d) {
+    stopPreview();
+    const info = streamInfo(d.v);
+    S.playing = { title: d.t, emulator: 'VLC', movie: true };
+    render();
+    try {
+      const emu = await api.call('play_stream', { token: null, key: `${d.k}:${d.v}`, title: d.t, info, fromStart: d.from === 'start' });
+      S.playing = { ...S.playing, emulator: emu, started: true };
+      streamPlayed(d.k, d.v, info);
+    } catch (e) {
+      S.playing = { ...S.playing, error: String(e) };
+    }
+    S.focusKey = 'closeplay';
+    render();
+  },
+  scontinue(d) {
+    const r = (S.boot.stream_recent || {})[d.item];
+    if (!r) return;
+    const it = { id: r.id, type: r.type, name: r.name, poster: r.poster, background: r.background, year: r.year, genres: [] };
+    S.sitem = { item: it, addon: r.addon, addonName: r.addonName, catLabel: 'Streaming', backKey: `cw-${d.item}` };
+    S.panel = null; S.screen = 'sdetail'; S.focusKey = 'play';
+    render();
+    document.getElementById('detailscroll')?.scrollTo(0, 0);
+    streamMeta(it, r.addon);
+  },
+  async sforget(d) {
+    S.boot = await api.call('stream_forget', { item: d.item });
+    S.focusKey = 'play'; render();
+  },
   async splay(d) {
     const x = S.src;
     if (!x) return;
@@ -365,8 +480,9 @@ const STREAM_ACT = {
     S.playing = { title: x.title, emulator: 'VLC', movie: true };
     render();
     try {
-      const emu = await api.call('play_stream', { token: d.tok, title: x.title, id: `${x.kind}:${x.id}` });
+      const emu = await api.call('play_stream', { token: d.tok, key: `${x.kind}:${x.id}`, title: x.title, info: x.info, fromStart: true });
       S.playing = { ...S.playing, emulator: emu, started: true };
+      streamPlayed(x.kind, x.id, x.info);
     } catch (e) {
       S.playing = { ...S.playing, error: String(e) };
     }
@@ -410,7 +526,7 @@ const STREAM_ACT = {
       it = S_STREAM.cache[d.ck]?.items[+d.i];
     }
     if (!c || !it) return;
-    S.sitem = { item: it, addon: c.addon, addonName: c.addonName, catLabel: c.label };
+    S.sitem = { item: it, addon: c.addon, addonName: c.addonName, catLabel: c.label, backKey: `si-${it.id}` };
     S.panel = null; S.screen = 'sdetail'; S.focusKey = 'sback';
     render();
     document.getElementById('detailscroll')?.scrollTo(0, 0);

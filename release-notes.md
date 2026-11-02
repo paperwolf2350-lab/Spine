@@ -1,7 +1,9 @@
 ## What's new
-- **Watch from Streaming.** Movie and episode pages in Streaming have a **Choose a source** button. It asks your source addons (the ones set up with your TorBox key) and lists what they found with quality, size and whether it's **Ready** (already on TorBox, starts right away). Pick one and it plays in VLC (or mpv); hold Select + Start to come back.
-- On a show, pick any episode, or use the button for the first episode of the season you're looking at.
-- Your keys stay safe: the links (which hold your TorBox key) never reach the interface or its messages.
+- **Resume streamed movies and episodes.** Spine remembers where you stopped and which source you used: the page then offers **Resume**, **Start over** or **Other source**.
+- **Watched checkmarks** on streamed movies and episodes, with a progress bar on episodes you stopped partway.
+- **Next episode:** a show's main button picks up where you are (Resume, or Next: S1 E4), and the page opens on that season.
+- **Continue watching** row in Streaming (Movies and Shows each have their own). Finished movies drop off; "Remove from Continue watching" on a title's page takes anything off by hand.
+- Works the same in VLC and mpv.
 
 ---
 

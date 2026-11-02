@@ -1527,7 +1527,7 @@ const ACT = {
     const ds = document.getElementById('detailscroll'); if (ds) ds.scrollTop = 0; S.panel = null; S.screen = 'detail'; S.focusKey = 'play'; render(); },
   back() {
     if (S.panel) return ACT.closepanel();
-    if (S.screen === 'sdetail') { S.screen = 'stream'; S.focusKey = S.sitem ? `si-${S.sitem.item.id}` : null; return render(); }
+    if (S.screen === 'sdetail') { S.screen = 'stream'; S.focusKey = S.sitem?.backKey || null; return render(); }
     if (S.screen === 'detail') {
       const id = S.game;
       S.spun = null;

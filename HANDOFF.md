@@ -391,5 +391,17 @@ sdetail; episode rows open sources too; `sourcesPanel()` (S.panel 'sources', S.s
 addon with Ready / Not cached badges. Not yet: resume/watched/Continue watching (step 3), and a
 real TorBox run (can't reach it from the workspace: owner to check on his PC).
 
+**0.14.0** (step 3): progress for streams uses the same `progress` map, keys `stream/<type>:<id>`
+(episode ids for shows, e.g. `stream/series:tt0903747:1:2`). `play_stream(token|null, key, title,
+info, from_start)`: token = a fresh source; null = the source played last time, kept in
+**stream-links.json** (`App.links`, key -> (time, Source), newest 300; separate file because the
+links hold the debrid key; Boot only gets the keys as `stream_links`). Same VLC/mpv Tracker as
+local movies. `info` (from `streamInfo()` in stream.js: item "<type>:<id>", name, poster, addon,
+episode, last) is saved in spine-state.json `stream_recent` (newest 40) for Continue watching;
+`stream_forget(item)` removes one. UI: `sShowNext` (resume / next / again, by latest `at`, like
+local `showNext`), Resume / Start over / Other source / Mark as watched on movies, checkmarks +
+progress bars on episodes (row resumes if it can, else opens sources), `streamContinueRow` above
+the catalog grid (not on Search). Streaming steps 1–3 are done.
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

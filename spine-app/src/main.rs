@@ -77,6 +77,10 @@ struct Saved {
     /// Where you left off and what you've watched: movie id, or "<show id>|<file name>".
     #[serde(default)]
     progress: BTreeMap<String, spine_core::player::Progress>,
+    /// Streaming "Continue watching": "<type>:<id>" of a movie or show -> what the interface
+    /// needs to show it again (name, poster, last episode...) plus `at`. No links in here.
+    #[serde(default)]
+    stream_recent: BTreeMap<String, serde_json::Value>,
 }
 
 impl Saved {
@@ -122,6 +126,9 @@ struct App {
     addons: Mutex<Vec<addons::Stored>>,
     /// Sources from the last "Choose a source": token -> link (links can hold the user's key).
     sources: Mutex<BTreeMap<String, addons::Source>>,
+    /// The source last played per movie/episode ("stream/<type>:<id>" -> (time, source)), for
+    /// Resume. Kept in stream-links.json, not spine-state.json: the links hold the user's key.
+    links: Mutex<BTreeMap<String, (u64, addons::Source)>>,
 }
 
 impl App {
@@ -140,6 +147,25 @@ impl App {
         let tmp = self.dir.join("addons.json.tmp");
         fs::write(&tmp, serde_json::to_string_pretty(&a).unwrap_or_default()).map_err(|e| format!("Couldn't save: {e}"))?;
         fs::rename(&tmp, self.dir.join("addons.json")).map_err(|e| format!("Couldn't save: {e}"))
+    }
+}
+
+fn load_links(dir: &Path) -> BTreeMap<String, (u64, addons::Source)> {
+    fs::read_to_string(dir.join("stream-links.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
+impl App {
+    fn save_links(&self) {
+        let mut l = self.links.lock().unwrap();
+        // Only the most recent 300: older links have usually expired anyway.
+        while l.len() > 300 {
+            let Some(old) = l.iter().min_by_key(|(_, v)| v.0).map(|(k, _)| k.clone()) else { break };
+            l.remove(&old);
+        }
+        let tmp = self.dir.join("stream-links.json.tmp");
+        if fs::write(&tmp, serde_json::to_string(&*l).unwrap_or_default()).is_ok() {
+            let _ = fs::rename(&tmp, self.dir.join("stream-links.json"));
+        }
     }
 }
 
@@ -313,6 +339,9 @@ struct Boot {
     collections: BTreeMap<String, Vec<String>>,
     progress: BTreeMap<String, spine_core::player::Progress>,
     addons: Vec<AddonView>,
+    stream_recent: BTreeMap<String, serde_json::Value>,
+    /// Streamed movies/episodes with a remembered source (Resume can reopen it).
+    stream_links: Vec<String>,
 }
 
 fn view(app: &App) -> Boot {
@@ -425,6 +454,8 @@ fn view(app: &App) -> Boot {
         settings: saved.settings,
         notes: lib.as_ref().map(|l| l.notes.clone()).unwrap_or_default(),
         addons: addon_views(app),
+        stream_recent: saved.stream_recent.clone(),
+        stream_links: app.links.lock().unwrap().keys().cloned().collect(),
     }
 }
 
@@ -1455,23 +1486,72 @@ async fn addon_streams(kind: String, id: String, handle: AppHandle) -> Result<Ve
         .collect())
 }
 
-/// Play a source from "Choose a source" in VLC (or mpv). Emits "game-exited" like games.
+/// Play a streamed movie or episode in VLC (or mpv). `key` is "<type>:<id>" (an episode id for
+/// shows). `token` is a source from "Choose a source"; without one, the source played last time
+/// (Resume). Remembers the position like local movies, under "stream/<key>". `info` is what
+/// Continue watching shows (from the interface: item, name, poster, episode...). Emits "game-exited".
 #[tauri::command]
-fn play_stream(token: String, title: String, id: String, handle: AppHandle) -> Result<String, String> {
+fn play_stream(token: Option<String>, key: String, title: String, info: Option<serde_json::Value>, from_start: Option<bool>, handle: AppHandle) -> Result<String, String> {
     let app = handle.state::<App>();
     if let Some(r) = app.running.lock().unwrap().as_ref() {
         return Err(format!("{r} is still running."));
     }
-    let src = app.sources.lock().unwrap().get(&token).cloned().ok_or("That source has expired. Choose a source again.")?;
+    let pkey = format!("stream/{key}");
+    let src = match &token {
+        Some(t) => app.sources.lock().unwrap().get(t).cloned().ok_or("That source has expired. Choose a source again.")?,
+        None => app.links.lock().unwrap().get(&pkey).map(|(_, s)| s.clone()).ok_or("Spine doesn't remember a source for this. Choose a source.")?,
+    };
     let pref = app.saved.lock().unwrap().settings.get("streamPlayer").and_then(|v| v.as_str()).map(String::from);
-    let plan = launch::plan_stream(&app.installed.lock().unwrap(), &src.url, &title, &src.headers, pref.as_deref());
+    let mut plan = launch::plan_stream(&app.installed.lock().unwrap(), &src.url, &title, &src.headers, pref.as_deref());
     if let Some(why) = &plan.blocked {
         return Err(why.clone());
+    }
+    // Follow the position, like local movies: VLC's web remote, or Spine's little mpv script.
+    let saved_pos = app.saved.lock().unwrap().progress.get(&pkey).copied();
+    let start = if from_start == Some(true) { None } else { spine_core::player::start_at(saved_pos.as_ref()) };
+    let tracker = if plan.emulator == "VLC" {
+        spine_core::player::free_port().map(|port| Tracker::Vlc(port, spine_core::player::password()))
+    } else {
+        let dir = app.media().join("cache").join("mpv");
+        let script = dir.join("spine-progress.lua");
+        let out = dir.join("position.txt");
+        let _ = fs::remove_file(&out);
+        (fs::create_dir_all(&dir).is_ok() && fs::write(&script, spine_core::player::MPV_SCRIPT).is_ok()).then(|| {
+            if plan.args.first().map(String::as_str) == Some("run") && plan.program.to_string_lossy().ends_with("flatpak") {
+                plan.args.insert(1, format!("--filesystem={}", dir.display()));
+            }
+            Tracker::Mpv(script, out)
+        })
+    };
+    if let Some(t) = &tracker {
+        let url_arg = plan.args.pop();
+        plan.args.extend(match t {
+            Tracker::Vlc(port, pw) => spine_core::player::vlc_args(*port, pw, start),
+            Tracker::Mpv(script, out) => spine_core::player::mpv_args(script, out, start),
+        });
+        plan.args.extend(url_arg);
     }
     let log = app.dir.join("logs").join("last-game.log");
     let _ = fs::create_dir_all(log.parent().unwrap());
     let mut child = launch::launch_logged(&plan, Some(log.as_path())).map_err(|e| addons::redact(&format!("Couldn't start {}: {e}", plan.emulator), &src.url))?;
     *app.running.lock().unwrap() = Some(title);
+    // Remember this source for Resume, and the title for Continue watching.
+    app.links.lock().unwrap().insert(pkey.clone(), (now(), src.clone()));
+    app.save_links();
+    if let Some(serde_json::Value::Object(mut m)) = info {
+        if let Some(item) = m.get("item").and_then(|v| v.as_str()).map(String::from) {
+            m.insert("at".into(), serde_json::json!(now()));
+            m.insert("key".into(), serde_json::json!(key));
+            let mut s = app.saved.lock().unwrap();
+            s.stream_recent.insert(item, serde_json::Value::Object(m));
+            // Keep the 40 most recent.
+            while s.stream_recent.len() > 40 {
+                let Some(old) = s.stream_recent.iter().min_by_key(|(_, v)| v.get("at").and_then(|a| a.as_u64()).unwrap_or(0)).map(|(k, _)| k.clone()) else { break };
+                s.stream_recent.remove(&old);
+            }
+        }
+    }
+    app.save();
     let emulator = plan.emulator.clone();
     let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     if app.saved.lock().unwrap().settings.get("exitCombo").and_then(|v| v.as_bool()) != Some(false) {
@@ -1480,6 +1560,18 @@ fn play_stream(token: String, title: String, id: String, handle: AppHandle) -> R
         pad::watch(done.clone(), move || {
             let _ = hh.emit("game-closing", ());
             pad::close_game(pid, &|| !d.load(std::sync::atomic::Ordering::Relaxed));
+        });
+    }
+    let last_pos = std::sync::Arc::new(std::sync::Mutex::new(None::<(u64, u64)>));
+    if let Some(t) = tracker.clone() {
+        let (d, last) = (done.clone(), last_pos.clone());
+        std::thread::spawn(move || {
+            while !d.load(std::sync::atomic::Ordering::Relaxed) {
+                if let Some(p) = t.poll() {
+                    *last.lock().unwrap() = Some(p);
+                }
+                std::thread::sleep(std::time::Duration::from_secs(3));
+            }
         });
     }
     let h = handle.clone();
@@ -1491,7 +1583,7 @@ fn play_stream(token: String, title: String, id: String, handle: AppHandle) -> R
         let quick = started.elapsed() < std::time::Duration::from_secs(6);
         let error = (quick && (status.as_ref().map_or(true, |s| !s.success()) || secs < 3)).then(|| {
             let reason = fs::read_to_string(&log).ok().and_then(|t| launch::log_reason(&t));
-            let mut msg = format!("{} closed right away, so the video didn't start. The source may not be ready yet (not cached on your debrid service) or the link may have expired: try another source.", plan.emulator);
+            let mut msg = format!("{} closed right away, so the video didn't start. The source may not be ready yet (not cached on your debrid service) or the link may have expired: choose another source.", plan.emulator);
             if let Some(r) = reason {
                 msg.push_str("\n\nWhat it said:\n");
                 msg.push_str(&r);
@@ -1499,14 +1591,36 @@ fn play_stream(token: String, title: String, id: String, handle: AppHandle) -> R
             addons::redact(&msg, &src.url)
         });
         let app = h.state::<App>();
+        if let Some(Tracker::Mpv(_, out)) = &tracker {
+            if let Some(p) = fs::read_to_string(out).ok().and_then(|t| spine_core::player::parse_mpv_progress(&t)) {
+                *last_pos.lock().unwrap() = Some(p);
+            }
+        }
+        let progress = last_pos.lock().unwrap().map(|(pos, len)| {
+            let mut s = app.saved.lock().unwrap();
+            let p = spine_core::player::after_session(s.progress.get(&pkey).copied(), pos, len, now());
+            s.progress.insert(pkey.clone(), p);
+            p
+        });
+        if progress.is_some() {
+            app.save();
+        }
         *app.running.lock().unwrap() = None;
-        let _ = h.emit("game-exited", serde_json::json!({"id": format!("stream/{id}"), "seconds": secs, "error": error}));
+        let _ = h.emit("game-exited", serde_json::json!({"id": pkey, "seconds": secs, "error": error, "key": pkey, "progress": progress}));
         if let Some(w) = h.get_webview_window("main") {
             let _ = w.unminimize();
             let _ = w.set_focus();
         }
     });
     Ok(emulator)
+}
+
+/// Take a movie or show off Streaming's Continue watching ("<type>:<id>").
+#[tauri::command]
+fn stream_forget(item: String, app: State<App>) -> Boot {
+    app.saved.lock().unwrap().stream_recent.remove(&item);
+    app.save();
+    view(&app)
 }
 
 /// Full details for a title (episodes for shows), from the addon it came from or any other.
@@ -1807,6 +1921,7 @@ fn main() {
             offline: Mutex::new(offline),
             addons: Mutex::new(load_addons(&dir2)),
             sources: Mutex::new(BTreeMap::new()),
+            links: Mutex::new(load_links(&dir2)),
         })
         .register_uri_scheme_protocol("spine", move |ctx, req| {
             let range = req.headers().get("range").and_then(|v| v.to_str().ok()).map(String::from);
@@ -1822,7 +1937,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }
