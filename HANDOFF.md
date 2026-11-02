@@ -239,5 +239,10 @@ and Home's flex column squeezed the hero (consoles row hidden). `#app` is now
 Checked in real WebKitGTK 2.52 under Xvfb (python3.12 + gi WebKit2 4.1) before/after.
 Avoid vh/vw for layout: zoom handling differs between engines.
 
+**0.7.7** (Nov 2): Xbox 360 is its own system (`xbox360`, folders xbox360/x360), launched by
+`xenia` (xenia_canary.exe / xenia.exe; `--fullscreen {rom}`). Before, "Xbox 360" prefix-matched
+`xbox` and went to xemu. Exts iso/xex/zar; an extracted game's `default.xex` takes its folder's
+name. Art: libretro `Microsoft_-_Xbox_360`, ScreenScraper 33. Not yet confirmed on the owner's PC.
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.
