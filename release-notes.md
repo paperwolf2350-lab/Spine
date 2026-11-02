@@ -1,7 +1,6 @@
 ## What's new
-- **New Home style: Cube.** A big 3D cube floats in the middle of Home. Each side shows a console with a few of its covers stuck on; left and right roll the cube to the previous or next console (it goes all the way round, however many you have). Up tips it to Recent on top, down to Favorites underneath. A row of small console icons shows where you are; click one to roll straight there.
-- Your games sit on a curved shelf under the cube: press A (or down) to step onto it, left/right to move along, A to open a game, and up or B to go back to the cube.
-- Cube has its own bubbly interface sounds and a soft thunk when it lands on a side. No music. Settings → Home style → Cube.
+- **Fixed: Home music on Linux.** The Wave and Channels songs now play on Linux too, starting by themselves, fading out in a library or while you play, and picking up where they left off.
+- Since 0.11.0: the Cube Home style.
 
 ---
 

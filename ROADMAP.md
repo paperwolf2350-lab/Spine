@@ -11,6 +11,7 @@
 
 ## Done
 
+- Home music plays on Linux (0.11.1).
 - Cube Home style with its own sounds (0.11.0).
 - Blades Home style with its own sounds; Channels page arrows work with the mouse (0.10.0).
 - Own songs for the Wave and Channels homes (0.9.1).

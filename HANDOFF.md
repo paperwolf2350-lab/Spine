@@ -319,5 +319,14 @@ Sounds: `cube` set in SFX (`cubeR`/`cubeL` = swoosh + landing thunk). Tested in 
 real WebKitGTK 2.52 (python3.12 + gir1.2-webkit2-4.1 + python3-gi-cairo under xvfb-run, snapshots
 via get_snapshot) — `apt-get install gir1.2-webkit2-4.1 python3-gi-cairo` if a new workspace lacks them.
 
+**0.11.1**: Home music on Linux. WebKitGTK can't load <audio>/<video> from Tauri's app scheme
+(the element stays at readyState 0, play() rejects), so `music.js` on Linux fetches the mp3, decodes it
+with `decodeAudioData` and loops it through Web Audio (`bufferPlayer`: gain-node fades, remembers the
+offset on pause). Windows keeps the <audio> element (`elementPlayer`). Autoplay: wry's default
+`autoplay: true` already gives WebKitGTK `AutoplayPolicy::Allow`, so Web Audio starts without a click.
+Reproduced/tested with a WebKitGTK harness that registers a `tauri` URI scheme serving ui/ (no range
+support) and sets the same autoplay policy. Owner reported all styles fine on Linux apart from this.
+Any future in-app audio/video on Linux: don't use media elements on bundled files.
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.
