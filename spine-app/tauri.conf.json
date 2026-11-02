@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Spine",
   "mainBinaryName": "Spine",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "identifier": "app.spine.frontend",
   "build": {
     "frontendDist": "./ui"
@@ -18,7 +18,8 @@
         "minWidth": 960,
         "minHeight": 600,
         "center": true,
-        "backgroundColor": "#F6F2EA"
+        "backgroundColor": "#F6F2EA",
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required"
       }
     ],
     "security": {

@@ -1,6 +1,7 @@
 ## What's new
-- **New Home style: Wave.** Consoles sit in a row across the screen and their games run down below, over a slowly moving wave, a bit like the PSP and PS3 menus. Left and right pick a console, up and down pick a game, A opens it. The background takes on each console's color, and a "Recent" column holds what you played last. Turn it on in Settings → Home style → Wave. Your game, movie and show pages stay the same, and Classic is one click away.
-- Works with every theme (try Wave with Midnight or Retro CRT).
+- **New Home style: Channels.** Your consoles become rounded tiles in a grid, each with its covers slowly drifting past, and a big clock sits in a curved bar at the bottom. Move past the right edge (or use LB/RB) to see more tiles. Settings → Home style → Channels.
+- **Home music.** Channels comes with its own relaxed, bouncy background tune, made up by Spine as it plays (no music files). It pauses while you play or watch something. Turn it down or off in Settings → Home music.
+- Since 0.8.0: the Wave Home style.
 
 ---
 

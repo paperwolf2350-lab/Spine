@@ -266,5 +266,23 @@ paused while playing/hidden, one still frame with reduced motion). New icon `SYS
 Tested in Playwright (Chromium) with Cream, Midnight and CRT at 1440x860 and 1920x1080.
 Next styles per ROADMAP: Channels, then Blades — same pattern (own file, `home_style` value).
 
+0.8.0 confirmed working by the owner on Windows and Mint (Nov 2).
+
+**0.9.0**: Channels home style (`home_style: "channels"`), `ui/channels.js` + `ui/channels.css`.
+4x3 pages of `tiles()` (`CH_PER_PAGE`), data-key `con-<id>` like Classic so Back/LB/RB/restoreFocus
+just work; the page follows the focused `con-` key (`S.chPage`). `channelsKey` turns the page when
+left/right go past a page edge; otherwise normal spatial `move()`. No topbar/hints: the curved
+bottom bar has Settings (key `gear`), clock (`#clock`, updated by the existing timer) and Search
+(key `searchbtn`). Tiles: a drifting strip of up to 7 covers (CSS animation, per-tile speed/offset).
+Home music `BGM` (in channels.js): original tune, synthesized with Web Audio (no files), 16 bars,
+100 BPM swing, F major lounge/bossa: EP chords, triangle-pluck melody (rests every other loop),
+triangle bass, noise shaker/rim, soft kick, small convolver reverb. Plays only on the Channels home
+and not while `S.playing`; `BGM.sync()` after every render. Setting `homeMusic` off/soft/normal
+(Settings → Home music). Owner asked for music "reminiscent of but not a copy of" a console menu
+theme: keep the melody and chords original. tauri.conf.json now passes WebView2
+`--autoplay-policy=no-user-gesture-required` (plus Tauri's default --disable-features list) so
+music starts without a click on Windows; first key/click also resumes audio as a fallback.
+Preview MP3 was rendered with OfflineAudioContext in Playwright (fake currentTime).
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

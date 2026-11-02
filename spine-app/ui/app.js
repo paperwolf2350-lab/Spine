@@ -351,6 +351,7 @@ function home() {
       <button class="btn primary" data-nav data-key="pick" data-act="pick">${glyph('A')}Choose a different folder</button></div></main>` + hints('', [['B', 'Back']]);
   }
   if (waveOn()) return homeWave();
+  if (channelsOn()) return homeChannels();
   const T = tiles();
   const sel = Math.min(S.sel, T.length - 1);
   const t = T[sel];
@@ -685,8 +686,9 @@ function settingsPanel() {
       <button class="chip ${theme === 'midnight' ? 'on' : ''}" data-nav data-key="th-midnight" data-act="theme" data-t="midnight">Midnight</button>
       <button class="chip ${theme === 'crt' ? 'on' : ''}" data-nav data-key="th-crt" data-act="theme" data-t="crt">Retro CRT</button></div></div>
     <div class="grp"><span class="k">Home style</span><span class="note">How the Home screen is laid out. Game and movie pages look the same in every style.</span><div class="opts">
-      <button class="chip ${!waveOn() ? 'on' : ''}" data-nav data-key="hs-classic" data-act="homestyle" data-s="classic">Classic</button>
-      <button class="chip ${waveOn() ? 'on' : ''}" data-nav data-key="hs-wave" data-act="homestyle" data-s="wave">Wave</button></div></div>
+      <button class="chip ${!waveOn() && !channelsOn() ? 'on' : ''}" data-nav data-key="hs-classic" data-act="homestyle" data-s="classic">Classic</button>
+      <button class="chip ${waveOn() ? 'on' : ''}" data-nav data-key="hs-wave" data-act="homestyle" data-s="wave">Wave</button>
+      <button class="chip ${channelsOn() ? 'on' : ''}" data-nav data-key="hs-channels" data-act="homestyle" data-s="channels">Channels</button></div></div>
     <div class="grp"><span class="k">Accent</span><div class="opts">${sw}</div></div>
     <div class="grp"><span class="k">ROM folders</span><span class="note">Spine reads every folder here and puts the games together. Folders on a drive that's unplugged keep their games listed until it's back.</span>
       <div class="roots">${(S.boot.roots || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>
@@ -717,6 +719,8 @@ function settingsPanel() {
       <button class="btn small" data-nav data-key="uh-${esc(h.id)}" data-act="unhide" data-id="${esc(h.id)}">Show again</button></div>`).join('')}</div></div>` : ''}
     <div class="grp"><span class="k">Sounds</span><span class="note">Little clicks and chimes as you move around, like a console menu.</span><div class="opts">
       ${[['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']].map(([v, l]) => `<button class="chip ${(settings().uiSounds || 'soft') === v ? 'on' : ''}" data-nav data-key="sfx-${v}" data-act="uisounds" data-v="${v}">${l}</button>`).join('')}</div></div>
+    <div class="grp"><span class="k">Home music</span><span class="note">Easygoing background music on the Channels home. It stops while you play or watch something.</span><div class="opts">
+      ${[['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']].map(([v, l]) => `<button class="chip ${(settings().homeMusic || 'soft') === v ? 'on' : ''}" data-nav data-key="bgm-${v}" data-act="homemusic" data-v="${v}">${l}</button>`).join('')}</div></div>
     <div class="grp"><span class="k">Controller</span><span class="note">Hold Select + Start for a second during a game to close it and come back to Spine. Your game is closed the normal way, so it saves like quitting from its menu.</span><div class="opts">
       <button class="chip ${exitComboOn() ? 'on' : ''}" data-nav data-key="ex-on" data-act="exitcombo" data-v="on">Select + Start quits</button>
       <button class="chip ${!exitComboOn() ? 'on' : ''}" data-nav data-key="ex-off" data-act="exitcombo" data-v="off">Off</button></div></div>
@@ -1087,6 +1091,7 @@ function render() {
   }
   restoreFocus();
   waveMount();
+  BGM.sync();
   startPreview();
   const gs = document.getElementById('gamesscroll');
   if (gs) { let t = 0; gs.onscroll = () => { cancelAnimationFrame(t); t = requestAnimationFrame(() => markLetter(currentLetter())); }; markLetter(currentLetter()); }
@@ -1580,6 +1585,7 @@ const ACT = {
   },
   closeplay() { S.playing = null; S.focusKey = 'play'; render(); },
   theme(d) { S.focusKey = `th-${d.t}`; setSetting('theme', d.t); },
+  homemusic(d) { S.focusKey = `bgm-${d.v}`; setSetting('homeMusic', d.v); },
   homestyle(d) { S.focusKey = `hs-${d.s}`; setSetting('home_style', d.s); },
   wavecat(d) { const c = waveCats()[+d.i]; if (!c) return; S.wave.cat = c.id; waveSync(true); },
   accent(d) { S.focusKey = `acc-${d.c}`; setSetting('accent', d.c); },
@@ -1771,6 +1777,7 @@ function press(btn) {
     return;
   }
   if (S.screen === 'home' && waveOn() && !S.panel && !S.playing && systems().length && waveKey(btn)) return;
+  if (S.screen === 'home' && channelsOn() && !S.panel && !S.playing && channelsKey(btn)) return;
   switch (btn) {
     case 'up': case 'down': case 'left': case 'right': return move(btn);
     case 'A': if (cur?.dataset?.act) ACT[cur.dataset.act]?.(cur.dataset); else if (typing) move('down'); return;

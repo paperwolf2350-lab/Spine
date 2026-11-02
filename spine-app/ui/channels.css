@@ -1,0 +1,74 @@
+/* Channels home style (Settings → Home style). A grid of rounded tiles over a
+   softly striped background, with a clock bar curving along the bottom. */
+.channels {
+  position: relative; overflow: hidden; padding: 40px 96px 0;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 5px, color-mix(in srgb, var(--line) 45%, transparent) 5px 6px),
+    radial-gradient(120% 80% at 50% 30%, var(--surface), var(--bg));
+}
+.ch-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 22px 26px; padding-bottom: 176px; }
+.ch-tile {
+  position: relative; border-radius: 22px; overflow: hidden; background: var(--surface);
+  border: 3px solid color-mix(in srgb, var(--line) 80%, var(--surface));
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--text) 8%, transparent), 0 6px 16px rgba(0,0,0,.08);
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.ch-tile.empty { background: color-mix(in srgb, var(--surface) 55%, transparent); border-style: solid; box-shadow: none; opacity: .7; }
+.ch-art { position: absolute; inset: 0; display: flex; align-items: center; overflow: hidden; }
+.ch-strip { display: flex; gap: 10px; height: 74%; padding-left: 10px; animation: chdrift 44s linear infinite; will-change: transform; }
+.ch-strip img { height: 100%; width: auto; border-radius: 8px; box-shadow: 0 3px 8px rgba(0,0,0,.18); flex: 0 0 auto; }
+@keyframes chdrift { to { transform: translateX(-50%); } }
+.ch-plain { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; }
+.ch-plain .sysicon { opacity: .9; }
+.ch-badge { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; background: color-mix(in srgb, var(--chip) 55%, transparent); }
+.ch-badge .sysicon { filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); animation: chbob 3s ease-in-out infinite; }
+@keyframes chbob { 50% { transform: translateY(-6px) rotate(-4deg); } }
+.ch-name {
+  position: absolute; left: 10px; bottom: 10px; max-width: calc(100% - 20px); display: flex; flex-direction: column;
+  padding: 6px 12px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--text);
+  box-shadow: 0 2px 8px rgba(0,0,0,.12); backdrop-filter: blur(6px);
+}
+.ch-name .n { font-family: var(--display); font-weight: 700; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-name .c { font-size: 12px; color: var(--muted); max-height: 0; opacity: 0; overflow: hidden; transition: max-height .18s ease, opacity .18s ease; }
+.ch-warn { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; border-radius: 13px; background: #C99A1A; color: #1C1A17; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+/* Highlight: the tile lifts and gets a glowing frame in the console's color. */
+.ch-tile:hover, body.kb .ch-tile.focused, body.kb .ch-tile:focus-visible {
+  transform: scale(1.045); border-color: var(--chip);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--chip) 30%, transparent), 0 14px 28px rgba(0,0,0,.18);
+}
+.ch-tile:hover .ch-name .c, .ch-tile.focused .ch-name .c { max-height: 18px; opacity: 1; }
+
+.ch-page {
+  position: absolute; top: calc(50% - 120px); width: 56px; height: 56px; border-radius: 28px; display: flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 2px solid var(--line); color: var(--muted); box-shadow: var(--shadow);
+}
+.ch-page.prev { left: 22px; } .ch-page.next { right: 22px; }
+.ch-page:hover { color: var(--accent); border-color: var(--accent); }
+.ch-dots { position: absolute; left: 0; right: 0; bottom: 156px; display: flex; justify-content: center; gap: 10px; }
+.ch-dots span { width: 9px; height: 9px; border-radius: 5px; background: var(--line); }
+.ch-dots span.on { background: var(--accent); width: 24px; }
+
+/* Bottom bar: a gentle curve with the clock in the middle and round buttons at the sides. */
+.ch-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 140px; display: flex; align-items: center; justify-content: space-between; padding: 22px 60px 0; }
+.ch-bar::before {
+  content: ''; position: absolute; left: -10%; right: -10%; top: 0; bottom: -60px; z-index: 0;
+  background: linear-gradient(to bottom, var(--surface2), color-mix(in srgb, var(--surface2) 70%, var(--bg)));
+  border-top: 3px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+  border-radius: 50% 50% 0 0 / 70px 70px 0 0;
+  box-shadow: 0 -6px 18px rgba(0,0,0,.06);
+}
+.ch-bar > * { position: relative; z-index: 1; }
+.ch-clock { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.ch-clock .t { font-family: var(--display); font-size: 48px; font-weight: 700; letter-spacing: .01em; color: var(--muted); }
+.ch-clock .d { font-size: 16px; color: var(--muted); }
+.ch-round {
+  width: 92px; height: 92px; border-radius: 46px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  background: var(--surface); border: 3px solid var(--line); color: var(--muted); font-size: 12px; font-weight: 600;
+  box-shadow: inset 0 -4px 0 color-mix(in srgb, var(--text) 6%, transparent), var(--shadow);
+}
+.ch-round svg { width: 30px; height: 30px; }
+.ch-round:hover, body.kb .ch-round.focused { color: var(--accent); border-color: var(--accent); }
+body.kb .channels .ch-round.focused, body.kb .channels .ch-tile.focused { outline: none; }
+body.kb .channels [data-nav].focused { box-shadow: 0 0 0 4px color-mix(in srgb, var(--chip, var(--accent)) 30%, transparent), 0 14px 28px rgba(0,0,0,.18); }
+
+@media (prefers-reduced-motion: reduce) { .ch-strip, .ch-badge .sysicon { animation: none; } }
