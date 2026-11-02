@@ -1,6 +1,6 @@
 ## What's new
-- **New theme: Retro CRT.** Green phosphor glow, pixel lettering, scanlines and a little power-on flash, like an old monitor. Settings → Theme → Retro CRT. (Tip: the green accent color suits it.) It's the first of several new looks for Spine.
-- Since 0.7.7: Xbox 360 games are their own console and open in Xenia.
+- **New Home style: Wave.** Consoles sit in a row across the screen and their games run down below, over a slowly moving wave, a bit like the PSP and PS3 menus. Left and right pick a console, up and down pick a game, A opens it. The background takes on each console's color, and a "Recent" column holds what you played last. Turn it on in Settings → Home style → Wave. Your game, movie and show pages stay the same, and Classic is one click away.
+- Works with every theme (try Wave with Midnight or Retro CRT).
 
 ---
 

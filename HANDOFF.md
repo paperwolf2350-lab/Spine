@@ -252,5 +252,19 @@ next is a "Home style" setting (separate render per style, own file, game/movie 
 starting with Wave (XMB-like), then Channels (Wii-like), then Blades (360-like). Own names, no
 console makers' logos/fonts/sounds.
 
+**0.8.0**: Home style setting (`home_style`: "classic" default / "wave"; Settings → Home style).
+Wave lives in its own files, `ui/wave.js` + `ui/wave.css` (loaded before app.js / after app.css).
+`home()` hands off to `homeWave()` when `waveOn()`. Categories = optional "Recent" + `tiles()`;
+each category's list = an "All N games"/"Open list" opener + its games (Surprise me: one item).
+State in `S.wave` {cat: tile id, at: {tile id: index}}; `S.sel` follows the console so Classic
+and Back-from-library stay in step. Moving doesn't call render(): `waveSync` slides with CSS
+transforms (fixed sizes in `WV`, keep in sync with wave.css). `press()` sends arrows/LB/RB/LT/RT
+to `waveKey` on Wave home; `focusEl` skips scrollIntoView inside `.wave` (it would scroll the
+hidden-overflow box). Click on an unhighlighted game highlights it (`waveClick`), wheel moves.
+Background: `--wc` (console color) mixed into `--bg`, plus a canvas wave (`waveMount`, ~30 fps,
+paused while playing/hidden, one still frame with reduced motion). New icon `SYS_ICON.recent`.
+Tested in Playwright (Chromium) with Cream, Midnight and CRT at 1440x860 and 1920x1080.
+Next styles per ROADMAP: Channels, then Blades — same pattern (own file, `home_style` value).
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

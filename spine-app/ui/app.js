@@ -255,6 +255,7 @@ const ICON = {
 const LOGO = (size, accent) => `<svg width="${size}" height="${size}" viewBox="0 0 84 84" aria-hidden="true"><rect x="8" y="14" width="18" height="62" rx="5" fill="${accent}"/><rect x="33" y="6" width="18" height="70" rx="5" fill="var(--text)"/><rect x="58" y="22" width="18" height="54" rx="5" fill="var(--muted)"/></svg>`;
 // Console icons: simple original line drawings of each machine's shape (no logos).
 const SYS_ICON = {
+  recent: '<circle cx="32" cy="24" r="17"/><path d="M32 14v10l7 5"/>',
   // Cartridge consoles
   nes: '<rect x="8" y="16" width="48" height="22" rx="3"/><rect x="18" y="16" width="28" height="8" rx="1"/><path d="M14 32h6M44 32h6"/>',
   snes: '<path d="M10 22c0-4 3-6 7-6h30c4 0 7 2 7 6v12c0 3-2 5-5 5H15c-3 0-5-2-5-5z"/><rect x="20" y="12" width="24" height="7" rx="1.5"/><circle cx="20" cy="31" r="2"/><circle cx="44" cy="31" r="2"/>',
@@ -349,6 +350,7 @@ function home() {
     return topbar() + `<main class="main"><div class="welcome"><h2 style="font-size:36px">No games found here</h2><p>${esc(S.boot.rom_root)}</p>
       <button class="btn primary" data-nav data-key="pick" data-act="pick">${glyph('A')}Choose a different folder</button></div></main>` + hints('', [['B', 'Back']]);
   }
+  if (waveOn()) return homeWave();
   const T = tiles();
   const sel = Math.min(S.sel, T.length - 1);
   const t = T[sel];
@@ -682,6 +684,9 @@ function settingsPanel() {
       <button class="chip ${theme === 'cream' ? 'on' : ''}" data-nav data-key="th-cream" data-act="theme" data-t="cream">Cream</button>
       <button class="chip ${theme === 'midnight' ? 'on' : ''}" data-nav data-key="th-midnight" data-act="theme" data-t="midnight">Midnight</button>
       <button class="chip ${theme === 'crt' ? 'on' : ''}" data-nav data-key="th-crt" data-act="theme" data-t="crt">Retro CRT</button></div></div>
+    <div class="grp"><span class="k">Home style</span><span class="note">How the Home screen is laid out. Game and movie pages look the same in every style.</span><div class="opts">
+      <button class="chip ${!waveOn() ? 'on' : ''}" data-nav data-key="hs-classic" data-act="homestyle" data-s="classic">Classic</button>
+      <button class="chip ${waveOn() ? 'on' : ''}" data-nav data-key="hs-wave" data-act="homestyle" data-s="wave">Wave</button></div></div>
     <div class="grp"><span class="k">Accent</span><div class="opts">${sw}</div></div>
     <div class="grp"><span class="k">ROM folders</span><span class="note">Spine reads every folder here and puts the games together. Folders on a drive that's unplugged keep their games listed until it's back.</span>
       <div class="roots">${(S.boot.roots || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>
@@ -1081,6 +1086,7 @@ function render() {
     };
   }
   restoreFocus();
+  waveMount();
   startPreview();
   const gs = document.getElementById('gamesscroll');
   if (gs) { let t = 0; gs.onscroll = () => { cancelAnimationFrame(t); t = requestAnimationFrame(() => markLetter(currentLetter())); }; markLetter(currentLetter()); }
@@ -1191,7 +1197,7 @@ function focusEl(el, smooth = true, scroll = true) {
   document.querySelectorAll('.focused').forEach((x) => x.classList.remove('focused'));
   el.classList.add('focused');
   el.focus({ preventScroll: true });
-  if (scroll) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
+  if (scroll && !el.closest('.wave')) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
   S.focusKey = el.dataset.key;
   if (el.dataset.focus === 'selcon') {
     const i = +el.dataset.i;
@@ -1202,7 +1208,7 @@ function restoreFocus() {
   const els = navEls();
   let el = S.focusKey && els.find((e) => e.dataset.key === S.focusKey);
   if (!el) {
-    const pref = S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : { home: `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
+    const pref = S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : { home: waveOn() ? waveFocusKey() : `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
     el = (pref && els.find((e) => e.dataset.key === pref)) || els.find((e) => e.dataset.key?.startsWith('g-')) || els.find((e) => e.dataset.key !== 'brand') || els[0];
   }
   if (el) focusEl(el, false);
@@ -1518,6 +1524,7 @@ const ACT = {
     if (S.screen === 'games') {
       const id = curList()?.tile.id;
       S.screen = 'home'; S.sel = Math.max(0, tiles().findIndex((t) => t.id === id)); S.focusKey = `con-${id}`;
+      if (S.wave) S.wave.cat = id;
       return render();
     }
   },
@@ -1573,6 +1580,8 @@ const ACT = {
   },
   closeplay() { S.playing = null; S.focusKey = 'play'; render(); },
   theme(d) { S.focusKey = `th-${d.t}`; setSetting('theme', d.t); },
+  homestyle(d) { S.focusKey = `hs-${d.s}`; setSetting('home_style', d.s); },
+  wavecat(d) { const c = waveCats()[+d.i]; if (!c) return; S.wave.cat = c.id; waveSync(true); },
   accent(d) { S.focusKey = `acc-${d.c}`; setSetting('accent', d.c); },
   async rescan() { S.panel = null; await doScan(S.boot.rom_root); },
   async addroot() {
@@ -1667,6 +1676,7 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
   if (el.classList.contains('panel') && e.target !== el) return;
+  if (waveClick(el)) return;
   SFX.play(actSound(el.dataset.act));
   ACT[el.dataset.act]?.(el.dataset);
 });
@@ -1760,6 +1770,7 @@ function press(btn) {
     if (btn === 'B' || btn === 'A') return ACT.closeshot();
     return;
   }
+  if (S.screen === 'home' && waveOn() && !S.panel && !S.playing && systems().length && waveKey(btn)) return;
   switch (btn) {
     case 'up': case 'down': case 'left': case 'right': return move(btn);
     case 'A': if (cur?.dataset?.act) ACT[cur.dataset.act]?.(cur.dataset); else if (typing) move('down'); return;

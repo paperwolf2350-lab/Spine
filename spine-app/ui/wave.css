@@ -1,0 +1,65 @@
+/* Wave home style (Settings → Home style). Consoles across, games down, over a
+   slow wave. Sizes match WV in wave.js: column 168, row 84, gap 64, category row 150 at top 130, items at top 300. */
+.wave {
+  position: relative; overflow: hidden;
+  /* --wc is the highlighted console's color; the background eases between them. */
+  background-color: color-mix(in srgb, var(--wc, var(--accent)) 26%, var(--bg));
+  transition: background-color .6s ease;
+  color: var(--text);
+}
+.wave::before { /* soft light from the top-left, darker toward the bottom */
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 90% at 15% 0%, color-mix(in srgb, var(--wc, var(--accent)) 30%, transparent), transparent 60%),
+              linear-gradient(to bottom, transparent 55%, color-mix(in srgb, var(--bg) 55%, transparent));
+}
+.wave-bg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.wave-stage { position: absolute; inset: 0; }
+
+/* Category row: the selected one sits in a fixed column. */
+.wave-cats { position: absolute; left: 18%; top: 130px; height: 150px; transition: transform .32s cubic-bezier(.2,.8,.2,1); }
+.wv-cat {
+  position: absolute; top: 0; width: 168px; height: 150px; margin-left: -84px;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 10px; padding-top: 18px;
+  color: var(--text); opacity: .5; transition: opacity .25s ease;
+}
+.wv-cat .wv-icon { display: flex; transition: transform .32s cubic-bezier(.2,.8,.2,1), filter .3s ease; transform: scale(.82); }
+.wv-cat .wv-label { font-family: var(--display); font-size: 20px; font-weight: 700; white-space: nowrap; opacity: 0; transform: translateY(-6px); transition: opacity .2s ease, transform .2s ease; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.wv-cat.sel { opacity: 1; }
+.wv-cat.sel .wv-icon { transform: scale(1.12); filter: drop-shadow(0 0 14px color-mix(in srgb, var(--chip) 70%, transparent)); }
+.wv-cat.sel .wv-label { opacity: 1; transform: none; }
+.wv-cat:hover { opacity: .85; }
+
+/* Item list under the selected category. Earlier items slide up above the row. */
+.wave-items { position: absolute; left: calc(18% - 84px); top: 300px; right: 6%; transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .2s ease; }
+.wave-items.swap { opacity: 0; }
+.wv-item {
+  position: absolute; left: 0; right: 0; height: 84px; display: flex; align-items: center; gap: 22px; padding: 0 12px;
+  border-radius: 14px; opacity: .72; transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .2s ease;
+}
+.wv-item.above { transform: translateY(-176px); opacity: .3; }
+.wv-item.below { transform: translateY(64px); }
+.wv-item.off { filter: grayscale(1); }
+.wv-thumb { flex: 0 0 auto; width: 120px; height: 68px; display: flex; align-items: center; justify-content: center; transition: transform .26s cubic-bezier(.2,.8,.2,1); transform-origin: left center; }
+.wv-thumb img { max-width: 120px; max-height: 68px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+.wv-thumb.ph { width: 52px; border-radius: 6px; color: #fff; font-family: var(--display); font-weight: 700; font-size: 18px; margin: 0 34px; }
+.wv-thumb.icon { width: 68px; border-radius: 16px; color: #fff; margin: 0 26px; }
+.wv-text { min-width: 0; display: flex; flex-direction: column; gap: 4px; transition: margin-left .26s cubic-bezier(.2,.8,.2,1); }
+.wv-text .t { font-family: var(--display); font-size: 20px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wv-text .s { font-size: 14px; color: var(--muted); max-height: 0; opacity: 0; overflow: hidden; transition: opacity .2s ease, max-height .2s ease; white-space: nowrap; text-overflow: ellipsis; }
+.wv-fav { display: inline-flex; width: 16px; height: 16px; color: #B23A6E; vertical-align: middle; }
+.wv-fav svg { width: 16px; height: 16px; }
+.wv-item.sel { opacity: 1; }
+.wv-item.sel .wv-thumb { transform: scale(1.55); }
+.wv-item.sel .wv-text { margin-left: 70px; }
+.wv-item.sel .wv-text .t { font-size: 26px; }
+.wv-item.sel .wv-text .s { max-height: 24px; opacity: 1; }
+.wv-item:hover { opacity: .95; }
+/* The focus ring would fight the big thumbnail; a soft glow marks the selected item instead. */
+body.kb .wave [data-nav].focused, body.kb .wave [data-nav]:focus-visible { box-shadow: none; }
+.wv-item.sel .wv-text .t { text-shadow: 0 0 22px color-mix(in srgb, var(--wc, var(--accent)) 35%, transparent); }
+
+.wave-note { position: absolute; left: 36px; bottom: 16px; font-size: 14px; color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .wave, .wave-cats, .wave-items, .wv-item, .wv-thumb, .wv-cat .wv-icon { transition: none; }
+}
