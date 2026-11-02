@@ -328,5 +328,35 @@ Reproduced/tested with a WebKitGTK harness that registers a `tauri` URI scheme s
 support) and sets the same autoplay policy. Owner reported all styles fine on Linux apart from this.
 Any future in-app audio/video on Linux: don't use media elements on bundled files.
 
+## Streaming addons (Stremio-style), started Nov 2
+
+The owner uses Nuvio (phone/TV) with Stremio addons and a **TorBox** debrid account (key put
+into each addon's setup page, so it's inside the addon's link). With debrid, addons return plain
+https links VLC can play: **no torrent engine needed**. Plan agreed in 3 small releases:
+0.12.0 addons + catalogs + details; 0.13 "Choose a source" + play in VLC; 0.14 resume/watched/
+Continue watching/Next episode for streamed titles + controller polish.
+Stance (owner agreed): Spine ships no addons; the user adds their own links (like BIOS files).
+Cinemeta (Stremio's official public details addon) is only used as a details fallback.
+
+**0.12.0**: `spine-core/src/addons.rs`: `normalize` (stremio:// -> https, adds /manifest.json),
+`fetch_manifest`, `catalogs` (old extraRequired + new extra[].isRequired; `needs_input` = search/genre
+catalogs, not shown as tabs yet), `resources`/`serves` (types + idPrefixes), `fetch_catalog`
+(`/skip=N`), `fetch_meta` (source addon, then any addon serving meta, then Cinemeta for tt ids),
+`parse_meta` (videos -> episodes, specials last). SECRET HANDLING: links live in `addons.json`
+in the data folder ({url, manifest}); the UI only gets `key` = FNV fingerprint of the link
+(`key_of`); every error goes through `redact()`. Never log or show `Stored.url`.
+Live test against real Cinemeta: `cargo test -- --ignored live_cinemeta` (workspace can reach it).
+App: `App.addons`, Boot `addons` (AddonView: key, name, version, logo, catalogs, meta/stream types),
+commands `add_addon`, `remove_addon`, `move_addon`, `addon_catalog`, `addon_meta`.
+UI: `ui/stream.js` + `stream.css` (state in `S_STREAM`, actions in `STREAM_ACT`, merged into ACT).
+Settings → Streaming addons (`addonSettings`, add panel `addonPanel`, S.panel 'addon').
+Movies/TV screens get catalog tabs (`streamTabs`; movie catalogs on Movies, series/anime on TV);
+an active tab swaps the grid (`streamGrid`, "Show more" pages) and hides rail/sort/filters.
+Details page = screen `sdetail` (`sdetail()`), poster/backdrop/logo straight from the addon's
+https URLs (CSP is null), images fall back to a title card on error. Episodes are focusable
+buttons with `noop` for now: 0.13 makes them (and a movie's Play) open the source picker.
+Limits: catalogs need a Movies or TV folder to exist (tabs live on those screens); no addon search yet.
+Tested in Chrome (Playwright, mock backend fed with real Cinemeta JSON, real posters via proxy).
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

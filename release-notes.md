@@ -1,6 +1,7 @@
 ## What's new
-- **Fixed: Home music on Linux.** The Wave and Channels songs now play on Linux too, starting by themselves, fading out in a library or while you play, and picking up where they left off.
-- Since 0.11.0: the Cube Home style.
+- **Streaming addons, part 1.** Add Stremio-style addons (the same links you use in Stremio or Nuvio) in Settings → Streaming addons. Their catalogs, like Popular, show up as tabs on your Movies and TV screens, with posters, details and full episode lists for shows.
+- Addon links that hold your keys (TorBox and the like) stay on your PC and are never shown in Spine again.
+- Coming next: picking a source and playing it in VLC.
 
 ---
 

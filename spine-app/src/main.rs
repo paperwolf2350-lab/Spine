@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 use spine_core::config::Credentials;
 use spine_core::launch::{self, Installed};
-use spine_core::{covers, screenscraper, systems, Library};
+use spine_core::{addons, covers, screenscraper, systems, Library};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -118,6 +118,8 @@ struct App {
     fetching: Mutex<bool>,
     /// ROM folders whose drive isn't connected right now.
     offline: Mutex<Vec<PathBuf>>,
+    /// Streaming addons (addons.json). Their links can hold the user's keys: never sent to the interface.
+    addons: Mutex<Vec<addons::Stored>>,
 }
 
 impl App {
@@ -131,6 +133,57 @@ impl App {
             let _ = fs::rename(&tmp, self.dir.join("spine-state.json"));
         }
     }
+    fn save_addons(&self) -> Result<(), String> {
+        let a = self.addons.lock().unwrap().clone();
+        let tmp = self.dir.join("addons.json.tmp");
+        fs::write(&tmp, serde_json::to_string_pretty(&a).unwrap_or_default()).map_err(|e| format!("Couldn't save: {e}"))?;
+        fs::rename(&tmp, self.dir.join("addons.json")).map_err(|e| format!("Couldn't save: {e}"))
+    }
+}
+
+fn load_addons(dir: &Path) -> Vec<addons::Stored> {
+    fs::read_to_string(dir.join("addons.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
+/// An addon as the interface sees it: name and catalogs, never its link.
+#[derive(Serialize, Clone)]
+struct AddonView {
+    key: String,
+    name: String,
+    version: Option<String>,
+    description: Option<String>,
+    logo: Option<String>,
+    catalogs: Vec<addons::Catalog>,
+    /// Gives details (meta) / sources (stream) for these types.
+    meta: Vec<String>,
+    stream: Vec<String>,
+}
+
+fn addon_views(app: &App) -> Vec<AddonView> {
+    let s = |v: &serde_json::Value, k: &str| v.get(k).and_then(|x| x.as_str()).map(String::from).filter(|x| !x.trim().is_empty());
+    app.addons
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|a| {
+            let res = addons::resources(&a.manifest);
+            let types = |name: &str| {
+                let mut t: Vec<String> = res.iter().filter(|r| r.0 == name).flat_map(|r| r.1.clone()).collect();
+                t.dedup();
+                t
+            };
+            AddonView {
+                key: a.key(),
+                name: a.name(),
+                version: s(&a.manifest, "version"),
+                description: s(&a.manifest, "description"),
+                logo: s(&a.manifest, "logo").filter(|u| u.starts_with("https://")),
+                catalogs: addons::catalogs(&a.manifest),
+                meta: types("meta"),
+                stream: types("stream"),
+            }
+        })
+        .collect()
 }
 
 fn now() -> u64 {
@@ -257,6 +310,7 @@ struct Boot {
     hidden: Vec<HiddenView>,
     collections: BTreeMap<String, Vec<String>>,
     progress: BTreeMap<String, spine_core::player::Progress>,
+    addons: Vec<AddonView>,
 }
 
 fn view(app: &App) -> Boot {
@@ -368,6 +422,7 @@ fn view(app: &App) -> Boot {
         progress: saved.progress.clone(),
         settings: saved.settings,
         notes: lib.as_ref().map(|l| l.notes.clone()).unwrap_or_default(),
+        addons: addon_views(app),
     }
 }
 
@@ -1291,6 +1346,60 @@ fn set_accounts(changes: AccountChanges, app: State<App>) -> Result<Accounts, St
     Ok(get_accounts(app))
 }
 
+/// Add a streaming addon from its link (Settings → Addons).
+#[tauri::command]
+async fn add_addon(url: String, handle: AppHandle) -> Result<Boot, String> {
+    let url = addons::normalize(&url)?;
+    let app = handle.state::<App>();
+    if app.addons.lock().unwrap().iter().any(|a| a.url == url) {
+        return Err("That addon is already added.".into());
+    }
+    let u = url.clone();
+    let manifest = tauri::async_runtime::spawn_blocking(move || addons::fetch_manifest(&u)).await.map_err(|e| e.to_string())??;
+    app.addons.lock().unwrap().push(addons::Stored { url, manifest });
+    app.save_addons()?;
+    Ok(view(&app))
+}
+
+#[tauri::command]
+fn remove_addon(key: String, app: State<App>) -> Result<Boot, String> {
+    app.addons.lock().unwrap().retain(|a| a.key() != key);
+    app.save_addons()?;
+    Ok(view(&app))
+}
+
+/// Move an addon up or down: order sets the catalog tabs and who's asked first for details.
+#[tauri::command]
+fn move_addon(key: String, up: bool, app: State<App>) -> Result<Boot, String> {
+    {
+        let mut v = app.addons.lock().unwrap();
+        if let Some(i) = v.iter().position(|a| a.key() == key) {
+            let j = if up { i.checked_sub(1) } else { (i + 1 < v.len()).then_some(i + 1) };
+            if let Some(j) = j {
+                v.swap(i, j);
+            }
+        }
+    }
+    app.save_addons()?;
+    Ok(view(&app))
+}
+
+/// One page of an addon catalog.
+#[tauri::command]
+async fn addon_catalog(key: String, kind: String, id: String, skip: usize, handle: AppHandle) -> Result<Vec<addons::Item>, String> {
+    let app = handle.state::<App>();
+    let a = app.addons.lock().unwrap().iter().find(|a| a.key() == key).cloned().ok_or("That addon was removed.")?;
+    tauri::async_runtime::spawn_blocking(move || addons::fetch_catalog(&a, &kind, &id, skip)).await.map_err(|e| e.to_string())?
+}
+
+/// Full details for a title (episodes for shows), from the addon it came from or any other.
+#[tauri::command]
+async fn addon_meta(key: Option<String>, kind: String, id: String, handle: AppHandle) -> Result<Option<addons::Meta>, String> {
+    let app = handle.state::<App>();
+    let list = app.addons.lock().unwrap().clone();
+    tauri::async_runtime::spawn_blocking(move || addons::fetch_meta(&list, key.as_deref(), &kind, &id)).await.map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn quit(handle: AppHandle) {
     handle.exit(0);
@@ -1558,6 +1667,7 @@ fn main() {
     linux::ensure_menu_entry();
     let saved: Saved = fs::read_to_string(dir.join("spine-state.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
     let media = dir.join("media");
+    let dir2 = dir.clone();
     let mut saved = saved;
     // Scanning is fast (under a second for ~700 games), so just do it at start.
     let (library, offline, installed) = if saved.empty() {
@@ -1578,6 +1688,7 @@ fn main() {
             running: Mutex::new(None),
             fetching: Mutex::new(false),
             offline: Mutex::new(offline),
+            addons: Mutex::new(load_addons(&dir2)),
         })
         .register_uri_scheme_protocol("spine", move |ctx, req| {
             let range = req.headers().get("range").and_then(|v| v.to_str().ok()).map(String::from);
@@ -1593,7 +1704,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_meta])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

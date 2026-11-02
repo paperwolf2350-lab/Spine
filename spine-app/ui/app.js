@@ -495,6 +495,8 @@ function games() {
   if (!L) { S.screen = 'home'; return home(); }
   const s = L.tile;
   const isColl = s.kind !== 'sys';
+  const sc = streamActive(s); // an addon catalog instead of your own files
+  if (sc && !S_STREAM.cache[sc.ck]) setTimeout(() => streamLoad(sc.ck));
   const layout = layoutFor(s.id);
   const pt0 = S.boot.playtime || {};
   const lp0 = S.boot.last_played || {};
@@ -506,14 +508,15 @@ function games() {
   items.forEach((x) => { sysOf[x.g.id] = x.s; });
   const so = (g) => sysOf[g.id];
   const pt = S.boot.playtime || {};
-  const letters = new Set(bySort ? [] : list.map((g) => g.letter));
+  const letters = new Set(bySort || sc ? [] : list.map((g) => g.letter));
   const firstOf = {};
   list.forEach((g) => { if (!(g.letter in firstOf)) firstOf[g.letter] = g.id; });
   const anchor = (g) => (!bySort && firstOf[g.letter] === g.id ? ` id="L-${g.letter === '#' ? 'num' : g.letter}"` : '');
   const sub = (g) => (isColl ? so(g).short + ' · ' : '') + ([g.info?.year, g.info?.genre].filter(Boolean).join(' · ') || g.format.toUpperCase());
 
   let body;
-  if (!list.length) body = `<div class="nofav">${S.filter === 'fav' || s.kind === 'fav' ? `No favorites ${isColl ? '' : 'here '}yet. Open a game and press ${glyph('Y')} to add it.` : S.filter === 'new' ? "You've played everything here." : S.filter === 'multi' ? 'No multiplayer games found here (player counts come from ScreenScraper).' : 'Nothing here yet.'}</div>`;
+  if (sc) body = streamGrid(sc);
+  else if (!list.length) body = `<div class="nofav">${S.filter === 'fav' || s.kind === 'fav' ? `No favorites ${isColl ? '' : 'here '}yet. Open a game and press ${glyph('Y')} to add it.` : S.filter === 'new' ? "You've played everything here." : S.filter === 'multi' ? 'No multiplayer games found here (player counts come from ScreenScraper).' : 'Nothing here yet.'}</div>`;
   else if (layout === 'list') body = `<div class="list">${list.map((g) => `<button class="game letter-anchor"${anchor(g)} data-nav data-key="g-${g.id}" data-act="open" data-id="${esc(g.id)}">
       ${cover(g, so(g), 'nofav')}<span class="t">${esc(g.title)}</span><span class="c">${esc(sub(g))}</span><span class="c r">${esc(pt[g.id] ? fmtTime(pt[g.id]) : '')}</span>
       <span class="f">${isFav(g.id) ? ICON.heartA : ''}</span></button>`).join('')}</div>`;
@@ -535,18 +538,19 @@ function games() {
     <div class="gamesbar">
       <button class="iconbtn" data-nav data-key="gback" data-act="back" aria-label="Back to consoles">${ICON.back}</button>
       <span class="hdricon" style="background:${s.color}">${sysIcon(tileIcon(s), 30)}</span><h2>${esc(s.name)}</h2>
-      <span style="color:var(--muted)">${L.items.length} ${things(s, L.items.length)}</span>
+      <span style="color:var(--muted)">${sc ? esc(sc.addonName) : `${L.items.length} ${things(s, L.items.length)}`}</span>
       <div class="spacer"></div>
-      <button class="chip" data-nav data-key="rnd" data-act="random" data-scope="list">${ICON.dice} Random</button>
+      ${sc ? '' : `<button class="chip" data-nav data-key="rnd" data-act="random" data-scope="list">${ICON.dice} Random</button>
       <button class="chip" data-nav data-key="sortby" data-act="sortby" title="Change the order">${ICON.sort} ${esc(sortLabel(s, s.kind === 'coll' && sortMode() === 'title' ? 'listed' : sortMode()))}</button>
       <button class="chip ${!S.filter || S.filter === 'all' ? 'on' : ''}" data-nav data-key="f-all" data-act="filter" data-f="all">All</button>
       ${s.kind === 'fav' ? '' : `<button class="chip ${S.filter === 'fav' ? 'on' : ''}" data-nav data-key="f-fav" data-act="filter" data-f="fav">Favorites</button>`}
       <button class="chip ${S.filter === 'new' ? 'on' : ''}" data-nav data-key="f-new" data-act="filter" data-f="new">${isMovies(s) ? 'Not watched' : 'Not played'}</button>
       ${L.items.some((x) => maxPlayers(x.g) >= 2) ? `<button class="chip ${S.filter === 'multi' ? 'on' : ''}" data-nav data-key="f-multi" data-act="filter" data-f="multi">2+ players</button>` : ''}
       ${s.kind === 'coll' ? `<button class="chip" data-nav data-key="dellist" data-act="dellist" data-n="${esc(s.coll)}">Delete list</button>` : ''}
-      <div class="seg" role="group" aria-label="Layout">${lay('tiles', 'Tiles')}${lay('list', 'List')}${lay('cards', 'Cards')}${lay('shelf', 'Shelf')}</div>
+      <div class="seg" role="group" aria-label="Layout">${lay('tiles', 'Tiles')}${lay('list', 'List')}${lay('cards', 'Cards')}${lay('shelf', 'Shelf')}</div>`}
     </div>
-    <div class="games-wrap"><nav class="rail" aria-label="Jump to letter">${rail}</nav><div class="games scroll" id="gamesscroll">${body}</div></div>
+    ${streamTabs(s)}
+    <div class="games-wrap">${sc ? '' : `<nav class="rail" aria-label="Jump to letter">${rail}</nav>`}<div class="games scroll" id="gamesscroll">${body}</div></div>
   </main>` + hints(`${s.kind === 'cat' ? 'Across your whole library · LT / RT letter' : (isColl ? 'Every console' : L.emulator === 'system' ? 'Opens with their store or your PC' : 'Launches with ' + L.emulator) + ' · LB / RB console · LT / RT letter'}`, [['A', 'Open'], ['B', 'Back'], ['Y', 'Favorite'], ['R3', 'Random'], ['Select', 'Layout']]);
 }
 
@@ -709,6 +713,7 @@ function settingsPanel() {
       <div class="roots">${(S.boot.tv_roots || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>
         <button class="btn small" data-nav data-key="rmtv-${i}" data-act="rmtvroot" data-p="${esc(r.path)}">Remove</button></div>`).join('')}</div>
       <div class="opts"><button class="btn" data-nav data-key="addtvroot" data-act="addtvroot">${ICON.plus} Add TV folder</button></div></div>
+    ${addonSettings()}
     <div class="grp"><span class="k">PC stores</span><span class="note">Games installed with Steam, Epic Games and GOG show up in PC Games, ready to play.</span><div class="opts">
       <button class="chip ${storesOn() ? 'on' : ''}" data-nav data-key="st-on" data-act="stores" data-v="on">Include them</button>
       <button class="chip ${!storesOn() ? 'on' : ''}" data-nav data-key="st-off" data-act="stores" data-v="off">Off</button></div></div>
@@ -1078,8 +1083,8 @@ function render() {
   if (keep && !S.focusKey) S.focusKey = keep;
   const scrollers = {};
   app.querySelectorAll('.scroll').forEach((el) => { if (el.id) scrollers[el.id] = el.scrollTop; });
-  const screens = { welcome, scanning, home, games, detail, loading: () => '' };
-  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
+  const screens = { welcome, scanning, home, games, detail, sdetail, loading: () => '' };
+  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + addonPanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
   silenceDetached();
   Object.entries(scrollers).forEach(([id, top]) => { const el = document.getElementById(id); if (el) el.scrollTop = top; });
   const car = document.getElementById('carousel');
@@ -1270,7 +1275,7 @@ const ACT = {
   },
   home() { S.panel = null; S.screen = 'home'; S.focusKey = null; render(); },
   search(d) { if (!d || !d.keep) S.query = ''; S.panel = 'search'; S.focusKey = 'q'; render(); },
-  settings() { S.panel = S.panel === 'settings' ? null : 'settings'; S.focusKey = S.panel ? (S.accounts && S.focusKey?.startsWith('acc') ? 'scrapers' : null) : 'gear'; render(); },
+  settings() { const was = S.panel; S.panel = S.panel === 'settings' ? null : 'settings'; S.focusKey = S.panel ? (was === 'addon' ? 'addaddon' : S.accounts && S.focusKey?.startsWith('acc') ? 'scrapers' : null) : 'gear'; render(); },
   closepanel() { const was = S.panel; S.panel = null; S.focusKey = was === 'search' ? 'searchbtn' : was === 'emulator' ? 'chemu' : was === 'showfix' ? 'showfix' : 'gear'; render(); },
   tile(d) {
     const t = tiles()[+d.i];
@@ -1519,6 +1524,7 @@ const ACT = {
     const ds = document.getElementById('detailscroll'); if (ds) ds.scrollTop = 0; S.panel = null; S.screen = 'detail'; S.focusKey = 'play'; render(); },
   back() {
     if (S.panel) return ACT.closepanel();
+    if (S.screen === 'sdetail') { S.screen = 'games'; S.focusKey = S.sitem ? `si-${S.sitem.item.id}` : null; return render(); }
     if (S.screen === 'detail') {
       const id = S.game;
       S.spun = null;
@@ -1685,6 +1691,7 @@ const ACT = {
   fullscreen() { const on = !settings().fullscreen; api.call('set_fullscreen', { on }); S.focusKey = 'fs'; setSetting('fullscreen', on); },
   quit() { api.call('quit'); },
 };
+Object.assign(ACT, STREAM_ACT); // streaming addons (stream.js)
 
 async function doScan(dir) {
   S.boot = { ...(S.boot || {}), rom_root: dir };
@@ -1855,7 +1862,7 @@ function press(btn) {
     case 'A': if (cur?.dataset?.act) ACT[cur.dataset.act]?.(cur.dataset); else if (typing) move('down'); return;
     case 'B':
       if (S.playing && (S.playing.error || S.playing.emulator === 'system')) return ACT.closeplay();
-      if (S.panel === 'scrapers') return ACT.settings();
+      if (S.panel === 'scrapers' || S.panel === 'addon') return ACT.settings();
       return ACT.back();
     case 'X': if (!S.panel && S.boot?.systems?.length && !S.playing) ACT.search(); return;
     case 'Y': {

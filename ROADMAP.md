@@ -1,6 +1,8 @@
 # Spine — to-do list
 
 ## Next up (planned)
+- Streaming addons, part 2 (0.13): "Choose a source" on movie and episode pages (from addons with sources, e.g. TorBox-backed ones), plays in VLC.
+- Streaming addons, part 3: resume, watched marks, Continue watching and Next episode for streamed titles; search in addon catalogs; catalogs without a Movies/TV folder.
 - New looks, one per small release (inspired by console menus, never copying their logos, fonts or sounds):
   - Retro CRT theme (done, 0.7.8).
   - Later ideas: Couch (one giant shelf for big TVs), matching sounds per style.
@@ -10,6 +12,8 @@
 - Nothing planned. (macOS skipped Nov 1: no Mac to test on.)
 
 ## Done
+
+- Streaming addons, part 1: add Stremio-style addons, their catalogs on Movies/TV, details and episode lists (0.12.0).
 
 - Home music plays on Linux (0.11.1).
 - Cube Home style with its own sounds (0.11.0).
