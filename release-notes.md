@@ -1,7 +1,6 @@
 ## What's new
-- **Streaming addons, part 1.** Add Stremio-style addons (the same links you use in Stremio or Nuvio) in Settings → Streaming addons. Their catalogs, like Popular, show up as tabs on your Movies and TV screens, with posters, details and full episode lists for shows.
-- Addon links that hold your keys (TorBox and the like) stay on your PC and are never shown in Spine again.
-- Coming next: picking a source and playing it in VLC.
+- **Search addons.** The Movies and TV screens have a new **Search addons** tab that searches only your streaming addons, so the regular search keeps finding just your own games, movies and shows. On that tab, typing (or X) goes straight into its search box.
+- Since 0.12.0: Stremio-style streaming addons, with their catalogs, details and episode lists on the Movies and TV screens.
 
 ---
 

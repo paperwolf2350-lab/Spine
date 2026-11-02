@@ -1392,6 +1392,14 @@ async fn addon_catalog(key: String, kind: String, id: String, skip: usize, handl
     tauri::async_runtime::spawn_blocking(move || addons::fetch_catalog(&a, &kind, &id, skip)).await.map_err(|e| e.to_string())?
 }
 
+/// Search an addon catalog (Search tab on the Movies/TV screens; kept apart from the library search).
+#[tauri::command]
+async fn addon_search(key: String, kind: String, id: String, query: String, handle: AppHandle) -> Result<Vec<addons::Item>, String> {
+    let app = handle.state::<App>();
+    let a = app.addons.lock().unwrap().iter().find(|a| a.key() == key).cloned().ok_or("That addon was removed.")?;
+    tauri::async_runtime::spawn_blocking(move || addons::fetch_search(&a, &kind, &id, &query)).await.map_err(|e| e.to_string())?
+}
+
 /// Full details for a title (episodes for shows), from the addon it came from or any other.
 #[tauri::command]
 async fn addon_meta(key: Option<String>, kind: String, id: String, handle: AppHandle) -> Result<Option<addons::Meta>, String> {
@@ -1704,7 +1712,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_meta])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

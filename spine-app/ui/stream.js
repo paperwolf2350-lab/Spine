@@ -4,7 +4,7 @@
 
 // Which addon catalog types belong on which screen.
 const STREAM_TYPES = { movies: ['movie'], tv: ['series', 'anime'] };
-const S_STREAM = { tab: {}, cache: {}, meta: {}, season: {} };
+const S_STREAM = { tab: {}, cache: {}, meta: {}, season: {}, search: {} };
 
 function streamAddons() { return S.boot?.addons || []; }
 // Browsable catalogs for the Movies or TV screen, in addon order.
@@ -22,10 +22,24 @@ function streamCats(sysId) {
   out.forEach((c) => { c.label = counts[c.name] > 1 ? `${c.name} · ${c.addonName}` : c.name; });
   return out;
 }
+// Catalogs to search for the Movies or TV screen: one per addon and type, preferring the
+// addon's own search catalog (Stremio addons search through a catalog with a "search" extra).
+function streamSearchCats(sysId) {
+  const types = STREAM_TYPES[sysId];
+  if (!types) return [];
+  const out = [];
+  for (const a of streamAddons()) for (const t of types) {
+    const cs = a.catalogs.filter((c) => c.type === t && c.searchable);
+    const c = cs.find((x) => x.needs_input) || cs[0];
+    if (c) out.push({ addon: a.key, addonName: a.name, type: c.type, id: c.id });
+  }
+  return out;
+}
 // The catalog shown on this screen right now (null = your own files).
 function streamActive(s) {
   if (!s || s.kind !== 'sys') return null;
   const ck = S_STREAM.tab[s.id];
+  if (ck === `search:${s.id}`) return streamSearchCats(s.id).length ? { ck, search: true, sys: s.id, label: 'Search', addonName: 'Search your addons' } : null;
   return ck ? streamCats(s.id).find((c) => c.ck === ck) || null : null;
 }
 
@@ -37,15 +51,19 @@ const bigPoster = (u) => (u || '').replace('/poster/small/', '/poster/medium/');
 
 function streamTabs(s) {
   const cats = streamCats(s.id);
-  if (!cats.length) return '';
+  const canSearch = streamSearchCats(s.id).length > 0;
+  if (!cats.length && !canSearch) return '';
   const cur = streamActive(s);
+  const sk = `search:${s.id}`;
   return `<div class="streamtabs" role="tablist" aria-label="Catalogs">
     <button class="chip ${!cur ? 'on' : ''}" role="tab" aria-selected="${!cur}" data-nav data-key="st-own" data-act="stab" data-s="${esc(s.id)}" data-ck="">${s.id === 'tv' ? 'Your shows' : 'Your movies'}</button>
+    ${canSearch ? `<button class="chip ${cur?.search ? 'on' : ''}" role="tab" aria-selected="${!!cur?.search}" data-nav data-key="st-${sk}" data-act="stab" data-s="${esc(s.id)}" data-ck="${sk}" title="Search your addons (not your own files)">${ICON.search} Search addons</button>` : ''}
     ${cats.map((c) => `<button class="chip ${cur?.ck === c.ck ? 'on' : ''}" role="tab" aria-selected="${cur?.ck === c.ck}" data-nav data-key="st-${esc(c.ck)}" data-act="stab" data-s="${esc(s.id)}" data-ck="${esc(c.ck)}" title="${esc(c.addonName)}">${esc(c.label)}</button>`).join('')}
   </div>`;
 }
 
 function streamGrid(c) {
+  if (c.search) return streamSearchView(c);
   const d = S_STREAM.cache[c.ck];
   if (!d || (d.loading && !d.items.length)) return `<div class="nofav"><div class="spinner" style="margin:0 auto 18px"></div>Loading ${esc(c.label)}…</div>`;
   if (d.error && !d.items.length) return `<div class="nofav">${esc(d.error)}<div style="margin-top:18px"><button class="btn" data-nav data-key="sretry" data-act="smore" data-ck="${esc(c.ck)}">Try again</button></div></div>`;
@@ -55,6 +73,62 @@ function streamGrid(c) {
       <span class="t">${esc(it.name)}</span>${it.year ? `<span class="s">${esc(it.year)}</span>` : ''}</button>`).join('');
   const more = d.done ? '' : `<div class="smore">${d.error ? `<span class="note">${esc(d.error)}</span>` : ''}<button class="btn" data-nav data-key="smore" data-act="smore" data-ck="${esc(c.ck)}" ${d.loading ? 'disabled' : ''}>${d.loading ? 'Loading…' : 'Show more'}</button></div>`;
   return `<div class="tiles stiles">${tiles}</div>${more}`;
+}
+
+// ---- Search tab: only searches addons, never your own files (the X search does those).
+function streamTile(it, ck, i) {
+  return `<button class="game" data-nav data-key="si-${esc(it.id)}" data-act="sopen" data-ck="${esc(ck)}" data-i="${i}">
+      ${streamCover(it, it.poster)}
+      <span class="t">${esc(it.name)}</span>${it.year ? `<span class="s">${esc(it.year)}</span>` : ''}</button>`;
+}
+function streamSearchView(c) {
+  const st = S_STREAM.search[c.sys] || {};
+  const box = `<div class="ssearch"><label class="field"><span>${c.sys === 'tv' ? 'Find a show in your addons' : 'Find a movie in your addons'}</span>
+    <span class="srow"><input type="text" id="sq" data-nav data-key="sq" data-enter="ssearch" data-s="${esc(c.sys)}" value="${esc(st.typed ?? st.q ?? '')}" placeholder="${c.sys === 'tv' ? 'Show name' : 'Movie name'}" autocomplete="off" spellcheck="false">
+    <button class="btn primary" data-nav data-key="sqgo" data-act="ssearch" data-s="${esc(c.sys)}">${ICON.search} Search</button></span></label></div>`;
+  if (!st.q) return box + `<div class="nofav" style="padding-top:40px">Searches ${esc(streamSearchCats(c.sys).map((x) => x.addonName).filter((n, i, a) => a.indexOf(n) === i).join(', '))} only. Your own files are under ${c.sys === 'tv' ? 'Your shows' : 'Your movies'}.</div>`;
+  const groups = st.groups || [];
+  const body = groups.map((g) => {
+    const items = g.idx.map((i) => streamTile(st.items[i], c.ck, i)).join('');
+    return `<section class="sgroup">${groups.length > 1 ? `<h3>${esc(g.addonName)}</h3>` : ''}${g.loading ? '<div class="note">Searching…</div>' : g.error ? `<div class="note">${esc(g.error)}</div>` : !g.idx.length ? '<div class="note">Nothing found.</div>' : `<div class="tiles stiles">${items}</div>`}</section>`;
+  }).join('');
+  const none = groups.length && groups.every((g) => !g.loading && !g.idx.length && !g.error);
+  return box + (none ? `<div class="nofav" style="padding-top:40px">Nothing found for “${esc(st.q)}”.</div>` : body);
+}
+async function streamSearch(sys, q) {
+  const cats = streamSearchCats(sys);
+  // Group by addon (an addon with both series and anime search is one group).
+  const order = [...new Set(cats.map((x) => x.addon))];
+  const st = { q, typed: q, items: [], groups: order.map((a) => ({ addon: a, addonName: cats.find((x) => x.addon === a).addonName, idx: [], loading: true, error: null, pending: cats.filter((x) => x.addon === a).length })) };
+  S_STREAM.search[sys] = st;
+  render();
+  await Promise.all(cats.map(async (c) => {
+    const g = st.groups.find((x) => x.addon === c.addon);
+    try {
+      const found = await api.call('addon_search', { key: c.addon, kind: c.type, id: c.id, query: q });
+      if (S_STREAM.search[sys] !== st) return; // a newer search replaced this one
+      const seen = new Set(g.idx.map((i) => st.items[i].id));
+      for (const it of found) if (!seen.has(it.id)) { seen.add(it.id); st.items.push({ ...it, _addon: c.addon, _addonName: c.addonName }); g.idx.push(st.items.length - 1); }
+    } catch (e) {
+      if (!g.idx.length) g.error = String(e || 'Something went wrong.');
+    }
+    if (--g.pending === 0) g.loading = false;
+    if (S_STREAM.search[sys] === st && S.screen === 'games') render();
+  }));
+}
+// Remember what's typed in the addon search box across redraws.
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'sq') return;
+  const sys = e.target.dataset.s;
+  S_STREAM.search[sys] = { ...(S_STREAM.search[sys] || {}), typed: e.target.value };
+});
+// On the Search tab, typing or X goes to the addon search box, not the library search.
+function streamSearchFocus() {
+  if (S.screen !== 'games' || S.panel) return false;
+  const el = document.getElementById('sq');
+  if (!el) return false;
+  if (document.activeElement !== el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); S.focusKey = 'sq'; }
+  return true;
 }
 
 async function streamLoad(ck) {
@@ -177,10 +251,19 @@ function addonPanel() {
 const STREAM_ACT = {
   stab(d) {
     S_STREAM.tab[d.s] = d.ck || null;
-    S.focusKey = `st-${d.ck || 'own'}`;
+    const search = (d.ck || '').startsWith('search:');
+    S.focusKey = search && !S_STREAM.search[d.s]?.q ? 'sq' : `st-${d.ck || 'own'}`;
     render();
     const g = document.getElementById('gamesscroll'); if (g) g.scrollTop = 0;
-    if (d.ck) streamLoad(d.ck);
+    if (d.ck && !search) streamLoad(d.ck);
+  },
+  ssearch(d) {
+    const el = document.getElementById('sq');
+    const q = (el?.value || '').trim();
+    if (!q) { el?.focus(); S.focusKey = 'sq'; return; }
+    S.focusKey = 'sqgo';
+    el?.blur();
+    streamSearch(d.s, q);
   },
   smore(d) {
     const c = S_STREAM.cache[d.ck];
@@ -189,8 +272,14 @@ const STREAM_ACT = {
     streamLoad(d.ck);
   },
   sopen(d) {
-    const c = streamCats('movies').concat(streamCats('tv')).find((x) => x.ck === d.ck);
-    const it = S_STREAM.cache[d.ck]?.items[+d.i];
+    let c, it;
+    if (d.ck.startsWith('search:')) {
+      it = S_STREAM.search[d.ck.slice(7)]?.items[+d.i];
+      c = it && { addon: it._addon, addonName: it._addonName, label: 'Search' };
+    } else {
+      c = streamCats('movies').concat(streamCats('tv')).find((x) => x.ck === d.ck);
+      it = S_STREAM.cache[d.ck]?.items[+d.i];
+    }
     if (!c || !it) return;
     S.sitem = { item: it, addon: c.addon, addonName: c.addonName, catLabel: c.label };
     S.panel = null; S.screen = 'sdetail'; S.focusKey = 'sback';

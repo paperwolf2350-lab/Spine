@@ -11,3 +11,8 @@
 .ep.soon { opacity: .6; }
 span.cat { cursor: default; }
 .scover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ssearch { padding: 4px 0 22px; max-width: 720px; }
+.ssearch .srow { display: flex; gap: 10px; }
+.ssearch .srow input { flex: 1; min-width: 0; }
+.sgroup { margin-bottom: 26px; }
+.sgroup h3 { font-family: var(--body); font-size: 18px; font-weight: 700; margin: 0 0 14px; }

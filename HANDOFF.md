@@ -358,5 +358,12 @@ buttons with `noop` for now: 0.13 makes them (and a movie's Play) open the sourc
 Limits: catalogs need a Movies or TV folder to exist (tabs live on those screens); no addon search yet.
 Tested in Chrome (Playwright, mock backend fed with real Cinemeta JSON, real posters via proxy).
 
+**0.12.1** (owner's request: keep addon results out of the library search): "Search addons" tab
+(ck `search:<movies|tv>`, pseudo-catalog in `streamActive`) on the Movies/TV screens. `streamSearchCats`
+picks one searchable catalog per addon and type (prefers a search-only one). `addon_search` command ->
+`addons::fetch_search` (`/catalog/<type>/<id>/search=<q>.json`). Results grouped per addon, kept after
+Back; the input uses `data-enter` (press A in an input runs that action). On this tab, typed letters
+and X focus the addon box (`streamSearchFocus`) instead of opening the library search.
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

@@ -1859,12 +1859,12 @@ function press(btn) {
   if (S.screen === 'home' && cubeOn() && !S.panel && !S.playing && systems().length && cubeKey(btn)) return;
   switch (btn) {
     case 'up': case 'down': case 'left': case 'right': return move(btn);
-    case 'A': if (cur?.dataset?.act) ACT[cur.dataset.act]?.(cur.dataset); else if (typing) move('down'); return;
+    case 'A': if (cur?.dataset?.act) ACT[cur.dataset.act]?.(cur.dataset); else if (typing && cur.dataset.enter) ACT[cur.dataset.enter]?.(cur.dataset); else if (typing) move('down'); return;
     case 'B':
       if (S.playing && (S.playing.error || S.playing.emulator === 'system')) return ACT.closeplay();
       if (S.panel === 'scrapers' || S.panel === 'addon') return ACT.settings();
       return ACT.back();
-    case 'X': if (!S.panel && S.boot?.systems?.length && !S.playing) ACT.search(); return;
+    case 'X': if (streamSearchFocus()) return; if (!S.panel && S.boot?.systems?.length && !S.playing) ACT.search(); return;
     case 'Y': {
       if (typing) return;
       const id = cur?.dataset?.id || (S.screen === 'detail' ? S.game : null);
@@ -1907,6 +1907,7 @@ document.addEventListener('keydown', (e) => {
   const b = map[e.key];
   if (!b) {
     // Typing anywhere on home/games starts a search.
+    if (!typing && !S.panel && e.key.length === 1 && /\w/.test(e.key) && streamSearchFocus()) return; // addon Search tab: type into its box
     if (!typing && !S.panel && e.key.length === 1 && /\w/.test(e.key) && S.boot?.systems?.length) { S.query = e.key; ACT.search({ keep: true }); e.preventDefault(); }
     return;
   }

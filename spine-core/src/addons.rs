@@ -208,6 +208,10 @@ pub fn catalog_url(base: &str, typ: &str, id: &str, skip: usize) -> String {
     }
 }
 
+pub fn search_url(base: &str, typ: &str, id: &str, query: &str) -> String {
+    format!("{base}/catalog/{}/{}/search={}.json", enc(typ), enc(id), enc(query.trim()))
+}
+
 pub fn meta_url(base: &str, typ: &str, id: &str) -> String {
     format!("{base}/meta/{}/{}.json", enc(typ), enc(id))
 }
@@ -345,6 +349,13 @@ pub fn fetch_catalog(a: &Stored, typ: &str, id: &str, skip: usize) -> Result<Vec
     parse_catalog(&bytes, typ).map_err(|e| format!("{}: {e}", a.name()))
 }
 
+/// Search one of an addon's catalogs.
+pub fn fetch_search(a: &Stored, typ: &str, id: &str, query: &str) -> Result<Vec<Item>, String> {
+    let url = search_url(&a.base(), typ, id, query);
+    let bytes = crate::covers::curl(&url, true, &[]).map_err(|e| format!("{}: {}", a.name(), friendly(&redact(&redact(&e, &url), &a.url))))?;
+    parse_catalog(&bytes, typ).map_err(|e| format!("{}: {e}", a.name()))
+}
+
 /// Details for a title: first the addon it came from, then any other addon that gives
 /// details for it, then Cinemeta (IMDb ids). None if nobody knows it.
 pub fn fetch_meta(addons: &[Stored], from: Option<&str>, typ: &str, id: &str) -> Option<Meta> {
@@ -399,6 +410,8 @@ mod tests {
         assert!(top.len() >= 20, "{}", top.len());
         let more = fetch_catalog(&a, "series", "top", top.len()).unwrap();
         assert!(!more.is_empty() && more[0].id != top[0].id);
+        let dune = fetch_search(&a, "movie", "top", "dune").unwrap();
+        assert!(dune.iter().any(|i| i.name == "Dune"), "{dune:?}");
         let bb = fetch_meta(&[a], None, "series", "tt0903747").unwrap();
         assert_eq!(bb.item.name, "Breaking Bad");
         assert!(bb.episodes.len() > 60, "{}", bb.episodes.len());
@@ -432,6 +445,7 @@ mod tests {
         assert_eq!(catalog_url("https://a.b", "movie", "top", 0), "https://a.b/catalog/movie/top.json");
         assert_eq!(catalog_url("https://a.b", "series", "my list", 100), "https://a.b/catalog/series/my%20list/skip=100.json");
         assert_eq!(meta_url("https://a.b", "series", "kitsu:42"), "https://a.b/meta/series/kitsu%3A42.json");
+        assert_eq!(search_url("https://a.b", "movie", "top", " Spider-Man: Home & Away "), "https://a.b/catalog/movie/top/search=Spider-Man%3A%20Home%20%26%20Away.json");
     }
 
     fn sample_manifest() -> Value {
