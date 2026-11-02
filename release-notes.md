@@ -1,6 +1,5 @@
 ## What's new
-- **Linux fix:** on larger screens the interface no longer ends partway down the window, and the row of consoles on Home shows again (Linux Mint and other systems where Spine runs on WebKitGTK).
-- Since 0.7.4: Fix match for movies and whole TV shows, resume in mpv, and Surprise me picks games only.
+- **Xbox 360 games now open in Xenia.** A folder named "Xbox 360" used to be mistaken for the original Xbox and sent to xemu. Xbox 360 is now its own console with its own tile, box art and details. Spine finds Xenia (or Xenia Canary) in your Emulators folder; ISO, XEX and ZAR files work, and extracted games (a folder with default.xex) take the folder's name.
 
 ---
 

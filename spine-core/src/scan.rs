@@ -257,6 +257,12 @@ fn walk_system(sys: &System, dir: &Path, depth: usize, extra: Option<ContentKind
         }
         let size = e.metadata().map(|m| m.len()).unwrap_or(0);
         let mut parsed = title::parse_name(&name, true);
+        if sys.id == "xbox360" && lname == "default.xex" {
+            // Extracted games are a folder with default.xex inside: the folder has the name.
+            if let Some(dir) = p.parent().and_then(|d| d.file_name()) {
+                parsed = title::parse_name(&dir.to_string_lossy(), false);
+            }
+        }
         let mut warnings = Vec::new();
 
         if sys.id == "psvita" {

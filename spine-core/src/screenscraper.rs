@@ -28,7 +28,7 @@ pub fn system_id(system: &str) -> Option<u32> {
         "mastersystem" => 2, "genesis" => 1, "gamegear" => 21, "segacd" => 20, "sega32x" => 19, "saturn" => 22, "dreamcast" => 23,
         "psx" => 57, "ps2" => 58, "ps3" => 59, "psp" => 61, "psvita" => 62,
         "pcengine" => 31, "pcenginecd" => 114, "neogeo" => 142, "ngpc" => 82, "arcade" => 75,
-        "atari2600" => 26, "atarilynx" => 28, "wonderswan" => 45, "dos" => 135, "xbox" => 32,
+        "atari2600" => 26, "atarilynx" => 28, "wonderswan" => 45, "dos" => 135, "xbox" => 32, "xbox360" => 33,
         _ => return None,
     })
 }

@@ -79,6 +79,7 @@ pub static SYSTEMS: &[System] = &[
     System { id: "atarilynx", name: "Atari Lynx", short: "Lynx", folders: &["atarilynx", "lynx"], exts: &["lnx", "zip", "7z"], launchers: &[RetroArch("handy")], color: "#6B4F2E" },
     System { id: "wonderswan", name: "WonderSwan", short: "WS", folders: &["wonderswan", "wonderswancolor", "wsc", "ws"], exts: &["ws", "wsc", "zip", "7z"], launchers: &[RetroArch("mednafen_wswan")], color: "#4A5A6B" },
     System { id: "dos", name: "MS-DOS", short: "DOS", folders: &["dos", "msdos", "pc"], exts: &["exe", "com", "bat", "conf", "zip"], launchers: &[RetroArch("dosbox_pure")], color: "#3A3A3A" },
+    System { id: "xbox360", name: "Xbox 360", short: "360", folders: &["xbox360", "x360", "microsoftxbox360"], exts: &["iso", "xex", "zar"], launchers: &[Standalone("xenia")], color: "#107C10" },
     System { id: "xbox", name: "Xbox", short: "Xbox", folders: &["xbox"], exts: &["iso", "xiso"], launchers: &[Standalone("xemu")], color: "#2E6B2E" },
     // ---- PC
     System { id: "pc", name: "PC Games", short: "PC", folders: &["steam", "pcgames", "windows", "epic", "gog"], exts: &["url", "lnk"], launchers: &[ShellOpen], color: "#1B2838" },
@@ -137,6 +138,9 @@ mod tests {
         assert_eq!(system_for_folder("Wii U").unwrap().id, "wiiu");
         assert_eq!(system_for_folder("wii").unwrap().id, "wii");
         assert_eq!(system_for_folder("gamecube").unwrap().id, "gc");
+        assert_eq!(system_for_folder("Xbox 360").unwrap().id, "xbox360");
+        assert_eq!(system_for_folder("xbox360 isos").unwrap().id, "xbox360");
+        assert_eq!(system_for_folder("Xbox").unwrap().id, "xbox");
         assert!(system_for_folder("random downloads").is_none());
         assert!(system_for_folder("emulators").is_none());
     }

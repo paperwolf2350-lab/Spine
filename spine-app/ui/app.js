@@ -280,6 +280,7 @@ const SYS_ICON = {
   psx: '<rect x="8" y="12" width="48" height="26" rx="3"/><circle cx="24" cy="25" r="9"/><circle cx="24" cy="25" r="2"/><rect x="40" y="18" width="10" height="3" rx="1.5"/><circle cx="45" cy="31" r="2"/>',
   ps2: '<path d="M4 15h56v9H4z"/><path d="M8 24h52v11H8z"/><path d="M4 15l4 9v11"/><path d="M15 19.5h34"/><circle cx="54" cy="19.5" r="1.4"/><path d="M12 27v6M15 27v6M18 27v6"/><rect x="24" y="28" width="6" height="3" rx="1"/><rect x="33" y="28" width="6" height="3" rx="1"/><rect x="48" y="28" width="7" height="3" rx="1"/>',
   ps3: '<path d="M10 16c0-3 3-6 6-6h32c3 0 6 3 6 6v20c0 1-1 2-2 2H12c-1 0-2-1-2-2z"/><path d="M16 26h32"/>',
+  xbox360: '<rect x="8" y="12" width="48" height="26" rx="4"/><circle cx="32" cy="25" r="7"/><path d="M28 21l8 8M36 21l-8 8"/>',
   xbox: '<rect x="8" y="12" width="48" height="26" rx="4"/><circle cx="32" cy="25" r="6"/><path d="M14 33h8"/>',
   pcengine: '<rect x="14" y="12" width="36" height="26" rx="2"/><rect x="20" y="8" width="24" height="8" rx="1"/><path d="M20 30h10"/>',
   neogeo: '<rect x="8" y="14" width="48" height="24" rx="2"/><rect x="18" y="10" width="28" height="8" rx="1"/><circle cx="16" cy="30" r="2"/>',

@@ -55,6 +55,7 @@ pub fn libretro_repos(system: &str) -> &'static [&'static str] {
         "wonderswan" => &["Bandai_-_WonderSwan_Color", "Bandai_-_WonderSwan"],
         "dos" => &["DOS"],
         "xbox" => &["Microsoft_-_Xbox"],
+        "xbox360" => &["Microsoft_-_Xbox_360"],
         _ => &[],
     }
 }
