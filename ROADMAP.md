@@ -1,6 +1,12 @@
 # Spine — to-do list
 
 ## Next up (planned)
+- New looks, one per small release (inspired by console menus, never copying their logos, fonts or sounds):
+  - Retro CRT theme (done, 0.7.8).
+  - "Home style" setting, shipped together with the first style: Wave (consoles across, games down, animated wave; like the PSP/PS3 menu).
+  - Channels (rounded tiles per console with moving covers, clock at the bottom; like the Wii menu).
+  - Blades (big sliding panels switched with LB/RB; like the 2005 Xbox 360 dashboard).
+  - Later ideas: Cube (rotating menu), Couch (one giant shelf for big TVs), matching sounds per style.
 - Small fix: the Surprise me tile says "from all 759 games" but counts movies and shows too (it only picks games since 0.7.4).
 
 ## Later
@@ -8,6 +14,8 @@
 
 ## Done
 
+- Retro CRT theme (0.7.8).
+- Xbox 360 as its own console, opened in Xenia (0.7.7).
 - Linux: interface fills the window at every Interface size; consoles row back on Home (0.7.6).
 - Fix match for movies (0.7.5).
 - Fix match for whole shows; resume and watched marks in mpv; Surprise me picks games only (0.7.4).

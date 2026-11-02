@@ -1,5 +1,6 @@
 ## What's new
-- **Xbox 360 games now open in Xenia.** A folder named "Xbox 360" used to be mistaken for the original Xbox and sent to xemu. Xbox 360 is now its own console with its own tile, box art and details. Spine finds Xenia (or Xenia Canary) in your Emulators folder; ISO, XEX and ZAR files work, and extracted games (a folder with default.xex) take the folder's name.
+- **New theme: Retro CRT.** Green phosphor glow, pixel lettering, scanlines and a little power-on flash, like an old monitor. Settings → Theme → Retro CRT. (Tip: the green accent color suits it.) It's the first of several new looks for Spine.
+- Since 0.7.7: Xbox 360 games are their own console and open in Xenia.
 
 ---
 

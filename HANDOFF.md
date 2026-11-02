@@ -244,5 +244,13 @@ Avoid vh/vw for layout: zoom handling differs between engines.
 `xbox` and went to xemu. Exts iso/xex/zar; an extracted game's `default.xex` takes its folder's
 name. Art: libretro `Microsoft_-_Xbox_360`, ScreenScraper 33. Confirmed working on the owner's PC (Blur, Nov 2).
 
+**0.7.8**: Retro CRT theme (`theme: "crt"`), CSS only at the end of app.css: bundled VT323 font
+(`ui/fonts/`, OFL; the other fonts load from Google Fonts), `font-size-adjust: 0.52` (VT323's
+x-height is 0.40), scanline + vignette overlay on `body::after`, power-on flash on `body::before`
+(plays when the theme switches on; hidden with reduced motion). Plan for more looks is in ROADMAP:
+next is a "Home style" setting (separate render per style, own file, game/movie pages shared)
+starting with Wave (XMB-like), then Channels (Wii-like), then Blades (360-like). Own names, no
+console makers' logos/fonts/sounds.
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

@@ -680,7 +680,8 @@ function settingsPanel() {
     <h2>Settings</h2>
     <div class="grp"><span class="k">Theme</span><div class="opts">
       <button class="chip ${theme === 'cream' ? 'on' : ''}" data-nav data-key="th-cream" data-act="theme" data-t="cream">Cream</button>
-      <button class="chip ${theme === 'midnight' ? 'on' : ''}" data-nav data-key="th-midnight" data-act="theme" data-t="midnight">Midnight</button></div></div>
+      <button class="chip ${theme === 'midnight' ? 'on' : ''}" data-nav data-key="th-midnight" data-act="theme" data-t="midnight">Midnight</button>
+      <button class="chip ${theme === 'crt' ? 'on' : ''}" data-nav data-key="th-crt" data-act="theme" data-t="crt">Retro CRT</button></div></div>
     <div class="grp"><span class="k">Accent</span><div class="opts">${sw}</div></div>
     <div class="grp"><span class="k">ROM folders</span><span class="note">Spine reads every folder here and puts the games together. Folders on a drive that's unplugged keep their games listed until it's back.</span>
       <div class="roots">${(S.boot.roots || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>

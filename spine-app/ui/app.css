@@ -1,4 +1,4 @@
-/* Spine — interface styles. Two themes (Cream, Midnight) and one accent. */
+/* Spine — interface styles. Three themes (Cream, Midnight, Retro CRT) and one accent. */
 :root {
   --accent: #C8431F;
   --bg: #F6F2EA; --surface: #FFFFFF; --surface2: #ECE6DA; --text: #1C1A17; --muted: #5E574D; --line: #DDD5C7;
@@ -389,3 +389,42 @@ body.kb .epcheck.focused, body.kb .epcheck:focus-visible { box-shadow: 0 0 0 3px
 .ep .eo { margin-top: 4px; font-size: 14px; line-height: 1.45; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 body.kb .ep.focused, body.kb .ep:focus-visible { box-shadow: inset 0 0 0 3px var(--accent); }
 @media (max-width: 700px) { .ep { grid-template-columns: 120px minmax(0, 1fr); } .ep .thumb { width: 120px; } }
+
+/* ---- Retro CRT theme: green phosphor, pixel type, scanlines and a power-on flash.
+   Bundled font: VT323 (SIL Open Font License, fonts/VT323-OFL.txt). */
+@font-face { font-family: 'VT323'; src: url('fonts/VT323-Regular.ttf') format('truetype'); font-display: swap; }
+:root[data-theme="crt"] {
+  --bg: #070B07; --surface: #0E160E; --surface2: #162216; --text: #B6FFA6; --muted: #6FB867; --line: #1F3A1F;
+  --focus: #B6FFA6;
+  --shadow: 0 0 0 1px #1F3A1F, 0 6px 18px rgba(0,0,0,.6);
+  --display: 'VT323', ui-monospace, Consolas, monospace;
+  --body: 'VT323', ui-monospace, Consolas, monospace;
+}
+/* VT323 is drawn small for its size: scale it up so text keeps the same weight on screen. */
+:root[data-theme="crt"] body { font-size-adjust: 0.52; text-shadow: 0 0 6px color-mix(in srgb, var(--text) 45%, transparent); }
+:root[data-theme="crt"] h1, :root[data-theme="crt"] h2, :root[data-theme="crt"] h3 { letter-spacing: 0.02em; }
+:root[data-theme="crt"] .herowall .strip { opacity: .28; filter: blur(1px) saturate(.6); }
+:root[data-theme="crt"] .backdrop img, :root[data-theme="crt"] .backdrop .tint { opacity: .45; filter: blur(70px) saturate(.7); }
+/* Scanlines and a dark edge over everything; never catches clicks. */
+:root[data-theme="crt"] body::after {
+  content: ''; position: fixed; inset: 0; z-index: 2147483000; pointer-events: none;
+  background:
+    repeating-linear-gradient(180deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,.22) 3px),
+    radial-gradient(ellipse at center, rgba(0,0,0,0) 62%, rgba(0,0,0,.55) 100%);
+  animation: crtflicker 6s steps(1) infinite;
+}
+@keyframes crtflicker { 0%, 100% { opacity: 1; } 47% { opacity: .92; } 48% { opacity: 1; } }
+/* Power-on: a bright line opens into the picture when the theme turns on. */
+:root[data-theme="crt"] body::before {
+  content: ''; position: fixed; inset: 0; z-index: 2147483001; pointer-events: none; background: #E8FFE0;
+  transform-origin: center; animation: crton .7s ease-out forwards;
+}
+@keyframes crton {
+  0% { opacity: 1; transform: scale(1, .004); }
+  35% { opacity: 1; transform: scale(1, .004); }
+  60% { opacity: .9; transform: scale(1, 1); }
+  100% { opacity: 0; transform: scale(1, 1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="crt"] body::before { display: none; }
+}
