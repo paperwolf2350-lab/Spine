@@ -302,5 +302,22 @@ Tabs: `ACT.bladego`. No music (no entry in music.js SONGS). Sounds: SFX has a `b
 interface sound while Blades is the Home style. Also fixed: Channels page arrows had no action
 (`ACT.chpage` was missing).
 
+**0.10.0** confirmed by the owner (all styles "look and feel really good", Nov 2).
+
+**0.11.0**: Cube home style (`home_style: "cube"`), `ui/cube.js` + `ui/cube.css`. Belt = `waveCats()`
+minus Recent/Favorites (`cubeBelt`); top face = Recent, bottom = Favorites. Only 6 faces: side slots
+s0–s3 show belt[i + d] for d = 0/+1/+2/-1 relative to the front slot (`cubeSlotCat`); `cubeSync`
+repaints slots whose console changed (they're out of view). State `S.cube` {i, rot (adds up, so turns
+go the short way), tilt (-1/0/1), zone 'cube'|'shelf', at}. IMPORTANT: no `preserve-3d`. WebKitGTK
+without GPU acceleration flattens 3D children (the cube fell apart in Xvfb), so each face carries the
+whole transform itself (`cubeFaceTransform` = cube turn + face place + translateZ) under the stage's
+`perspective`, and `cubeShow` hides faces pointing away (visible faces never overlap, so draw order
+doesn't matter). Top/bottom face content counter-rotates (top -spin, bottom +spin) to stay upright.
+Shelf: all games in the DOM, positions from `cubeGameStyle(offset)`, images load when within ±9.
+Keys in `cubeKey` (A/down enters shelf; down from belt goes to Favorites first if there are any).
+Sounds: `cube` set in SFX (`cubeR`/`cubeL` = swoosh + landing thunk). Tested in Playwright and in
+real WebKitGTK 2.52 (python3.12 + gir1.2-webkit2-4.1 + python3-gi-cairo under xvfb-run, snapshots
+via get_snapshot) — `apt-get install gir1.2-webkit2-4.1 python3-gi-cairo` if a new workspace lacks them.
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

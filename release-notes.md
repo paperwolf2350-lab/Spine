@@ -1,7 +1,7 @@
 ## What's new
-- **New Home style: Blades.** Each console is a big panel; the others fold into colored tabs down the left and right edges. LB/RB (or left/right) slide from one blade to the next, and clicking a tab jumps straight to it. Each blade lists its games on the left and shows a large picture, logo and description of the highlighted one on the right. Settings → Home style → Blades.
-- **Blades has its own sounds**: crisp clicks, glassy chimes and a swoosh when a blade slides past. No music on this one.
-- **Fixed:** on the Channels home, the page arrows at the left and right edges now work with the mouse.
+- **New Home style: Cube.** A big 3D cube floats in the middle of Home. Each side shows a console with a few of its covers stuck on; left and right roll the cube to the previous or next console (it goes all the way round, however many you have). Up tips it to Recent on top, down to Favorites underneath. A row of small console icons shows where you are; click one to roll straight there.
+- Your games sit on a curved shelf under the cube: press A (or down) to step onto it, left/right to move along, A to open a game, and up or B to go back to the cube.
+- Cube has its own bubbly interface sounds and a soft thunk when it lands on a side. No music. Settings → Home style → Cube.
 
 ---
 

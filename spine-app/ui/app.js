@@ -353,6 +353,7 @@ function home() {
   if (waveOn()) return homeWave();
   if (channelsOn()) return homeChannels();
   if (bladesOn()) return homeBlades();
+  if (cubeOn()) return homeCube();
   const T = tiles();
   const sel = Math.min(S.sel, T.length - 1);
   const t = T[sel];
@@ -687,10 +688,11 @@ function settingsPanel() {
       <button class="chip ${theme === 'midnight' ? 'on' : ''}" data-nav data-key="th-midnight" data-act="theme" data-t="midnight">Midnight</button>
       <button class="chip ${theme === 'crt' ? 'on' : ''}" data-nav data-key="th-crt" data-act="theme" data-t="crt">Retro CRT</button></div></div>
     <div class="grp"><span class="k">Home style</span><span class="note">How the Home screen is laid out. Game and movie pages look the same in every style.</span><div class="opts">
-      <button class="chip ${!waveOn() && !channelsOn() && !bladesOn() ? 'on' : ''}" data-nav data-key="hs-classic" data-act="homestyle" data-s="classic">Classic</button>
+      <button class="chip ${!waveOn() && !channelsOn() && !bladesOn() && !cubeOn() ? 'on' : ''}" data-nav data-key="hs-classic" data-act="homestyle" data-s="classic">Classic</button>
       <button class="chip ${waveOn() ? 'on' : ''}" data-nav data-key="hs-wave" data-act="homestyle" data-s="wave">Wave</button>
       <button class="chip ${channelsOn() ? 'on' : ''}" data-nav data-key="hs-channels" data-act="homestyle" data-s="channels">Channels</button>
-      <button class="chip ${bladesOn() ? 'on' : ''}" data-nav data-key="hs-blades" data-act="homestyle" data-s="blades">Blades</button></div></div>
+      <button class="chip ${bladesOn() ? 'on' : ''}" data-nav data-key="hs-blades" data-act="homestyle" data-s="blades">Blades</button>
+      <button class="chip ${cubeOn() ? 'on' : ''}" data-nav data-key="hs-cube" data-act="homestyle" data-s="cube">Cube</button></div></div>
     <div class="grp"><span class="k">Accent</span><div class="opts">${sw}</div></div>
     <div class="grp"><span class="k">ROM folders</span><span class="note">Spine reads every folder here and puts the games together. Folders on a drive that's unplugged keep their games listed until it's back.</span>
       <div class="roots">${(S.boot.roots || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>
@@ -1094,6 +1096,7 @@ function render() {
   restoreFocus();
   waveMount();
   bladesMount();
+  cubeMount();
   BGM.sync();
   startPreview();
   const gs = document.getElementById('gamesscroll');
@@ -1216,7 +1219,7 @@ function restoreFocus() {
   const els = navEls();
   let el = S.focusKey && els.find((e) => e.dataset.key === S.focusKey);
   if (!el) {
-    const pref = S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : { home: waveOn() ? waveFocusKey() : bladesOn() ? bladeFocusKey() : `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
+    const pref = S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : { home: waveOn() ? waveFocusKey() : bladesOn() ? bladeFocusKey() : cubeOn() ? cubeFocusKey() : `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
     el = (pref && els.find((e) => e.dataset.key === pref)) || els.find((e) => e.dataset.key?.startsWith('g-')) || els.find((e) => e.dataset.key !== 'brand') || els[0];
   }
   if (el) focusEl(el, false);
@@ -1534,6 +1537,7 @@ const ACT = {
       S.screen = 'home'; S.sel = Math.max(0, tiles().findIndex((t) => t.id === id)); S.focusKey = `con-${id}`;
       if (S.wave) S.wave.cat = id;
       if (S.blade) S.blade.cat = id;
+      if (S.cube) { const k = cubeBelt().findIndex((c) => c.id === id); if (k >= 0) { S.cube.rot += k - S.cube.i; S.cube.i = k; S.cube.tilt = 0; } else S.cube.tilt = -1; S.cube.zone = 'shelf'; }
       return render();
     }
   },
@@ -1591,6 +1595,15 @@ const ACT = {
   theme(d) { S.focusKey = `th-${d.t}`; setSetting('theme', d.t); },
   homemusic(d) { S.focusKey = `bgm-${d.v}`; setSetting('homeMusic', d.v); },
   bladego(d) { bladeGo(+d.i); },
+  cubepick(d) {
+    const { belt } = cubeState(), k = +d.i, n = belt.length;
+    if (k === S.cube.i && !S.cube.tilt) { S.cube.zone = 'shelf'; return cubeSync(false); }
+    let delta = mod(k - S.cube.i, n); if (delta > n / 2) delta -= n; // turn the short way round
+    const before = cubeVisible();
+    S.cube.tilt = 0; S.cube.i = k; S.cube.rot += Math.sign(delta) || 1;
+    SFX.play(delta < 0 ? 'cubeL' : 'cubeR'); cubeSync(true, before);
+  },
+  cubetilt(d) { if (+d.t === S.cube.tilt) { S.cube.zone = 'shelf'; cubeSync(false); } else cubeTilt(+d.t - S.cube.tilt); },
   chpage(d) {
     const T = tiles(), pages = Math.ceil(T.length / CH_PER_PAGE);
     const p = Math.max(0, Math.min(pages - 1, (S.chPage || 0) + +d.d));
@@ -1693,7 +1706,7 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
   if (el.classList.contains('panel') && e.target !== el) return;
-  if (waveClick(el)) return;
+  if (waveClick(el) || cubeClick(el)) return;
   SFX.play(actSound(el.dataset.act));
   ACT[el.dataset.act]?.(el.dataset);
 });
@@ -1762,7 +1775,21 @@ const SFX = (() => {
     bladeL: () => { hiss(2600, { f2: 450, len: 0.22, vol: 0.07, q: 2.2 }); note(95, { f2: 70, len: 0.14, vol: 0.06, at: 0.04 }); note(1180, { len: 0.12, vol: 0.016, at: 0.14 }); },
     launch: () => { hiss(300, { f2: 4000, len: 0.4, vol: 0.06, q: 1.8 }); [660, 990, 1320, 1980].forEach((f, i) => note(f, { len: i === 3 ? 0.4 : 0.12, vol: 0.03, at: 0.1 + i * 0.05 })); },
   };
+  // Cube home style: round, bubbly notes and a soft landing thunk when the cube settles.
+  const cube = {
+    move: () => note(620, { f2: 880, len: 0.06, vol: 0.04 }),
+    tick: () => note(740, { f2: 990, len: 0.05, vol: 0.03 }),
+    edge: () => note(260, { f2: 200, len: 0.09, vol: 0.04, wave: 'triangle' }),
+    select: () => [784, 988, 1175].forEach((f, i) => note(f, { f2: f * 1.02, len: 0.12, vol: 0.035, at: i * 0.05 })),
+    back: () => { note(880, { f2: 620, len: 0.08, vol: 0.035 }); note(587, { f2: 440, len: 0.1, vol: 0.03, at: 0.06 }); },
+    open: () => note(440, { f2: 990, len: 0.14, vol: 0.04 }),
+    cubeR: () => { hiss(500, { f2: 1600, len: 0.25, vol: 0.035, q: 1.6 }); note(130, { f2: 82, len: 0.12, vol: 0.08, wave: 'triangle', at: 0.36 }); note(1320, { len: 0.08, vol: 0.02, at: 0.38 }); },
+    cubeL: () => { hiss(1600, { f2: 500, len: 0.25, vol: 0.035, q: 1.6 }); note(130, { f2: 82, len: 0.12, vol: 0.08, wave: 'triangle', at: 0.36 }); note(1175, { len: 0.08, vol: 0.02, at: 0.38 }); },
+    launch: () => [523, 659, 784, 1047, 1319].forEach((f, i) => note(f, { f2: f * 1.03, len: i === 4 ? 0.4 : 0.1, vol: 0.035, at: i * 0.055 })),
+  };
   const sounds = {
+    cubeR: () => note(700, { f2: 1000, len: 0.08, vol: 0.035 }),
+    cubeL: () => note(1000, { f2: 700, len: 0.08, vol: 0.035 }),
     bladeR: () => note(700, { f2: 1000, len: 0.08, vol: 0.035 }),
     bladeL: () => note(1000, { f2: 700, len: 0.08, vol: 0.035 }),
     move: () => note(1180, { len: 0.035, vol: 0.035 }),
@@ -1783,7 +1810,7 @@ const SFX = (() => {
       const now = performance.now();
       if (name === 'move' && now - last < 30) return; // fast scrolling: don't machine-gun
       last = now;
-      try { ((bladesOn() && blades[name]) || sounds[name])?.(); } catch (e) { /* no audio device */ }
+      try { ((bladesOn() && blades[name]) || (cubeOn() && cube[name]) || sounds[name])?.(); } catch (e) { /* no audio device */ }
     },
   };
 })();
@@ -1796,7 +1823,7 @@ function actSound(act) {
   if (act === 'random') return 'spin';
   if (act === 'fav' || act === 'uisounds') return null; // they play their own once the result is known
   if (['jump', 'stepshot', 'sortby', 'filter', 'layout', 'sound', 'videos', 'chpage'].includes(act)) return 'tick';
-  if (act === 'bladego') return null; // plays its own slide
+  if (act === 'bladego' || act === 'cubepick' || act === 'cubetilt') return null; // they play their own turn sounds
   return 'select';
 }
 
@@ -1812,7 +1839,7 @@ function press(btn) {
   else if (btn === 'B' && (S.panel || S.screen !== 'home' || S.shot != null)) SFX.play('back');
   else if (btn === 'START' || btn === 'X') SFX.play('open');
   else if (btn === 'RANDOM') SFX.play('spin');
-  else if (['LB', 'RB', 'LT', 'RT', 'SELECT'].includes(btn) && !(S.screen === 'home' && bladesOn() && !S.panel && ['LB', 'RB'].includes(btn))) SFX.play('tick');
+  else if (['LB', 'RB', 'LT', 'RT', 'SELECT'].includes(btn) && !(S.screen === 'home' && (bladesOn() || cubeOn()) && !S.panel && ['LB', 'RB'].includes(btn))) SFX.play('tick');
   if (S.shot != null && S.screen === 'detail') {
     if (btn === 'left' || btn === 'LB') return ACT.stepshot({ d: -1 });
     if (btn === 'right' || btn === 'RB') return ACT.stepshot({ d: 1 });
@@ -1822,6 +1849,7 @@ function press(btn) {
   if (S.screen === 'home' && waveOn() && !S.panel && !S.playing && systems().length && waveKey(btn)) return;
   if (S.screen === 'home' && channelsOn() && !S.panel && !S.playing && channelsKey(btn)) return;
   if (S.screen === 'home' && bladesOn() && !S.panel && !S.playing && systems().length && bladesKey(btn)) return;
+  if (S.screen === 'home' && cubeOn() && !S.panel && !S.playing && systems().length && cubeKey(btn)) return;
   switch (btn) {
     case 'up': case 'down': case 'left': case 'right': return move(btn);
     case 'A': if (cur?.dataset?.act) ACT[cur.dataset.act]?.(cur.dataset); else if (typing) move('down'); return;

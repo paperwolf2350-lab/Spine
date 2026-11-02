@@ -3,7 +3,7 @@
 ## Next up (planned)
 - New looks, one per small release (inspired by console menus, never copying their logos, fonts or sounds):
   - Retro CRT theme (done, 0.7.8).
-  - Later ideas: Cube (rotating menu), Couch (one giant shelf for big TVs), matching sounds per style.
+  - Later ideas: Couch (one giant shelf for big TVs), matching sounds per style.
 - Small fix: the Surprise me tile says "from all 759 games" but counts movies and shows too (it only picks games since 0.7.4).
 
 ## Later
@@ -11,6 +11,7 @@
 
 ## Done
 
+- Cube Home style with its own sounds (0.11.0).
 - Blades Home style with its own sounds; Channels page arrows work with the mouse (0.10.0).
 - Own songs for the Wave and Channels homes (0.9.1).
 - Channels Home style with its own background music (0.9.0).
