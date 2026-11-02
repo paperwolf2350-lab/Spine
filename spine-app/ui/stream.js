@@ -234,6 +234,7 @@ function sdetail() {
   const groups = [...new Set(eps.map(seasonOf))];
   const group = groups.includes(S_STREAM.season[k]) ? S_STREAM.season[k] : groups[0];
   const shown = eps.filter((e) => seasonOf(e) === group);
+  const epTitle = (e) => `${it.name} · ${e.season != null && e.episode != null ? `S${e.season} E${e.episode} ` : ''}${e.title}`;
   const backLabel = x.catLabel || 'Back';
   const meta = [
     it.year ? `<span>${esc(it.year)}</span>` : null,
@@ -247,10 +248,17 @@ function sdetail() {
   const epsHtml = !eps.length ? '' : `<section class="eps" aria-label="Episodes">
     <h3 style="font-family:var(--body);font-size:18px;font-weight:700">Episodes</h3>
     ${groups.length > 1 ? `<div class="seasons" role="tablist">${groups.map((g) => `<button class="chip ${g === group ? 'on' : ''}" role="tab" aria-selected="${g === group}" data-nav data-key="sgrp-${esc(g)}" data-act="sseason" data-g="${esc(g)}">${esc(g)}</button>`).join('')}</div>` : ''}
-    <div class="eplist">${shown.map((e) => `<div class="eprow"><button class="ep ${upcoming(e) ? 'soon' : ''}" data-nav data-key="sep-${esc(e.id)}" data-act="noop" title="${esc(e.title)}">
+    <div class="eplist">${shown.map((e) => `<div class="eprow"><button class="ep ${upcoming(e) ? 'soon' : ''}" data-nav data-key="sep-${esc(e.id)}" data-act="sources" data-k="${esc(x.item.type)}" data-id="${esc(e.id)}" data-t="${esc(epTitle(e))}" title="Choose a source for ${esc(e.title)}">
       <span class="thumb">${e.thumbnail ? streamImg(e.thumbnail) : `<span style="position:relative">${e.episode ?? ICON.film}</span>`}</span>
       <span><span class="et">${e.season != null && e.episode != null ? `<span class="n">S${e.season} · E${e.episode}</span>` : ''}${esc(e.title)}</span>
       ${e.released ? `<span class="eo" style="font-weight:600">${upcoming(e) ? 'Coming ' : ''}${esc(day(e.released))}</span>` : ''}${e.overview ? `<span class="eo">${esc(e.overview)}</span>` : ''}</span></button></div>`).join('')}</div></section>`;
+  const first = shown.find((e) => !upcoming(e)) || shown[0];
+  const canStream = streamAddons().some((a) => a.stream.includes(x.item.type));
+  const action = !canStream
+    ? `<span class="note">To watch, add a source addon (one set up with your TorBox key, for example) in Settings → Streaming addons.</span>`
+    : x.item.type === 'movie' || !eps.length
+      ? (loading && x.item.type !== 'movie' ? '' : `<button class="btn primary" data-nav data-key="play" data-act="sources" data-k="${esc(x.item.type)}" data-id="${esc(x.item.id)}" data-t="${esc(it.name)}">${glyph('A')}Choose a source</button>`)
+      : first ? `<button class="btn primary" data-nav data-key="play" data-act="sources" data-k="${esc(x.item.type)}" data-id="${esc(first.id)}" data-t="${esc(epTitle(first))}">${glyph('A')}Choose a source · ${first.season != null ? `S${first.season} E${first.episode}` : esc(first.title)}</button><span class="note">or pick any episode below</span>` : '';
   const bg = it.background;
   return topbar() + `<main class="main"><div class="backdrop" aria-hidden="true">${it.poster ? streamImg(it.poster) : ''}</div>
   <div class="detail scroll ${bg ? 'has-hero' : ''}" id="detailscroll">
@@ -264,13 +272,42 @@ function sdetail() {
       ${it.genres?.length ? `<div class="cats" role="list" aria-label="Genres">${it.genres.slice(0, 6).map((g) => `<span class="cat" role="listitem">${esc(g)}</span>`).join('')}</div>` : ''}
       ${it.description ? `<p class="desc">${esc(it.description)}</p>` : loading ? '<p class="desc" style="opacity:.6">Getting details…</p>' : ''}
       ${people.length ? `<p class="note">${esc(people.join(' · '))}</p>` : ''}
-      <div class="actions"><span class="note">${x.item.type === 'movie' ? 'Choosing a source and playing come in the next Spine update.' : 'Choosing a source and playing episodes come in the next Spine update.'}</span></div>
+      <div class="actions">${action}</div>
       <div class="facts"><div class="fact"><span class="k">From</span><span class="v">${esc(x.addonName || 'Addon')}</span><span class="n">Streaming addon</span></div></div>
     </div>
    </div>
    ${epsHtml}
    ${loading && x.item.type !== 'movie' ? '<div class="nofav" style="padding:30px 0">Getting episodes…</div>' : ''}
-  </div></main>` + hints('From a streaming addon', [['B', 'Back']]);
+  </div></main>` + hints('From a streaming addon', [['A', 'Choose a source'], ['B', 'Back']]);
+}
+
+// ---- "Choose a source": what your source addons offer for a movie or episode.
+function sourcesPanel() {
+  if (S.panel !== 'sources' || !S.src) return '';
+  const x = S.src;
+  let body;
+  if (x.loading) body = `<div class="nofav" style="padding:40px 0"><div class="spinner" style="margin:0 auto 18px"></div>Asking your addons…</div>`;
+  else if (x.error) body = `<div class="warning">${esc(x.error)}</div>`;
+  else if (!x.groups.length) body = `<div class="note">None of your addons offers sources for this. Add a source addon (set up with your TorBox key) in Settings → Streaming addons.</div>`;
+  else {
+    let i = 0;
+    body = x.groups.map((g) => {
+      const rows = g.sources.map((src) => {
+        const lines = src.details.split('\n').map((l) => l.trim()).filter(Boolean);
+        const head = src.name.split('\n').map((l) => l.trim()).filter(Boolean).join(' · ');
+        return `<button class="srcrow" data-nav data-key="src-${i++}" data-act="splay" data-tok="${esc(src.token)}">
+          <span class="badges">${src.quality ? `<span class="q">${esc(src.quality)}</span>` : ''}${src.cached === true ? '<span class="ready">Ready</span>' : src.cached === false ? '<span class="wait">Not cached</span>' : ''}${src.size ? `<span class="sz">${esc(src.size)}</span>` : ''}</span>
+          <span class="sn">${esc(head || g.addon)}</span>${lines.length ? `<span class="sd">${lines.slice(0, 3).map(esc).join('<br>')}</span>` : ''}</button>`;
+      }).join('');
+      const note = g.error ? `<div class="note">${esc(g.error)}</div>` : !g.sources.length ? `<div class="note">${g.torrents ? `${g.torrents} torrent result${g.torrents === 1 ? '' : 's'}, but Spine plays links from a debrid service (like TorBox). Set this addon up with your TorBox key.` : 'Nothing found.'}</div>` : '';
+      return `<section class="srcgroup"><h3>${esc(g.addon)}${g.sources.length ? ` <span class="rs">${g.sources.length}</span>` : ''}</h3>${note}${rows ? `<div class="srclist">${rows}</div>` : ''}</section>`;
+    }).join('');
+  }
+  return `<div class="panel" data-act="closepanel"><aside class="sheet wide" role="dialog" aria-label="Choose a source">
+    <h2>Choose a source</h2><p class="note" style="margin-top:-6px">${esc(x.title)}</p>
+    <span class="note">"Ready" sources are already on your debrid service and start right away. Plays in VLC.</span>
+    ${body}
+  </aside></div>`;
 }
 
 // ---- Settings → Addons
@@ -306,6 +343,36 @@ function addonPanel() {
 }
 
 const STREAM_ACT = {
+  async sources(d) {
+    const req = { title: d.t, kind: d.k, id: d.id, loading: true, groups: [] };
+    S.src = req; S.srcFrom = document.activeElement?.dataset?.key || 'play';
+    S.panel = 'sources'; S.focusKey = null; render();
+    try {
+      const groups = await api.call('addon_streams', { kind: d.k, id: d.id });
+      if (S.src !== req) return;
+      req.groups = groups;
+    } catch (e) {
+      if (S.src !== req) return;
+      req.error = String(e);
+    }
+    req.loading = false;
+    if (S.panel === 'sources') { S.focusKey = 'src-0'; render(); }
+  },
+  async splay(d) {
+    const x = S.src;
+    if (!x) return;
+    S.panel = null; stopPreview();
+    S.playing = { title: x.title, emulator: 'VLC', movie: true };
+    render();
+    try {
+      const emu = await api.call('play_stream', { token: d.tok, title: x.title, id: `${x.kind}:${x.id}` });
+      S.playing = { ...S.playing, emulator: emu, started: true };
+    } catch (e) {
+      S.playing = { ...S.playing, error: String(e) };
+    }
+    S.focusKey = 'closeplay';
+    render();
+  },
   skind(d) {
     S_STREAM.kind = d.k; S.focusKey = `sk-${d.k}`;
     render();

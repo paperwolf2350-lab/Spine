@@ -120,6 +120,8 @@ struct App {
     offline: Mutex<Vec<PathBuf>>,
     /// Streaming addons (addons.json). Their links can hold the user's keys: never sent to the interface.
     addons: Mutex<Vec<addons::Stored>>,
+    /// Sources from the last "Choose a source": token -> link (links can hold the user's key).
+    sources: Mutex<BTreeMap<String, addons::Source>>,
 }
 
 impl App {
@@ -1400,6 +1402,113 @@ async fn addon_search(key: String, kind: String, id: String, query: String, hand
     tauri::async_runtime::spawn_blocking(move || addons::fetch_search(&a, &kind, &id, &query)).await.map_err(|e| e.to_string())?
 }
 
+/// One source as the interface sees it: what it is, never the link.
+#[derive(Serialize)]
+struct SourceView {
+    token: String,
+    name: String,
+    details: String,
+    quality: Option<String>,
+    size: Option<String>,
+    cached: Option<bool>,
+}
+
+#[derive(Serialize)]
+struct SourceGroup {
+    addon: String,
+    error: Option<String>,
+    /// Torrent-only results (need a debrid addon to play).
+    torrents: usize,
+    sources: Vec<SourceView>,
+}
+
+/// "Choose a source": ask every source addon for this movie or episode.
+#[tauri::command]
+async fn addon_streams(kind: String, id: String, handle: AppHandle) -> Result<Vec<SourceGroup>, String> {
+    let app = handle.state::<App>();
+    let list = app.addons.lock().unwrap().clone();
+    let found = tauri::async_runtime::spawn_blocking(move || addons::fetch_streams(&list, &kind, &id)).await.map_err(|e| e.to_string())?;
+    let mut store = app.sources.lock().unwrap();
+    store.clear();
+    let mut n = 0;
+    Ok(found
+        .into_iter()
+        .map(|(addon, r)| match r {
+            Err(e) => SourceGroup { addon, error: Some(e), torrents: 0, sources: vec![] },
+            Ok(st) => SourceGroup {
+                addon,
+                error: None,
+                torrents: st.torrents,
+                sources: st
+                    .sources
+                    .into_iter()
+                    .map(|src| {
+                        n += 1;
+                        let token = format!("s{n}");
+                        let view = SourceView { token: token.clone(), name: src.name.clone(), details: src.details.clone(), quality: src.quality.clone(), size: src.size.clone(), cached: src.cached };
+                        store.insert(token, src);
+                        view
+                    })
+                    .collect(),
+            },
+        })
+        .collect())
+}
+
+/// Play a source from "Choose a source" in VLC (or mpv). Emits "game-exited" like games.
+#[tauri::command]
+fn play_stream(token: String, title: String, id: String, handle: AppHandle) -> Result<String, String> {
+    let app = handle.state::<App>();
+    if let Some(r) = app.running.lock().unwrap().as_ref() {
+        return Err(format!("{r} is still running."));
+    }
+    let src = app.sources.lock().unwrap().get(&token).cloned().ok_or("That source has expired. Choose a source again.")?;
+    let pref = app.saved.lock().unwrap().settings.get("streamPlayer").and_then(|v| v.as_str()).map(String::from);
+    let plan = launch::plan_stream(&app.installed.lock().unwrap(), &src.url, &title, &src.headers, pref.as_deref());
+    if let Some(why) = &plan.blocked {
+        return Err(why.clone());
+    }
+    let log = app.dir.join("logs").join("last-game.log");
+    let _ = fs::create_dir_all(log.parent().unwrap());
+    let mut child = launch::launch_logged(&plan, Some(log.as_path())).map_err(|e| addons::redact(&format!("Couldn't start {}: {e}", plan.emulator), &src.url))?;
+    *app.running.lock().unwrap() = Some(title);
+    let emulator = plan.emulator.clone();
+    let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    if app.saved.lock().unwrap().settings.get("exitCombo").and_then(|v| v.as_bool()) != Some(false) {
+        let pid = child.id();
+        let (d, hh) = (done.clone(), handle.clone());
+        pad::watch(done.clone(), move || {
+            let _ = hh.emit("game-closing", ());
+            pad::close_game(pid, &|| !d.load(std::sync::atomic::Ordering::Relaxed));
+        });
+    }
+    let h = handle.clone();
+    std::thread::spawn(move || {
+        let started = std::time::Instant::now();
+        let status = child.wait();
+        done.store(true, std::sync::atomic::Ordering::Relaxed);
+        let secs = started.elapsed().as_secs();
+        let quick = started.elapsed() < std::time::Duration::from_secs(6);
+        let error = (quick && (status.as_ref().map_or(true, |s| !s.success()) || secs < 3)).then(|| {
+            let reason = fs::read_to_string(&log).ok().and_then(|t| launch::log_reason(&t));
+            let mut msg = format!("{} closed right away, so the video didn't start. The source may not be ready yet (not cached on your debrid service) or the link may have expired: try another source.", plan.emulator);
+            if let Some(r) = reason {
+                msg.push_str("\n\nWhat it said:\n");
+                msg.push_str(&r);
+            }
+            addons::redact(&msg, &src.url)
+        });
+        let app = h.state::<App>();
+        *app.running.lock().unwrap() = None;
+        let _ = h.emit("game-exited", serde_json::json!({"id": format!("stream/{id}"), "seconds": secs, "error": error}));
+        if let Some(w) = h.get_webview_window("main") {
+            let _ = w.unminimize();
+            let _ = w.set_focus();
+        }
+    });
+    Ok(emulator)
+}
+
 /// Full details for a title (episodes for shows), from the addon it came from or any other.
 #[tauri::command]
 async fn addon_meta(key: Option<String>, kind: String, id: String, handle: AppHandle) -> Result<Option<addons::Meta>, String> {
@@ -1697,6 +1806,7 @@ fn main() {
             fetching: Mutex::new(false),
             offline: Mutex::new(offline),
             addons: Mutex::new(load_addons(&dir2)),
+            sources: Mutex::new(BTreeMap::new()),
         })
         .register_uri_scheme_protocol("spine", move |ctx, req| {
             let range = req.headers().get("range").and_then(|v| v.to_str().ok()).map(String::from);
@@ -1712,7 +1822,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

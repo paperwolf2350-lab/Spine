@@ -293,6 +293,38 @@ fn plan_with(l: &Launcher, game: &Game, installed: &Installed) -> LaunchPlan {
     }
 }
 
+/// Play a web link (a streaming addon's source) in VLC, else mpv. `title` shows in the
+/// player instead of the link (which can hold the user's key); `headers` are what the
+/// addon says the link needs (User-Agent, Referer).
+pub fn plan_stream(installed: &Installed, url: &str, title: &str, headers: &[(String, String)], preferred: Option<&str>) -> LaunchPlan {
+    let header = |k: &str| headers.iter().find(|(h, _)| h.eq_ignore_ascii_case(k)).map(|(_, v)| v.clone());
+    let (ua, referer) = (header("user-agent"), header("referer"));
+    let mut order = vec!["vlc", "mpv"];
+    if preferred == Some("mpv") {
+        order.reverse();
+    }
+    for id in order {
+        let def = emulator(id).expect("vlc/mpv defined");
+        let (program, mut args) = match (installed.path(id), installed.flatpak.get(id)) {
+            (Some(exe), _) => (exe.clone(), vec![]),
+            (None, Some(fp)) => (PathBuf::from("flatpak"), vec!["run".to_string(), fp.to_string()]),
+            (None, None) => continue,
+        };
+        if id == "vlc" {
+            args.extend(["--fullscreen".to_string(), "--play-and-exit".to_string(), format!("--meta-title={title}")]);
+            args.extend(ua.iter().map(|u| format!("--http-user-agent={u}")));
+            args.extend(referer.iter().map(|r| format!("--http-referrer={r}")));
+        } else {
+            args.extend(["--fullscreen".to_string(), format!("--force-media-title={title}")]);
+            args.extend(ua.iter().map(|u| format!("--user-agent={u}")));
+            args.extend(referer.iter().map(|r| format!("--referrer={r}")));
+        }
+        args.push(url.to_string());
+        return LaunchPlan { emulator: def.name.into(), program, args, blocked: None };
+    }
+    LaunchPlan { emulator: "VLC".into(), program: PathBuf::from("vlc"), args: vec![], blocked: Some("Install VLC (or mpv) to watch streams.".into()) }
+}
+
 /// Start the game. Returns the child process so the app can track playtime.
 pub fn launch(plan: &LaunchPlan) -> std::io::Result<std::process::Child> {
     launch_logged(plan, None)
@@ -559,5 +591,23 @@ mod launch_log_tests {
         let r = log_reason(log).unwrap();
         assert!(r.contains("Could not read content file") && r.contains("Failed to load content") && !r.contains("Exiting"));
         assert_eq!(log_reason("  \n"), None);
+    }
+}
+
+#[cfg(test)]
+mod stream_tests {
+    use super::*;
+
+    #[test]
+    fn plans_streams() {
+        let mut inst = Installed::default();
+        let p = plan_stream(&inst, "https://x.example/K/v.mkv", "Dune", &[], None);
+        assert!(p.blocked.is_some());
+        inst.flatpak.insert("vlc".into(), "org.videolan.VLC".into());
+        let p = plan_stream(&inst, "https://x.example/K/v.mkv", "Dune", &[("User-Agent".into(), "UA".into())], None);
+        assert_eq!(p.emulator, "VLC");
+        assert_eq!(p.args[..2], ["run".to_string(), "org.videolan.VLC".to_string()]);
+        assert!(p.args.contains(&"--meta-title=Dune".to_string()) && p.args.contains(&"--http-user-agent=UA".to_string()));
+        assert_eq!(p.args.last().unwrap(), "https://x.example/K/v.mkv");
     }
 }

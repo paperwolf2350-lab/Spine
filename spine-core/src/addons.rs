@@ -212,6 +212,10 @@ pub fn search_url(base: &str, typ: &str, id: &str, query: &str) -> String {
     format!("{base}/catalog/{}/{}/search={}.json", enc(typ), enc(id), enc(query.trim()))
 }
 
+pub fn stream_url(base: &str, typ: &str, id: &str) -> String {
+    format!("{base}/stream/{}/{}.json", enc(typ), enc(id))
+}
+
 pub fn meta_url(base: &str, typ: &str, id: &str) -> String {
     format!("{base}/meta/{}/{}.json", enc(typ), enc(id))
 }
@@ -356,6 +360,119 @@ pub fn fetch_search(a: &Stored, typ: &str, id: &str, query: &str) -> Result<Vec<
     parse_catalog(&bytes, typ).map_err(|e| format!("{}: {e}", a.name()))
 }
 
+/// One way to watch a title, as an addon offered it. `url` usually holds the user's
+/// debrid key (TorBox, Real-Debrid...): it stays in the backend, never in the interface.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Source {
+    pub url: String,
+    /// The addon's first line ("Torrentio\n[TB+] 4k") and the rest (file name, size, seeders...).
+    pub name: String,
+    pub details: String,
+    pub quality: Option<String>,
+    pub size: Option<String>,
+    /// Already on the debrid service (plays at once) / needs downloading first / unknown.
+    pub cached: Option<bool>,
+    pub filename: Option<String>,
+    /// HTTP headers the link needs (behaviorHints.proxyHeaders.request).
+    pub headers: Vec<(String, String)>,
+}
+
+/// What came back from one addon: playable links, plus how many were torrents
+/// Spine can't play without a debrid service.
+#[derive(Debug, Clone, Default)]
+pub struct Streams {
+    pub sources: Vec<Source>,
+    pub torrents: usize,
+}
+
+fn quality_of(text: &str) -> Option<String> {
+    let t = text.to_lowercase();
+    for (k, label) in [("2160p", "4K"), ("4k", "4K"), ("uhd", "4K"), ("1440p", "1440p"), ("1080p", "1080p"), ("720p", "720p"), ("576p", "SD"), ("480p", "SD"), ("360p", "SD")] {
+        if t.contains(k) {
+            return Some(label.to_string());
+        }
+    }
+    None
+}
+
+fn size_of(text: &str, bytes: Option<u64>) -> Option<String> {
+    if let Some(b) = bytes.filter(|b| *b > 0) {
+        let gb = b as f64 / 1_073_741_824.0;
+        return Some(if gb >= 1.0 { format!("{gb:.1} GB") } else { format!("{:.0} MB", b as f64 / 1_048_576.0) });
+    }
+    let re = regex::Regex::new(r"(?i)(\d+(?:[.,]\d+)?)\s?(GB|MB|GiB|MiB)\b").ok()?;
+    let c = re.captures(text)?;
+    Some(format!("{} {}", c[1].replace(',', "."), c[2].to_uppercase().replace("IB", "B")))
+}
+
+/// Debrid-style addons mark cached results: "[TB+]" / "⚡" = ready, "[TB download]" / "⏳" = not yet.
+fn cached_of(name: &str) -> Option<bool> {
+    let n = name.to_lowercase();
+    if n.contains("+]") || name.contains('⚡') || n.contains("cached") && !n.contains("uncached") && !n.contains("not cached") {
+        Some(true)
+    } else if n.contains("download]") || name.contains('⏳') || n.contains("uncached") || n.contains("not cached") {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+pub fn parse_streams(json: &[u8]) -> Result<Streams, String> {
+    let v: Value = serde_json::from_slice(json).map_err(|_| "The addon sent something Spine can't read.".to_string())?;
+    let Some(Value::Array(list)) = v.get("streams") else { return Ok(Streams::default()) };
+    let mut out = Streams::default();
+    for st in list {
+        let Some(url) = str_of(st, "url").filter(|u| u.starts_with("https://") || u.starts_with("http://")) else {
+            if st.get("infoHash").is_some() {
+                out.torrents += 1;
+            }
+            continue;
+        };
+        let name = str_of(st, "name").unwrap_or_default();
+        let details = str_of(st, "description").or_else(|| str_of(st, "title")).unwrap_or_default();
+        let hints = st.get("behaviorHints");
+        let filename = hints.and_then(|h| str_of(h, "filename"));
+        let bytes = hints.and_then(|h| h.get("videoSize")).and_then(|x| x.as_u64());
+        let headers = hints
+            .and_then(|h| h.get("proxyHeaders"))
+            .and_then(|p| p.get("request"))
+            .and_then(|r| r.as_object())
+            .map(|o| o.iter().filter_map(|(k, v)| v.as_str().map(|v| (k.clone(), v.to_string()))).collect())
+            .unwrap_or_default();
+        let all = format!("{name}\n{details}\n{}", filename.clone().unwrap_or_default());
+        out.sources.push(Source {
+            quality: quality_of(&all),
+            size: size_of(&details, bytes),
+            cached: cached_of(&name),
+            url,
+            name,
+            details,
+            filename,
+            headers,
+        });
+    }
+    Ok(out)
+}
+
+/// Ask every addon that offers sources for this title, all at once. Each result is
+/// (addon name, its sources or a plain-words error). Errors never contain links.
+pub fn fetch_streams(addons: &[Stored], typ: &str, id: &str) -> Vec<(String, Result<Streams, String>)> {
+    let askers: Vec<&Stored> = addons.iter().filter(|a| serves(&a.manifest, "stream", typ, id)).collect();
+    std::thread::scope(|sc| {
+        let jobs: Vec<_> = askers
+            .iter()
+            .map(|a| {
+                sc.spawn(move || {
+                    let url = stream_url(&a.base(), typ, id);
+                    let r = crate::covers::curl(&url, true, &[]).map_err(|e| friendly(&redact(&redact(&e, &url), &a.url))).and_then(|b| parse_streams(&b));
+                    (a.name(), r)
+                })
+            })
+            .collect();
+        jobs.into_iter().filter_map(|j| j.join().ok()).collect()
+    })
+}
+
 /// Details for a title: first the addon it came from, then any other addon that gives
 /// details for it, then Cinemeta (IMDb ids). None if nobody knows it.
 pub fn fetch_meta(addons: &[Stored], from: Option<&str>, typ: &str, id: &str) -> Option<Meta> {
@@ -417,6 +534,28 @@ mod tests {
         assert!(bb.episodes.len() > 60, "{}", bb.episodes.len());
         assert_eq!((bb.episodes[0].season, bb.episodes[0].episode), (Some(1), Some(1)));
         println!("{} top shows; first: {:?}; BB poster {:?}", top.len(), top[0].name, bb.item.poster);
+    }
+
+    #[test]
+    fn reads_sources() {
+        let j = r#"{"streams":[
+            {"name":"Torrentio\n[TB+] 4k","title":"Movie.2010.2160p.mkv\n👤 120 💾 31.2 GB ⚙️ RARBG","url":"https://torrentio.example/resolve/torbox/SECRET/abc/1","behaviorHints":{"bingeGroup":"x","filename":"Movie.2010.2160p.mkv"}},
+            {"name":"Torrentio\n[TB download] 1080p","title":"Movie.2010.1080p.mkv\n💾 2,5 GB","url":"https://torrentio.example/resolve/torbox/SECRET/def/1"},
+            {"name":"Torrentio\n720p","title":"x","infoHash":"aabbcc","fileIdx":0},
+            {"name":"Direct","description":"Some host","url":"https://cdn.example/v.m3u8","behaviorHints":{"videoSize":734003200,"proxyHeaders":{"request":{"User-Agent":"Mozilla/5.0","Referer":"https://site.example/"}}}},
+            {"name":"YouTube","ytId":"abc"}
+        ]}"#;
+        let s = parse_streams(j.as_bytes()).unwrap();
+        assert_eq!(s.torrents, 1);
+        assert_eq!(s.sources.len(), 3);
+        assert_eq!((s.sources[0].quality.as_deref(), s.sources[0].size.as_deref(), s.sources[0].cached), (Some("4K"), Some("31.2 GB"), Some(true)));
+        assert_eq!((s.sources[1].quality.as_deref(), s.sources[1].size.as_deref(), s.sources[1].cached), (Some("1080p"), Some("2.5 GB"), Some(false)));
+        assert_eq!(s.sources[2].size.as_deref(), Some("700 MB"));
+        assert_eq!(s.sources[2].cached, None);
+        assert_eq!(s.sources[2].headers.len(), 2);
+        assert_eq!(s.sources[0].filename.as_deref(), Some("Movie.2010.2160p.mkv"));
+        assert_eq!(parse_streams(b"{}").unwrap().sources.len(), 0);
+        assert_eq!(stream_url("https://a.b", "series", "tt1:2:3"), "https://a.b/stream/series/tt1%3A2%3A3.json");
     }
 
     #[test]

@@ -1086,7 +1086,7 @@ function render() {
   const scrollers = {};
   app.querySelectorAll('.scroll').forEach((el) => { if (el.id) scrollers[el.id] = el.scrollTop; });
   const screens = { welcome, scanning, home, games, detail, stream, sdetail, loading: () => '' };
-  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + addonPanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
+  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + addonPanel() + sourcesPanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
   silenceDetached();
   Object.entries(scrollers).forEach(([id, top]) => { const el = document.getElementById(id); if (el) el.scrollTop = top; });
   const car = document.getElementById('carousel');
@@ -1278,7 +1278,7 @@ const ACT = {
   home() { S.panel = null; S.screen = 'home'; S.focusKey = null; render(); },
   search(d) { if (!d || !d.keep) S.query = ''; S.panel = 'search'; S.focusKey = 'q'; render(); },
   settings() { const was = S.panel; S.panel = S.panel === 'settings' ? null : 'settings'; S.focusKey = S.panel ? (was === 'addon' ? 'addaddon' : S.accounts && S.focusKey?.startsWith('acc') ? 'scrapers' : null) : 'gear'; render(); },
-  closepanel() { const was = S.panel; S.panel = null; S.focusKey = was === 'search' ? 'searchbtn' : was === 'emulator' ? 'chemu' : was === 'showfix' ? 'showfix' : 'gear'; render(); },
+  closepanel() { const was = S.panel; S.panel = null; S.focusKey = was === 'search' ? 'searchbtn' : was === 'sources' ? (S.srcFrom || 'play') : was === 'emulator' ? 'chemu' : was === 'showfix' ? 'showfix' : 'gear'; render(); },
   tile(d) {
     const t = tiles()[+d.i];
     if (!t) return;
@@ -2010,7 +2010,7 @@ api.on('game-exited', (p) => {
   S.playing = null;
   S.focusKey = 'play';
   render();
-  if (p.seconds > 60) toast(`${/^(movies|tv)\//.test(String(p.id)) ? 'Watched' : 'Played'} ${fmtTime(p.seconds)}`);
+  if (p.seconds > 60) toast(`${/^(movies|tv|stream)\//.test(String(p.id)) ? 'Watched' : 'Played'} ${fmtTime(p.seconds)}`);
 });
 
 // ---------------------------------------------------------------------------

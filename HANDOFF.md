@@ -377,5 +377,19 @@ Wave/Blades/Cube list one "Open Streaming" item (`waveItems`). Icon `SYS_ICON.st
 Name clash to remember: `streamTile()` = a poster card in results, `streamHomeTile()` = the Home tile.
 Future streaming work goes in stream.js/stream.css and the 'stream' / 'sdetail' screens only.
 
+**0.13.0** (step 2, playing): `addons::fetch_streams` asks every addon that `serves` "stream" for
+the type/id (episode ids like `tt0903747:2:3`, in parallel threads), `parse_streams` keeps http(s)
+`url` streams (torrent-only `infoHash` results are just counted: no torrent engine, debrid only),
+guesses quality/size, `cached` from "[TB+]"/⚡ vs "[TB download]"/⏳, reads
+behaviorHints.proxyHeaders. App: `addon_streams` returns SourceViews with a token (`s1`...);
+the link stays in `App.sources` (cleared each call). `play_stream(token, title, id)` uses
+`launch::plan_stream` (VLC first, mpv if `settings.streamPlayer == "mpv"`; Flatpak `run <id>`;
+`--meta-title` / `--force-media-title` so the window shows the title, not the link; UA/Referer
+headers) and the same Select+Start exit + "game-exited" event (id `stream/<type>:<id>`, no
+progress yet). Errors pass through `addons::redact`. UI: "Choose a source" (key `play`) on
+sdetail; episode rows open sources too; `sourcesPanel()` (S.panel 'sources', S.src) groups by
+addon with Ready / Not cached badges. Not yet: resume/watched/Continue watching (step 3), and a
+real TorBox run (can't reach it from the workspace: owner to check on his PC).
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

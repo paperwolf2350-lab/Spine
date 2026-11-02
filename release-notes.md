@@ -1,7 +1,7 @@
 ## What's new
-- **Streaming has its own tile on Home.** Everything from your streaming addons now lives under Streaming: switch between Movies and Shows, search your addons, and browse each catalog (LB / RB step through the tabs, LT / RT switch Movies and Shows). It works in every Home style.
-- **Movies and TV are your own files again**, with nothing from addons mixed in.
-- Since 0.12.0: Stremio-style streaming addons with catalogs, search, details and episode lists.
+- **Watch from Streaming.** Movie and episode pages in Streaming have a **Choose a source** button. It asks your source addons (the ones set up with your TorBox key) and lists what they found with quality, size and whether it's **Ready** (already on TorBox, starts right away). Pick one and it plays in VLC (or mpv); hold Select + Start to come back.
+- On a show, pick any episode, or use the button for the first episode of the season you're looking at.
+- Your keys stay safe: the links (which hold your TorBox key) never reach the interface or its messages.
 
 ---
 
