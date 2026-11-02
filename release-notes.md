@@ -1,7 +1,6 @@
 ## What's new
-- **Streaming lists:** inside the Streaming tile you now have your own tabs: Continue watching, Favorites, Watch later and lists you make yourself (like "Movie night"). They only show once they have something in them, and they stay separate from your game lists.
-- **Favorite with Y:** press Y on any poster or on a title's page. Favorites get a little heart.
-- On a title's page: **Favorite**, **Watch later** and **Add to list** buttons under the poster. Delete one of your own lists from the bottom of its tab.
+- Continue watching on the Streaming screen now lives only in its own tab (no more extra row above the catalogs).
+- From 0.16: Streaming lists (Continue watching, Favorites, Watch later and your own lists as tabs), Y to favorite, and Favorite / Watch later / Add to list on a title's page.
 
 ---
 

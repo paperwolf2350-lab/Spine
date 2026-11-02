@@ -105,7 +105,7 @@ function stream() {
   if (cur && !cur.search && !S_STREAM.cache[cur.ck]) setTimeout(() => streamLoad(cur.ck));
   const body = !kinds.length
     ? `<div class="nofav">Your addons don't have catalogs or search. Add a catalog addon in Settings → Streaming addons, for example Cinemeta:<br><span class="path">https://v3-cinemeta.strem.io/manifest.json</span></div>`
-    : cur ? (cur.search || cur.mine ? '' : streamContinueRow(kind)) + streamGrid(cur) : '';
+    : cur ? streamGrid(cur) : '';
   return topbar() + `<main class="main">
     <div class="gamesbar">
       <button class="iconbtn" data-nav data-key="sgback" data-act="back" aria-label="Back to Home">${ICON.back}</button>
@@ -300,13 +300,6 @@ function streamContinue(kind, max = 12) {
     const line = canResume(p) ? `Resume ${code ? code + ' · ' : ''}${clock(p.pos)}` : done ? `Next after ${code}` : code ? `Watch ${code}` : 'Watch';
     return { r, line, pct: canResume(p) && p.len ? Math.round((100 * p.pos) / p.len) : 0 };
   }).filter(Boolean).slice(0, max);
-}
-function streamContinueRow(kind) {
-  const list = streamContinue(kind);
-  if (!list.length) return '';
-  return `<section class="morerow scontinue"><h3>Continue watching</h3><div class="strip">${list.map(({ r, line, pct }) => `<button class="game" data-nav data-key="cw-${esc(r.item)}" data-act="scontinue" data-item="${esc(r.item)}">
-      <span class="cwimg">${streamCover({ name: r.name, year: r.year }, bigPoster(r.poster))}${pct ? `<span class="pbar"><i style="width:${pct}%"></i></span>` : ''}</span>
-      <span class="t">${esc(r.name)}</span><span class="s">${esc(line)}</span></button>`).join('')}</div></section>`;
 }
 
 // Details page for a title from an addon catalog.

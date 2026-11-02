@@ -423,6 +423,7 @@ Search, yours, a `.tabsep`, catalogs; default tab is still the first catalog. `s
 poster from a catalog/search/list (used by `sopen` and Y). Y on the Streaming screens goes to `streamY`
 (before the game Y handler in `press`). Details page: Favorite / Watch later / Add to list (`slists` panel,
 `streamListsPanel`, new list via `slnew`). Hearts (`sFavDot`) on posters. Tested in Playwright with a mock.
+**0.16.1**: the Continue watching row above catalogs was removed (owner: doubled up with the tab).
 
 **Next session**: start with ROADMAP "Next up" (0.17). Streaming code lives in
 `ui/stream.js` + `stream.css` and `spine-core/src/addons.rs`; keep new streaming features there.
