@@ -352,6 +352,7 @@ function home() {
   }
   if (waveOn()) return homeWave();
   if (channelsOn()) return homeChannels();
+  if (bladesOn()) return homeBlades();
   const T = tiles();
   const sel = Math.min(S.sel, T.length - 1);
   const t = T[sel];
@@ -686,9 +687,10 @@ function settingsPanel() {
       <button class="chip ${theme === 'midnight' ? 'on' : ''}" data-nav data-key="th-midnight" data-act="theme" data-t="midnight">Midnight</button>
       <button class="chip ${theme === 'crt' ? 'on' : ''}" data-nav data-key="th-crt" data-act="theme" data-t="crt">Retro CRT</button></div></div>
     <div class="grp"><span class="k">Home style</span><span class="note">How the Home screen is laid out. Game and movie pages look the same in every style.</span><div class="opts">
-      <button class="chip ${!waveOn() && !channelsOn() ? 'on' : ''}" data-nav data-key="hs-classic" data-act="homestyle" data-s="classic">Classic</button>
+      <button class="chip ${!waveOn() && !channelsOn() && !bladesOn() ? 'on' : ''}" data-nav data-key="hs-classic" data-act="homestyle" data-s="classic">Classic</button>
       <button class="chip ${waveOn() ? 'on' : ''}" data-nav data-key="hs-wave" data-act="homestyle" data-s="wave">Wave</button>
-      <button class="chip ${channelsOn() ? 'on' : ''}" data-nav data-key="hs-channels" data-act="homestyle" data-s="channels">Channels</button></div></div>
+      <button class="chip ${channelsOn() ? 'on' : ''}" data-nav data-key="hs-channels" data-act="homestyle" data-s="channels">Channels</button>
+      <button class="chip ${bladesOn() ? 'on' : ''}" data-nav data-key="hs-blades" data-act="homestyle" data-s="blades">Blades</button></div></div>
     <div class="grp"><span class="k">Accent</span><div class="opts">${sw}</div></div>
     <div class="grp"><span class="k">ROM folders</span><span class="note">Spine reads every folder here and puts the games together. Folders on a drive that's unplugged keep their games listed until it's back.</span>
       <div class="roots">${(S.boot.roots || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>
@@ -1091,6 +1093,7 @@ function render() {
   }
   restoreFocus();
   waveMount();
+  bladesMount();
   BGM.sync();
   startPreview();
   const gs = document.getElementById('gamesscroll');
@@ -1213,7 +1216,7 @@ function restoreFocus() {
   const els = navEls();
   let el = S.focusKey && els.find((e) => e.dataset.key === S.focusKey);
   if (!el) {
-    const pref = S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : { home: waveOn() ? waveFocusKey() : `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
+    const pref = S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : { home: waveOn() ? waveFocusKey() : bladesOn() ? bladeFocusKey() : `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
     el = (pref && els.find((e) => e.dataset.key === pref)) || els.find((e) => e.dataset.key?.startsWith('g-')) || els.find((e) => e.dataset.key !== 'brand') || els[0];
   }
   if (el) focusEl(el, false);
@@ -1530,6 +1533,7 @@ const ACT = {
       const id = curList()?.tile.id;
       S.screen = 'home'; S.sel = Math.max(0, tiles().findIndex((t) => t.id === id)); S.focusKey = `con-${id}`;
       if (S.wave) S.wave.cat = id;
+      if (S.blade) S.blade.cat = id;
       return render();
     }
   },
@@ -1586,6 +1590,13 @@ const ACT = {
   closeplay() { S.playing = null; S.focusKey = 'play'; render(); },
   theme(d) { S.focusKey = `th-${d.t}`; setSetting('theme', d.t); },
   homemusic(d) { S.focusKey = `bgm-${d.v}`; setSetting('homeMusic', d.v); },
+  bladego(d) { bladeGo(+d.i); },
+  chpage(d) {
+    const T = tiles(), pages = Math.ceil(T.length / CH_PER_PAGE);
+    const p = Math.max(0, Math.min(pages - 1, (S.chPage || 0) + +d.d));
+    if (p === S.chPage) return;
+    S.chPage = p; S.focusKey = `con-${T[p * CH_PER_PAGE].id}`; render();
+  },
   homestyle(d) { S.focusKey = `hs-${d.s}`; setSetting('home_style', d.s); },
   wavecat(d) { const c = waveCats()[+d.i]; if (!c) return; S.wave.cat = c.id; waveSync(true); },
   accent(d) { S.focusKey = `acc-${d.c}`; setSetting('accent', d.c); },
@@ -1723,7 +1734,37 @@ const SFX = (() => {
     o.connect(g); g.connect(master);
     o.start(t); o.stop(t + len + 0.02);
   }
+  // A burst of filtered noise, swept from f to f2: whooshes and clicks.
+  let noiseBuf = null;
+  function hiss(f, { f2 = f, len = 0.1, vol = 0.05, q = 1.5, at = 0 } = {}) {
+    const c = out(); if (!c) return;
+    if (!noiseBuf) { noiseBuf = c.createBuffer(1, c.sampleRate, c.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+    const t = c.currentTime + at;
+    const s = c.createBufferSource(), bp = c.createBiquadFilter(), g = c.createGain();
+    s.buffer = noiseBuf; bp.type = 'bandpass'; bp.Q.value = q;
+    bp.frequency.setValueAtTime(f, t);
+    if (f2 !== f) bp.frequency.exponentialRampToValueAtTime(f2, t + len);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.03, len * 0.35));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    s.connect(bp); bp.connect(g); g.connect(master);
+    s.start(t, Math.random() * 0.5, len + 0.05);
+  }
+  // Blades home style: glassy pings and swooshing panels instead of soft beeps.
+  const blades = {
+    move: () => { hiss(4200, { len: 0.03, vol: 0.06, q: 9 }); note(2350, { len: 0.03, vol: 0.016 }); },
+    tick: () => hiss(3000, { len: 0.03, vol: 0.05, q: 8 }),
+    edge: () => { note(150, { f2: 105, len: 0.09, vol: 0.05, wave: 'triangle' }); hiss(500, { len: 0.06, vol: 0.03, q: 2 }); },
+    select: () => { note(1320, { len: 0.22, vol: 0.03 }); note(1980, { len: 0.28, vol: 0.022, at: 0.02 }); hiss(6000, { len: 0.05, vol: 0.03, q: 3 }); },
+    back: () => { note(1980, { len: 0.08, vol: 0.022 }); note(1320, { len: 0.14, vol: 0.026, at: 0.04 }); hiss(2400, { f2: 900, len: 0.12, vol: 0.03, q: 2 }); },
+    open: () => { hiss(700, { f2: 3200, len: 0.16, vol: 0.05, q: 2.5 }); note(990, { len: 0.12, vol: 0.02, at: 0.08 }); },
+    bladeR: () => { hiss(450, { f2: 2600, len: 0.22, vol: 0.07, q: 2.2 }); note(95, { f2: 70, len: 0.14, vol: 0.06, at: 0.04 }); note(1480, { len: 0.12, vol: 0.016, at: 0.14 }); },
+    bladeL: () => { hiss(2600, { f2: 450, len: 0.22, vol: 0.07, q: 2.2 }); note(95, { f2: 70, len: 0.14, vol: 0.06, at: 0.04 }); note(1180, { len: 0.12, vol: 0.016, at: 0.14 }); },
+    launch: () => { hiss(300, { f2: 4000, len: 0.4, vol: 0.06, q: 1.8 }); [660, 990, 1320, 1980].forEach((f, i) => note(f, { len: i === 3 ? 0.4 : 0.12, vol: 0.03, at: 0.1 + i * 0.05 })); },
+  };
   const sounds = {
+    bladeR: () => note(700, { f2: 1000, len: 0.08, vol: 0.035 }),
+    bladeL: () => note(1000, { f2: 700, len: 0.08, vol: 0.035 }),
     move: () => note(1180, { len: 0.035, vol: 0.035 }),
     edge: () => note(240, { f2: 200, len: 0.05, vol: 0.03, wave: 'triangle' }),
     tick: () => note(820, { len: 0.03, vol: 0.03, wave: 'triangle' }),
@@ -1742,7 +1783,7 @@ const SFX = (() => {
       const now = performance.now();
       if (name === 'move' && now - last < 30) return; // fast scrolling: don't machine-gun
       last = now;
-      try { sounds[name]?.(); } catch (e) { /* no audio device */ }
+      try { ((bladesOn() && blades[name]) || sounds[name])?.(); } catch (e) { /* no audio device */ }
     },
   };
 })();
@@ -1754,7 +1795,8 @@ function actSound(act) {
   if (act === 'play') return 'launch';
   if (act === 'random') return 'spin';
   if (act === 'fav' || act === 'uisounds') return null; // they play their own once the result is known
-  if (['jump', 'stepshot', 'sortby', 'filter', 'layout', 'sound', 'videos'].includes(act)) return 'tick';
+  if (['jump', 'stepshot', 'sortby', 'filter', 'layout', 'sound', 'videos', 'chpage'].includes(act)) return 'tick';
+  if (act === 'bladego') return null; // plays its own slide
   return 'select';
 }
 
@@ -1770,7 +1812,7 @@ function press(btn) {
   else if (btn === 'B' && (S.panel || S.screen !== 'home' || S.shot != null)) SFX.play('back');
   else if (btn === 'START' || btn === 'X') SFX.play('open');
   else if (btn === 'RANDOM') SFX.play('spin');
-  else if (['LB', 'RB', 'LT', 'RT', 'SELECT'].includes(btn)) SFX.play('tick');
+  else if (['LB', 'RB', 'LT', 'RT', 'SELECT'].includes(btn) && !(S.screen === 'home' && bladesOn() && !S.panel && ['LB', 'RB'].includes(btn))) SFX.play('tick');
   if (S.shot != null && S.screen === 'detail') {
     if (btn === 'left' || btn === 'LB') return ACT.stepshot({ d: -1 });
     if (btn === 'right' || btn === 'RB') return ACT.stepshot({ d: 1 });
@@ -1779,6 +1821,7 @@ function press(btn) {
   }
   if (S.screen === 'home' && waveOn() && !S.panel && !S.playing && systems().length && waveKey(btn)) return;
   if (S.screen === 'home' && channelsOn() && !S.panel && !S.playing && channelsKey(btn)) return;
+  if (S.screen === 'home' && bladesOn() && !S.panel && !S.playing && systems().length && bladesKey(btn)) return;
   switch (btn) {
     case 'up': case 'down': case 'left': case 'right': return move(btn);
     case 'A': if (cur?.dataset?.act) ACT[cur.dataset.act]?.(cur.dataset); else if (typing) move('down'); return;

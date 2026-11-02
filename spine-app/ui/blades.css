@@ -1,0 +1,83 @@
+/* Blades home style (Settings → Home style). One big panel at a time; the
+   others fold into colored tabs at the sides. --bc is this blade's color. */
+.blades {
+  position: relative; flex-direction: row; overflow: hidden; padding: 26px 0 22px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--bc) 22%, var(--bg)), var(--bg) 70%);
+  transition: background .4s ease;
+}
+.bl-tabs { flex: 0 0 auto; display: flex; width: min(calc(var(--n) * 36px), 330px); }
+.bl-tabs.left { padding-left: 16px; }
+.bl-tabs.right { padding-right: 16px; }
+.bl-tab {
+  flex: 1 1 0; min-width: 8px; max-width: 36px; position: relative; overflow: hidden;
+  background: linear-gradient(to right, color-mix(in srgb, var(--tc) 85%, #000 15%), var(--tc));
+  border-radius: 12px 0 0 12px; margin-right: -4px; box-shadow: -3px 0 8px rgba(0,0,0,.25);
+  color: #fff; transition: filter .15s ease, transform .15s ease;
+}
+.bl-tabs.right .bl-tab { border-radius: 0 12px 12px 0; margin: 0 0 0 -4px; box-shadow: 3px 0 8px rgba(0,0,0,.25); }
+.bl-tab span {
+  position: absolute; top: 18px; left: 50%; transform: translateX(-50%); writing-mode: vertical-rl;
+  font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; opacity: .92;
+}
+.bl-tabs.left .bl-tab span { transform: translateX(-50%) rotate(180deg); }
+.bl-tab:hover { filter: brightness(1.18); }
+.bl-tabs.left .bl-tab:hover { transform: translateX(4px); }
+.bl-tabs.right .bl-tab:hover { transform: translateX(-4px); }
+
+.bl-panel {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; z-index: 1;
+  background: linear-gradient(170deg, color-mix(in srgb, var(--bc) 30%, var(--surface)), var(--surface) 55%);
+  border-radius: 22px; margin: 0 4px; overflow: hidden;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bc) 55%, transparent), 0 18px 40px rgba(0,0,0,.28);
+}
+.bl-panel::before { /* a glassy sheen across the top, and the blade's edge stripe */
+  content: ''; position: absolute; inset: 0 0 auto 0; height: 46%; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(255,255,255,.14), transparent);
+}
+.bl-panel::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 8px; background: var(--bc); }
+.bl-panel.in-r { animation: blinr .34s cubic-bezier(.2,.8,.2,1); }
+.bl-panel.in-l { animation: blinl .34s cubic-bezier(.2,.8,.2,1); }
+@keyframes blinr { from { transform: translateX(90px) scale(.98); opacity: .2; } }
+@keyframes blinl { from { transform: translateX(-90px) scale(.98); opacity: .2; } }
+
+.bl-head { display: flex; align-items: center; gap: 16px; padding: 22px 34px 12px 40px; position: relative; }
+.bl-head .ic { width: 64px; height: 64px; border-radius: 16px; background: var(--bc); color: #fff; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.bl-head h2 { font-size: 40px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bl-head .n { margin-left: auto; color: var(--muted); font-size: 16px; font-weight: 600; white-space: nowrap; }
+
+.bl-body { flex: 1; min-height: 0; display: flex; gap: 26px; padding: 6px 30px 26px 40px; }
+.bl-list { flex: 0 0 38%; min-width: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 4px; padding: 6px; scrollbar-width: thin; }
+.bl-item {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 14px; padding: 8px 12px; border-radius: 12px; min-height: 58px;
+  border: 2px solid transparent; transition: background .12s ease, border-color .12s ease;
+}
+.bl-item .wv-thumb { width: 64px; height: 44px; }
+.bl-item .wv-thumb img { max-width: 64px; max-height: 44px; border-radius: 4px; }
+.bl-item .wv-thumb.ph { width: 34px; margin: 0 15px; font-size: 13px; }
+.bl-item .wv-thumb.icon { width: 44px; border-radius: 10px; margin: 0 10px; }
+.bl-item .wv-thumb.icon svg { width: 30px; height: 23px; }
+.bl-item .t { flex: 1; min-width: 0; font-weight: 600; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bl-item.off { filter: grayscale(1); opacity: .7; }
+.bl-item:hover { background: color-mix(in srgb, var(--bc) 14%, transparent); }
+.bl-item.focused, body.kb .bl-item:focus-visible {
+  background: linear-gradient(to right, color-mix(in srgb, var(--bc) 42%, var(--surface)), color-mix(in srgb, var(--bc) 18%, var(--surface)));
+  border-color: color-mix(in srgb, var(--bc) 75%, #fff 25%);
+}
+body.kb .blades .bl-item.focused, body.kb .blades .bl-item:focus-visible { box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+
+.bl-preview { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.bl-art { position: relative; flex: 1 1 auto; min-height: 0; border-radius: 16px; overflow: hidden; background: var(--surface2); box-shadow: inset 0 0 0 1px var(--line); }
+.bl-art .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.bl-art .bg.blur { filter: blur(30px) saturate(1.2); transform: scale(1.2); opacity: .7; }
+.bl-art .cv { position: absolute; left: 22px; bottom: 22px; max-height: 64%; max-width: 40%; border-radius: 8px; box-shadow: 0 10px 26px rgba(0,0,0,.45); }
+.bl-art.mosaic { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 1fr; gap: 6px; padding: 6px; }
+.bl-art.mosaic img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; opacity: .55; min-height: 0; }
+.bl-art .bigicon { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 190px; height: 160px; border-radius: 30px; display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 14px 34px rgba(0,0,0,.35); }
+.bl-info { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
+.bl-info h3 { font-size: 30px; }
+.bl-info .logo { max-height: 64px; max-width: 70%; object-fit: contain; object-position: left center; }
+.bl-info .meta { margin: 0; font-weight: 600; color: var(--text); }
+.bl-info .sub { margin: 0; color: var(--muted); font-size: 15px; }
+.bl-info .desc { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) { .bl-panel.in-r, .bl-panel.in-l { animation: none; } }

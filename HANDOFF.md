@@ -292,5 +292,15 @@ where it paused. The 0.9.0 synthesized tune was removed (it's in git history). `
 `BGM.wake()` so a controller press can start audio if autoplay was held back. Linux AppImage plays
 MP3 through its bundled GStreamer (plugins good/bad/libav in release.yml).
 
+**0.10.0**: Blades home style (`home_style: "blades"`), `ui/blades.js` + `ui/blades.css`. Blades =
+`waveCats()`, each blade's list = `waveItems()` (items now also carry `g`/`s`, `opener`, `random`).
+State `S.blade` {cat, at, dir}; changing blade re-renders (panel slides in via `in-r`/`in-l`).
+`bladesKey`: LB/RB always, left/right only while a list item has focus; up/down = normal `move()`
+in a real scrolling list. `bladesMount` keeps the right-hand preview in step with focus and hover.
+Tabs: `ACT.bladego`. No music (no entry in music.js SONGS). Sounds: SFX has a `blades` set
+(`hiss()` filtered-noise helper: clicks, chimes, `bladeR`/`bladeL` swooshes) used for every
+interface sound while Blades is the Home style. Also fixed: Channels page arrows had no action
+(`ACT.chpage` was missing).
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

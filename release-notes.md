@@ -1,6 +1,7 @@
 ## What's new
-- **Real Home music.** Wave and Channels each have their own song now, made for Spine. The music plays on Home, fades out when you open a library or start a game or movie, and picks up where it left off when you come back. Settings → Home music sets it to Off, Soft or Normal.
-- Since 0.9.0: the Channels Home style.
+- **New Home style: Blades.** Each console is a big panel; the others fold into colored tabs down the left and right edges. LB/RB (or left/right) slide from one blade to the next, and clicking a tab jumps straight to it. Each blade lists its games on the left and shows a large picture, logo and description of the highlighted one on the right. Settings → Home style → Blades.
+- **Blades has its own sounds**: crisp clicks, glassy chimes and a swoosh when a blade slides past. No music on this one.
+- **Fixed:** on the Channels home, the page arrows at the left and right edges now work with the mouse.
 
 ---
 

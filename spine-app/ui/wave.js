@@ -48,17 +48,17 @@ function waveSub(s, g, withSystem) {
 function waveItems(c) {
   const game = ({ s, g }, withSystem) => ({
     key: `wv-${c.id}-${g.id}`, attrs: `data-act="open" data-id="${esc(g.id)}" data-from="home"`,
-    thumb: waveThumb(g, s), title: g.title, sub: waveSub(s, g, withSystem), off: g.offline, fav: isFav(g.id),
+    thumb: waveThumb(g, s), title: g.title, sub: waveSub(s, g, withSystem), off: g.offline, fav: isFav(g.id), g, s,
   });
   const opener = (title, sub) => ({
     key: `wv-${c.id}-open`, attrs: `data-act="tile" data-i="${c.ti}"`,
-    thumb: `<span class="wv-thumb icon" style="background:${c.color}">${sysIcon(tileIcon(c), 44)}</span>`, title, sub,
+    thumb: `<span class="wv-thumb icon" style="background:${c.color}">${sysIcon(tileIcon(c), 44)}</span>`, title, sub, opener: true,
   });
   if (c.kind === 'recent') return c.recent.map((x) => game(x, true));
   if (c.kind === 'random') {
     const n = systems().filter((x) => !isMovies(x)).reduce((k, x) => k + x.games.length, 0);
     return [{ key: 'wv-random-go', attrs: 'data-act="random" data-scope="all"', thumb: `<span class="wv-thumb icon" style="background:${c.color}">${sysIcon('random', 44)}</span>`,
-      title: 'Surprise me', sub: `Spine picks one of your ${n.toLocaleString()} games` }];
+      title: 'Surprise me', sub: `Spine picks one of your ${n.toLocaleString()} games`, random: true }];
   }
   if (c.kind === 'fav') return [opener('All favorites', `${c.count} in the A–Z library view`), ...favItems().map((x) => game(x, true))];
   if (c.kind === 'coll') return [opener('Open list', `${c.count} in the library view`), ...collItems(c.coll).map((x) => game(x, true))];
