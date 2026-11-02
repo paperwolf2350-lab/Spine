@@ -1001,7 +1001,7 @@ function listsPanel() {
     <h2>Lists for ${esc(found.g.title)}</h2>
     <span class="note">Make your own shelves, like “Couch co-op” or “Finish this year”. Each list shows up next to Favorites on the home screen.</span>
     ${names.length ? `<div class="choices">${names.map((n, i) => { const on = S.boot.collections[n].includes(found.g.id); return `<button class="choice ${on ? 'on' : ''}" data-nav data-key="ls-${i}" data-act="togglelist" data-n="${esc(n)}">
-      <span class="t">${on ? ICON.check + ' ' : ''}${esc(n)}</span><span class="n">${S.boot.collections[n].length} game${S.boot.collections[n].length === 1 ? '' : 's'}${on ? ' · in this list' : ''}</span></button>`; }).join('')}</div>` : ''}
+      <span class="t">${esc(n)}</span><span class="n">${S.boot.collections[n].length} game${S.boot.collections[n].length === 1 ? '' : 's'}${on ? ' · in this list' : ''}</span></button>`; }).join('')}</div>` : ''}
     <div class="grp"><span class="k">New list</span>
       <label class="field"><input type="text" id="nl-name" data-nav data-key="nl-name" data-act="newlist" placeholder="List name" maxlength="40" autocomplete="off" spellcheck="false"></label>
       <div class="opts"><button class="btn" data-nav data-key="nl-make" data-act="newlist">${ICON.plus} Make list and add</button></div></div>
@@ -1113,7 +1113,7 @@ function render() {
   const scrollers = {};
   app.querySelectorAll('.scroll').forEach((el) => { if (el.id) scrollers[el.id] = el.scrollTop; });
   const screens = { welcome, scanning, home, games, detail, stream, sdetail, loading: () => '' };
-  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + addonPanel() + sourcesPanel() + streamListsPanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
+  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + addonPanel() + sourcesPanel() + streamListsPanel() + streamGenrePanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
   silenceDetached();
   Object.entries(scrollers).forEach(([id, top]) => { const el = document.getElementById(id); if (el) el.scrollTop = top; });
   const car = document.getElementById('carousel');
@@ -1323,7 +1323,7 @@ const ACT = {
     S.focusKey = `${Number(d.d) < 0 ? 'tup' : 'tdn'}-${d.id}`; render();
   },
   tilereset() { keepTilePlace(() => setSetting('tileOrder', [])); S.focusKey = 'stab-look'; render(); },
-  closepanel() { const was = S.panel; S.panel = null; S.focusKey = was === 'search' ? 'searchbtn' : was === 'sources' ? (S.srcFrom || 'play') : was === 'emulator' ? 'chemu' : was === 'showfix' ? 'showfix' : was === 'slists' ? 'slists' : 'gear'; render(); },
+  closepanel() { const was = S.panel; S.panel = null; S.focusKey = was === 'search' ? 'searchbtn' : was === 'sources' ? (S.srcFrom || 'play') : was === 'emulator' ? 'chemu' : was === 'showfix' ? 'showfix' : was === 'slists' ? 'slists' : was === 'sgenre' ? 'sfgenre' : 'gear'; render(); },
   tile(d) {
     const t = tiles()[+d.i];
     if (!t) return;
@@ -1873,11 +1873,11 @@ const SFX = (() => {
 function actSound(act) {
   if (!act) return null;
   if (['back', 'closepanel', 'closeshot', 'closeplay', 'scback'].includes(act)) return 'back';
-  if (['settings', 'scrapers', 'search', 'emu', 'fixgame', 'lists', 'slists', 'openshot'].includes(act)) return 'open';
+  if (['settings', 'scrapers', 'search', 'emu', 'fixgame', 'lists', 'slists', 'sgenre', 'openshot'].includes(act)) return 'open';
   if (act === 'play') return 'launch';
   if (act === 'random') return 'spin';
   if (['fav', 'uisounds', 'sfav', 'slater', 'sltoggle'].includes(act)) return null; // they play their own once the result is known
-  if (['jump', 'stepshot', 'sortby', 'filter', 'layout', 'sound', 'videos', 'chpage'].includes(act)) return 'tick';
+  if (['jump', 'stepshot', 'sortby', 'filter', 'layout', 'sound', 'videos', 'chpage', 'sfstep', 'sfclear'].includes(act)) return 'tick';
   if (act === 'bladego' || act === 'cubepick' || act === 'cubetilt') return null; // they play their own turn sounds
   return 'select';
 }

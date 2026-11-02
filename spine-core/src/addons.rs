@@ -167,6 +167,10 @@ pub struct Catalog {
     pub needs_input: bool,
     /// Can be searched (has a "search" extra).
     pub searchable: bool,
+    /// Choices for the addon's own "genre" option (some catalogs list years there instead).
+    pub genres: Vec<String>,
+    /// A genre must be picked (the first one is used until you pick another).
+    pub genre_required: bool,
 }
 
 pub fn catalogs(m: &Value) -> Vec<Catalog> {
@@ -179,8 +183,16 @@ pub fn catalogs(m: &Value) -> Vec<Catalog> {
             // Old style: extraRequired: ["search"]; new style: extra: [{name, isRequired}].
             let mut required = strings(c.get("extraRequired"));
             let mut supported = strings(c.get("extraSupported"));
+            // Old style lists genre choices in "genres"; new style in the genre extra's "options".
+            let mut genres = strings(c.get("genres"));
             if let Some(Value::Array(ex)) = c.get("extra") {
                 for e in ex {
+                    if str_of(e, "name").as_deref() == Some("genre") {
+                        let o = strings(e.get("options"));
+                        if !o.is_empty() {
+                            genres = o;
+                        }
+                    }
                     if let Some(n) = str_of(e, "name") {
                         if e.get("isRequired").and_then(|v| v.as_bool()) == Some(true) {
                             required.push(n.clone());
@@ -189,9 +201,16 @@ pub fn catalogs(m: &Value) -> Vec<Catalog> {
                     }
                 }
             }
+            genres.retain(|g| !g.trim().is_empty());
+            genres.dedup();
+            let genre_required = required.iter().any(|r| r == "genre");
+            // A required genre with choices can still be browsed (we pick the first).
+            required.retain(|r| !(r == "genre" && !genres.is_empty()));
             Some(Catalog {
                 needs_input: !required.is_empty(),
                 searchable: supported.iter().any(|s| s == "search"),
+                genres,
+                genre_required,
                 typ,
                 id,
                 name,
@@ -200,11 +219,18 @@ pub fn catalogs(m: &Value) -> Vec<Catalog> {
         .collect()
 }
 
-pub fn catalog_url(base: &str, typ: &str, id: &str, skip: usize) -> String {
+pub fn catalog_url(base: &str, typ: &str, id: &str, skip: usize, genre: Option<&str>) -> String {
+    let mut extra = vec![];
+    if let Some(g) = genre.map(str::trim).filter(|g| !g.is_empty()) {
+        extra.push(format!("genre={}", enc(g)));
+    }
     if skip > 0 {
-        format!("{base}/catalog/{}/{}/skip={skip}.json", enc(typ), enc(id))
-    } else {
+        extra.push(format!("skip={skip}"));
+    }
+    if extra.is_empty() {
         format!("{base}/catalog/{}/{}.json", enc(typ), enc(id))
+    } else {
+        format!("{base}/catalog/{}/{}/{}.json", enc(typ), enc(id), extra.join("&"))
     }
 }
 
@@ -235,6 +261,8 @@ pub struct Item {
     pub genres: Vec<String>,
     pub rating: Option<String>,
     pub runtime: Option<String>,
+    /// Where it was made ("Japan", "United States, Japan"): used by the Anime filter.
+    pub country: Option<String>,
 }
 
 /// One episode of a show.
@@ -290,6 +318,7 @@ fn item_of(v: &Value, fallback_type: &str) -> Option<Item> {
         genres,
         rating: str_of(v, "imdbRating").filter(|r| r != "0" && r != "0.0"),
         runtime: str_of(v, "runtime"),
+        country: str_of(v, "country").or_else(|| Some(strings(v.get("country")).join(", ")).filter(|c| !c.is_empty())),
     })
 }
 
@@ -347,8 +376,8 @@ pub fn fetch_manifest(url: &str) -> Result<Value, String> {
     Ok(m)
 }
 
-pub fn fetch_catalog(a: &Stored, typ: &str, id: &str, skip: usize) -> Result<Vec<Item>, String> {
-    let url = catalog_url(&a.base(), typ, id, skip);
+pub fn fetch_catalog(a: &Stored, typ: &str, id: &str, skip: usize, genre: Option<&str>) -> Result<Vec<Item>, String> {
+    let url = catalog_url(&a.base(), typ, id, skip, genre);
     let bytes = crate::covers::curl(&url, true, &[]).map_err(|e| format!("{}: {}", a.name(), friendly(&redact(&redact(&e, &url), &a.url))))?;
     parse_catalog(&bytes, typ).map_err(|e| format!("{}: {e}", a.name()))
 }
@@ -523,9 +552,11 @@ mod tests {
         let a = Stored { url, manifest: m };
         let cats = catalogs(&a.manifest);
         assert!(cats.iter().any(|c| c.typ == "movie" && !c.needs_input), "{cats:?}");
-        let top = fetch_catalog(&a, "series", "top", 0).unwrap();
+        let top = fetch_catalog(&a, "series", "top", 0, None).unwrap();
+        let anim = fetch_catalog(&a, "movie", "top", 0, Some("Animation")).unwrap();
+        assert!(anim.iter().filter(|i| i.genres.iter().any(|g| g == "Animation")).count() * 10 >= anim.len() * 9 && anim.iter().any(|i| i.country.is_some()), "{}", anim.len());
         assert!(top.len() >= 20, "{}", top.len());
-        let more = fetch_catalog(&a, "series", "top", top.len()).unwrap();
+        let more = fetch_catalog(&a, "series", "top", top.len(), None).unwrap();
         assert!(!more.is_empty() && more[0].id != top[0].id);
         let dune = fetch_search(&a, "movie", "top", "dune").unwrap();
         assert!(dune.iter().any(|i| i.name == "Dune"), "{dune:?}");
@@ -581,8 +612,10 @@ mod tests {
 
     #[test]
     fn urls_encode_ids() {
-        assert_eq!(catalog_url("https://a.b", "movie", "top", 0), "https://a.b/catalog/movie/top.json");
-        assert_eq!(catalog_url("https://a.b", "series", "my list", 100), "https://a.b/catalog/series/my%20list/skip=100.json");
+        assert_eq!(catalog_url("https://a.b", "movie", "top", 0, None), "https://a.b/catalog/movie/top.json");
+        assert_eq!(catalog_url("https://a.b", "series", "my list", 100, None), "https://a.b/catalog/series/my%20list/skip=100.json");
+        assert_eq!(catalog_url("https://a.b", "movie", "top", 0, Some("Sci-Fi")), "https://a.b/catalog/movie/top/genre=Sci-Fi.json");
+        assert_eq!(catalog_url("https://a.b", "movie", "top", 50, Some("Talk Show & More")), "https://a.b/catalog/movie/top/genre=Talk%20Show%20%26%20More&skip=50.json");
         assert_eq!(meta_url("https://a.b", "series", "kitsu:42"), "https://a.b/meta/series/kitsu%3A42.json");
         assert_eq!(search_url("https://a.b", "movie", "top", " Spider-Man: Home & Away "), "https://a.b/catalog/movie/top/search=Spider-Man%3A%20Home%20%26%20Away.json");
     }
@@ -595,7 +628,9 @@ mod tests {
             "catalogs": [
                 {"type": "movie", "id": "top", "name": "Popular", "extra": [{"name": "skip"}, {"name": "search"}]},
                 {"type": "series", "id": "search", "name": "Search", "extra": [{"name": "search", "isRequired": true}]},
-                {"type": "movie", "id": "genre", "name": "By genre", "extraRequired": ["genre"], "extraSupported": ["genre"]}
+                {"type": "movie", "id": "genre", "name": "By genre", "extraRequired": ["genre"], "extraSupported": ["genre"]},
+                {"type": "movie", "id": "year", "name": "New", "extra": [{"name": "genre", "options": ["2026", "2025"], "isRequired": true}, {"name": "skip"}]},
+                {"type": "series", "id": "old", "name": "Old style", "genres": ["Drama", "Anime"], "extraSupported": ["genre"]}
             ]
         })
     }
@@ -606,10 +641,12 @@ mod tests {
         assert!(check_manifest(&m).is_ok());
         assert!(check_manifest(&serde_json::json!({"name": "x"})).is_err());
         let c = catalogs(&m);
-        assert_eq!(c.len(), 3);
-        assert!(!c[0].needs_input && c[0].searchable);
+        assert_eq!(c.len(), 5);
+        assert!(!c[0].needs_input && c[0].searchable && c[0].genres.is_empty());
         assert!(c[1].needs_input && c[1].searchable);
         assert!(c[2].needs_input && !c[2].searchable);
+        assert!(!c[3].needs_input && c[3].genre_required && c[3].genres == vec!["2026", "2025"]);
+        assert!(!c[4].needs_input && !c[4].genre_required && c[4].genres == vec!["Drama", "Anime"]);
         assert!(serves(&m, "meta", "movie", "tt0111161"));
         assert!(!serves(&m, "meta", "movie", "kitsu:1"));
         assert!(serves(&m, "stream", "series", "kitsu:1:2"));

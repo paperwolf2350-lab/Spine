@@ -42,3 +42,8 @@ span.cat { cursor: default; }
 .streamtabs .chip svg { vertical-align: -3px; }
 .stiles .cwimg { position: relative; display: block; }
 .coverbtns .btn.on { background: color-mix(in srgb, var(--accent) 22%, var(--surface2)); }
+/* Streaming filters (0.17) */
+.sfilters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 18px; }
+.sfilters .chip svg { vertical-align: -3px; }
+.sfilters .note { margin-left: 6px; }
+.choices.sgenres { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }

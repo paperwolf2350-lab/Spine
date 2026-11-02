@@ -1,8 +1,7 @@
 # Spine — to-do list
 
 ## Next up (planned)
-Owner's list (Nov 2, after streaming steps 1–3). One small release left:
-- **0.17 Streaming filters.** Genre (from the addon's own genre option, so it filters the whole catalog), Anime, year and minimum rating (on the loaded results).
+Owner's Nov 2 streaming list is done (0.16 lists, 0.17 filters). Ask the owner what's next.
 - New looks, one per small release (inspired by console menus, never copying their logos, fonts or sounds):
   - Retro CRT theme (done, 0.7.8).
   - Later ideas: Couch (one giant shelf for big TVs), matching sounds per style.
@@ -12,6 +11,7 @@ Owner's list (Nov 2, after streaming steps 1–3). One small release left:
 
 ## Done
 
+- Streaming filters: genre/year from the addon (whole catalog), Anime only, decade and minimum rating on loaded results with automatic extra pages (0.17.0).
 - Streaming lists: Continue watching, Favorites (Y), Watch later and your own lists as tabs inside the Streaming tile (0.16.0).
 - Settings in sections (Look, Library, Streaming, Controller & sound, Updates & window; LB/RB switch) and your own Home tile order, used by every Home style; Surprise me counts games only (0.15.0).
 - Streaming addons, part 1: add Stremio-style addons, their catalogs on Movies/TV, details and episode lists (0.12.0); Search addons tab, separate from the library search (0.12.1); own Streaming tile on Home, Movies/TV back to local files only (0.12.2).

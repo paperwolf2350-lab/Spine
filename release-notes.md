@@ -1,6 +1,9 @@
 ## What's new
-- Continue watching on the Streaming screen now lives only in its own tab (no more extra row above the catalogs).
-- From 0.16: Streaming lists (Continue watching, Favorites, Watch later and your own lists as tabs), Y to favorite, and Favorite / Watch later / Add to list on a title's page.
+- **Streaming filters:** a row of filters above every addon catalog in the Streaming tile.
+  - **Genre** (or **Year**, on catalogs like Cinemeta's "New"): the addon sends only those titles, so it covers the whole catalog, not just what's on screen.
+  - **Anime only**, **decade** (2020s, 2010s… Before 1980) and **minimum rating** (★ 6+, 7+, 8+): Spine keeps loading more of the catalog until it finds enough matches. "Anime only" is a best guess from genre and country; an anime catalog addon is exact.
+  - Filters stay set while you switch catalogs; **Clear filters** resets them.
+- Fixed: chosen items in list pickers showed two checkmarks.
 
 ---
 

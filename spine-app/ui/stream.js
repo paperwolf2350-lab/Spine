@@ -8,7 +8,7 @@
 const STREAM_TYPES = { movies: ['movie'], tv: ['series', 'anime'] };
 const STREAM_KINDS = [['movies', 'Movies'], ['tv', 'Shows']];
 const STREAM_COLOR = '#0E6E77';
-const S_STREAM = { kind: null, tab: {}, cache: {}, meta: {}, season: {}, search: {} };
+const S_STREAM = { kind: null, tab: {}, cache: {}, meta: {}, season: {}, search: {}, genre: {}, filt: {} };
 
 function streamAddons() { return S.boot?.addons || []; }
 // Browsable catalogs for the Movies or TV screen, in addon order.
@@ -18,7 +18,7 @@ function streamCats(sysId) {
   const out = [];
   for (const a of streamAddons()) for (const c of a.catalogs) {
     if (c.needs_input || !types.includes(c.type)) continue;
-    out.push({ ck: `${a.key}|${c.type}|${c.id}`, addon: a.key, addonName: a.name, type: c.type, id: c.id, name: c.name });
+    out.push({ ck: `${a.key}|${c.type}|${c.id}`, addon: a.key, addonName: a.name, type: c.type, id: c.id, name: c.name, genres: c.genres || [], genreRequired: !!c.genre_required });
   }
   // Two addons with a "Popular" catalog: say which is which.
   const counts = {};
@@ -102,7 +102,7 @@ function stream() {
   const kinds = streamKinds();
   const kind = streamKind();
   const cur = streamCur(kind);
-  if (cur && !cur.search && !S_STREAM.cache[cur.ck]) setTimeout(() => streamLoad(cur.ck));
+  if (cur && !cur.search && !cur.mine && !S_STREAM.cache[sCacheKey(cur)]) setTimeout(() => streamLoad(cur.ck));
   const body = !kinds.length
     ? `<div class="nofav">Your addons don't have catalogs or search. Add a catalog addon in Settings → Streaming addons, for example Cinemeta:<br><span class="path">https://v3-cinemeta.strem.io/manifest.json</span></div>`
     : cur ? streamGrid(cur) : '';
@@ -141,17 +141,75 @@ function streamKey(btn) {
   return false;
 }
 
+// ---- Filters (0.17). Genre is the addon's own option, so it filters the whole catalog
+// (some catalogs, like Cinemeta's "New", list years there instead). Anime, decade and
+// minimum rating filter what's loaded; Spine loads more pages until enough match.
+const S_DECADES = ['', '2020s', '2010s', '2000s', '1990s', '1980s', 'older'];
+const S_RATINGS = [0, 6, 7, 8];
+const sYearPicker = (c) => c.genres.length > 0 && c.genres.every((g) => /^\d{4}$/.test(g));
+// The genre asked of the addon for a catalog ('' = all).
+function sGenre(c) {
+  const g = S_STREAM.genre[c.ck];
+  if (g && c.genres.includes(g)) return g;
+  return c.genreRequired ? c.genres[0] || '' : '';
+}
+const sCacheKey = (c) => { const g = sGenre(c); return g ? `${c.ck}#${g}` : c.ck; };
+function sFilt(kind) { return S_STREAM.filt[kind] || (S_STREAM.filt[kind] = { anime: false, decade: '', rating: 0 }); }
+const sFiltOn = (f) => !!(f.anime || f.decade || f.rating);
+const sYearOf = (it) => { const m = String(it.year || '').match(/\d{4}/); return m ? +m[0] : null; };
+function sIsAnime(it) {
+  if (it.type === 'anime' || /^(kitsu|mal|anilist|anidb):/.test(it.id || '')) return true;
+  const g = (it.genres || []).map((x) => String(x).toLowerCase());
+  if (g.includes('anime')) return true;
+  return g.includes('animation') && String(it.country || '').split(',')[0].trim().toLowerCase() === 'japan';
+}
+function sMatch(it, f) {
+  if (f.anime && !sIsAnime(it)) return false;
+  if (f.decade) {
+    const y = sYearOf(it);
+    if (y == null) return false;
+    if (f.decade === 'older' ? y >= 1980 : (y < +f.decade.slice(0, 4) || y >= +f.decade.slice(0, 4) + 10)) return false;
+  }
+  if (f.rating) { const r = parseFloat(it.rating); if (!(r >= f.rating)) return false; }
+  return true;
+}
+const sDecadeLabel = (d) => (!d ? 'Any year' : d === 'older' ? 'Before 1980' : d);
+function streamFilterBar(c) {
+  const f = sFilt(streamKind()), g = sGenre(c), yp = sYearPicker(c);
+  const d = S_STREAM.cache[sCacheKey(c)];
+  const shown = d ? d.items.filter((it) => sMatch(it, f)).length : 0;
+  const btn = (key, act, label, on, extra = '') => `<button class="chip ${on ? 'on' : ''}" data-nav data-key="${key}" data-act="${act}" ${extra}>${label}</button>`;
+  return `<div class="sfilters" role="group" aria-label="Filters">
+    ${c.genres.length ? btn('sfgenre', 'sgenre', `${yp ? 'Year' : 'Genre'}: ${esc(g || (yp ? 'All years' : 'All genres'))} ▾`, !!g, `data-ck="${esc(c.ck)}"`) : ''}
+    ${yp ? '' : btn('sfdecade', 'sfstep', sDecadeLabel(f.decade), !!f.decade, 'data-f="decade"')}
+    ${btn('sfrating', 'sfstep', f.rating ? `★ ${f.rating}+` : 'Any rating', !!f.rating, 'data-f="rating"')}
+    ${btn('sfanime', 'sfstep', `${f.anime ? ICON.check + ' ' : ''}Anime only`, f.anime, 'data-f="anime"')}
+    ${sFiltOn(f) || (g && !c.genreRequired) ? btn('sfclear', 'sfclear', 'Clear filters', false, `data-ck="${esc(c.ck)}"`) : ''}
+    ${sFiltOn(f) && d ? `<span class="note">${shown} of ${d.items.length} loaded</span>` : ''}
+  </div>`;
+}
+
 function streamGrid(c) {
   if (c.search) return streamSearchView(c);
   if (c.mine) return streamListView(c);
-  const d = S_STREAM.cache[c.ck];
+  return streamFilterBar(c) + streamCatalogView(c);
+}
+function streamCatalogView(c) {
+  const d = S_STREAM.cache[sCacheKey(c)];
+  const f = sFilt(streamKind()), on = sFiltOn(f);
   if (!d || (d.loading && !d.items.length)) return `<div class="nofav"><div class="spinner" style="margin:0 auto 18px"></div>Loading ${esc(c.label)}…</div>`;
   if (d.error && !d.items.length) return `<div class="nofav">${esc(d.error)}<div style="margin-top:18px"><button class="btn" data-nav data-key="sretry" data-act="smore" data-ck="${esc(c.ck)}">Try again</button></div></div>`;
-  if (!d.items.length) return `<div class="nofav">This catalog is empty right now.</div>`;
-  const tiles = d.items.map((it, i) => `<button class="game" data-nav data-key="si-${esc(it.id)}" data-act="sopen" data-ck="${esc(c.ck)}" data-i="${i}">
+  if (!d.items.length) return `<div class="nofav">${sGenre(c) ? `Nothing under ${esc(sGenre(c))} in this catalog.` : 'This catalog is empty right now.'}</div>`;
+  const list = d.items.map((it, i) => [it, i]).filter(([it]) => !on || sMatch(it, f));
+  if (!list.length) {
+    return d.done || d.error
+      ? `<div class="nofav">${d.error ? esc(d.error) : 'Nothing in this catalog matches your filters.'}<div style="margin-top:18px"><button class="btn" data-nav data-key="sfclear2" data-act="sfclear" data-ck="${esc(c.ck)}">Clear filters</button></div></div>`
+      : `<div class="nofav"><div class="spinner" style="margin:0 auto 18px"></div>Looking for matches…</div>`;
+  }
+  const tiles = list.map(([it, i]) => `<button class="game" data-nav data-key="si-${esc(it.id)}" data-act="sopen" data-ck="${esc(c.ck)}" data-i="${i}">
       <span class="cwimg">${streamCover(it, it.poster)}${sFavDot(`${it.type}:${it.id}`)}</span>
       <span class="t">${esc(it.name)}</span>${it.year ? `<span class="s">${esc(it.year)}</span>` : ''}</button>`).join('');
-  const more = d.done ? '' : `<div class="smore">${d.error ? `<span class="note">${esc(d.error)}</span>` : ''}<button class="btn" data-nav data-key="smore" data-act="smore" data-ck="${esc(c.ck)}" ${d.loading ? 'disabled' : ''}>${d.loading ? 'Loading…' : 'Show more'}</button></div>`;
+  const more = d.done ? '' : `<div class="smore">${d.error ? `<span class="note">${esc(d.error)}</span>` : ''}<button class="btn" data-nav data-key="smore" data-act="smore" data-ck="${esc(c.ck)}" ${d.loading ? 'disabled' : ''}>${d.loading ? (on ? 'Looking for more…' : 'Loading…') : 'Show more'}</button></div>`;
   return `<div class="tiles stiles">${tiles}</div>${more}`;
 }
 
@@ -230,12 +288,13 @@ function streamSearchFocus() {
 async function streamLoad(ck) {
   const c = streamCats('movies').concat(streamCats('tv')).find((x) => x.ck === ck);
   if (!c) return;
-  const d = S_STREAM.cache[ck] || (S_STREAM.cache[ck] = { items: [], done: false, loading: false, error: null });
+  const cache = sCacheKey(c), genre = sGenre(c) || null;
+  const d = S_STREAM.cache[cache] || (S_STREAM.cache[cache] = { items: [], done: false, loading: false, error: null, auto: 0 });
   if (d.loading || d.done) return;
   d.loading = true; d.error = null;
   if (S.screen === 'stream') render();
   try {
-    const page = await api.call('addon_catalog', { key: c.addon, kind: c.type, id: c.id, skip: d.items.length });
+    const page = await api.call('addon_catalog', { key: c.addon, kind: c.type, id: c.id, skip: d.items.length, genre });
     const seen = new Set(d.items.map((x) => x.id));
     const fresh = page.filter((x) => !seen.has(x.id));
     d.items.push(...fresh);
@@ -244,6 +303,12 @@ async function streamLoad(ck) {
     d.error = String(e || 'Something went wrong.');
   }
   d.loading = false;
+  // With filters on, keep loading pages (up to 8 more) until enough titles match.
+  const f = sFilt(STREAM_TYPES.tv.includes(c.type) ? 'tv' : 'movies');
+  if (!d.error && !d.done && sFiltOn(f) && d.items.filter((it) => sMatch(it, f)).length < 24 && (d.auto || 0) < 8 && sCacheKey(c) === cache) {
+    d.auto = (d.auto || 0) + 1;
+    return streamLoad(ck);
+  }
   if (S.screen === 'stream') render();
 }
 
@@ -430,7 +495,7 @@ function streamListsPanel() {
     <h2>Lists for ${esc(x.name)}</h2>
     <span class="note">Streaming lists show up as tabs on the Streaming screen. They're separate from your game lists.</span>
     <div class="choices">${names.map((n, i) => { const on = sInList(n, x.item), cnt = (sLists()[n] || []).length; return `<button class="choice ${on ? 'on' : ''}" data-nav data-key="sls-${i}" data-act="sltoggle" data-n="${esc(n)}">
-      <span class="t">${on ? ICON.check + ' ' : ''}${esc(n)}</span><span class="n">${cnt} title${cnt === 1 ? '' : 's'}${on ? ' · in this list' : ''}</span></button>`; }).join('')}</div>
+      <span class="t">${esc(n)}</span><span class="n">${cnt} title${cnt === 1 ? '' : 's'}${on ? ' · in this list' : ''}</span></button>`; }).join('')}</div>
     <div class="grp"><span class="k">New list</span>
       <label class="field"><input type="text" id="snl-name" data-nav data-key="snl-name" data-enter="slnew" placeholder="List name, like “Movie night”" maxlength="40" autocomplete="off" spellcheck="false"></label>
       <div class="opts"><button class="btn" data-nav data-key="snl-make" data-act="slnew">${ICON.plus} Make list and add</button></div></div>
@@ -478,8 +543,29 @@ function streamFind(ck, i) {
     return r && { it: { id: r.id, type: r.type, name: r.name, poster: r.poster, year: r.year, genres: [] }, c: { addon: r.addon, addonName: r.addonName, label: tab.label } };
   }
   const c = streamCats('movies').concat(streamCats('tv')).find((x) => x.ck === ck);
-  const it = S_STREAM.cache[ck]?.items[+i];
+  const it = c && S_STREAM.cache[sCacheKey(c)]?.items[+i];
   return c && it ? { it, c } : null;
+}
+
+// ---- Pick a genre (or year) for a catalog: the addon sends only those titles.
+function streamGenrePanel() {
+  if (S.panel !== 'sgenre') return '';
+  const c = streamCats('movies').concat(streamCats('tv')).find((x) => x.ck === S_STREAM.gpick);
+  if (!c) return '';
+  const yp = sYearPicker(c), cur = sGenre(c);
+  const opts = (c.genreRequired ? [] : ['']).concat(c.genres);
+  return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="${yp ? 'Year' : 'Genre'}">
+    <h2>${yp ? 'Year' : 'Genre'}</h2><span class="note">${esc(c.label)} · from ${esc(c.addonName)}</span>
+    <div class="choices sgenres">${opts.map((g, i) => `<button class="choice ${g === cur ? 'on' : ''}" data-nav data-key="sg-${i}" data-act="sgenrepick" data-g="${esc(g)}"><span class="t">${esc(g || (yp ? 'All years' : 'All genres'))}</span></button>`).join('')}</div>
+  </aside></div>`;
+}
+
+// After a filter changes: redraw and, if few titles match, look further in the catalog.
+function sFiltChanged(focus) {
+  S.focusKey = focus;
+  const cur = streamCur(streamKind());
+  if (cur && !cur.search && !cur.mine) { const d = S_STREAM.cache[sCacheKey(cur)]; if (d) { d.auto = 0; if (!d.loading) { render(); return streamLoad(cur.ck); } } }
+  render();
 }
 
 // ---- Settings → Addons
@@ -605,8 +691,10 @@ const STREAM_ACT = {
     streamSearch(d.s, q);
   },
   smore(d) {
-    const c = S_STREAM.cache[d.ck];
-    if (c) { c.error = null; if (!c.items.length) delete S_STREAM.cache[d.ck]; }
+    const cat = streamCats('movies').concat(streamCats('tv')).find((x) => x.ck === d.ck);
+    const key = cat ? sCacheKey(cat) : d.ck;
+    const c = S_STREAM.cache[key];
+    if (c) { c.error = null; c.auto = 0; if (!c.items.length) delete S_STREAM.cache[key]; }
     S.focusKey = 'smore';
     streamLoad(d.ck);
   },
@@ -636,6 +724,32 @@ const STREAM_ACT = {
     if (S_STREAM.tab[kind] === `list:${d.n}`) S_STREAM.tab[kind] = null;
     S.focusKey = null; render();
     toast(`Deleted the list “${d.n}”`, 3000);
+  },
+  sgenre(d) {
+    S_STREAM.gpick = d.ck;
+    const c = streamCats('movies').concat(streamCats('tv')).find((x) => x.ck === d.ck);
+    const opts = (c && !c.genreRequired ? [''] : []).concat(c ? c.genres : []);
+    S.panel = 'sgenre'; S.focusKey = `sg-${Math.max(0, opts.indexOf(c ? sGenre(c) : ''))}`; render();
+  },
+  sgenrepick(d) {
+    S_STREAM.genre[S_STREAM.gpick] = d.g || '';
+    S.panel = null; S.focusKey = 'sfgenre';
+    render();
+    const g = document.getElementById('gamesscroll'); if (g) g.scrollTop = 0;
+    streamLoad(S_STREAM.gpick);
+  },
+  sfstep(d) {
+    const f = sFilt(streamKind());
+    if (d.f === 'anime') f.anime = !f.anime;
+    if (d.f === 'decade') f.decade = S_DECADES[(S_DECADES.indexOf(f.decade) + 1) % S_DECADES.length];
+    if (d.f === 'rating') f.rating = S_RATINGS[(S_RATINGS.indexOf(f.rating) + 1) % S_RATINGS.length];
+    sFiltChanged(`sf${d.f}`);
+  },
+  sfclear(d) {
+    S_STREAM.filt[streamKind()] = { anime: false, decade: '', rating: 0 };
+    if (d.ck) S_STREAM.genre[d.ck] = '';
+    sFiltChanged('sfrating');
+    const cur = streamCur(streamKind()); if (cur && !cur.search && !cur.mine) streamLoad(cur.ck);
   },
   sseason(d) {
     const k = `${S.sitem.item.type}:${S.sitem.item.id}`;

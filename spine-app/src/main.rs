@@ -1426,10 +1426,10 @@ fn move_addon(key: String, up: bool, app: State<App>) -> Result<Boot, String> {
 
 /// One page of an addon catalog.
 #[tauri::command]
-async fn addon_catalog(key: String, kind: String, id: String, skip: usize, handle: AppHandle) -> Result<Vec<addons::Item>, String> {
+async fn addon_catalog(key: String, kind: String, id: String, skip: usize, genre: Option<String>, handle: AppHandle) -> Result<Vec<addons::Item>, String> {
     let app = handle.state::<App>();
     let a = app.addons.lock().unwrap().iter().find(|a| a.key() == key).cloned().ok_or("That addon was removed.")?;
-    tauri::async_runtime::spawn_blocking(move || addons::fetch_catalog(&a, &kind, &id, skip)).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || addons::fetch_catalog(&a, &kind, &id, skip, genre.as_deref())).await.map_err(|e| e.to_string())?
 }
 
 /// Search an addon catalog (Search tab on the Movies/TV screens; kept apart from the library search).

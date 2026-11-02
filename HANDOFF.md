@@ -425,7 +425,20 @@ poster from a catalog/search/list (used by `sopen` and Y). Y on the Streaming sc
 `streamListsPanel`, new list via `slnew`). Hearts (`sFavDot`) on posters. Tested in Playwright with a mock.
 **0.16.1**: the Continue watching row above catalogs was removed (owner: doubled up with the tab).
 
-**Next session**: start with ROADMAP "Next up" (0.17). Streaming code lives in
+**0.17.0**: Streaming filters. `addons::Catalog` now has `genres` (the "genre" extra's `options`,
+or old-style `genres`) and `genre_required`; a catalog whose only required extra is a genre with choices
+is browsable (first choice used). `catalog_url(base, typ, id, skip, genre)` -> `.../genre=X&skip=N.json`;
+`addon_catalog` takes `genre`. `Item.country` (string or array) feeds the Anime guess. UI (stream.js):
+`sGenre(c)` per catalog (`S_STREAM.genre[ck]`), cache key `sCacheKey(c)` = ck or `ck#genre`;
+`streamFilterBar` (Genre/Year chip opens panel `sgenre` = `streamGenrePanel`; `sYearPicker` when all
+choices are 4-digit years, then the decade chip hides), client filters per kind in `S_STREAM.filt[kind]`
+{anime, decade, rating} via `sMatch` / `sIsAnime` (type anime, kitsu:/mal:/anilist:/anidb: ids, "Anime"
+genre, or Animation + first country Japan — Japan-only would lose co-productions like Spirited Away).
+With client filters on, `streamLoad` auto-loads up to 8 more pages until 24 match (`d.auto`).
+Filters only on catalog tabs (not Search or your lists). Tested in Playwright with real Cinemeta pages
+and against live Cinemeta (`cargo test -- --ignored live_cinemeta`, now checks a genre page).
+
+**Next session**: the owner's streaming list is done; ask what's next (ROADMAP "Later ideas"). Streaming code lives in
 `ui/stream.js` + `stream.css` and `spine-core/src/addons.rs`; keep new streaming features there.
 UI tests: recreate the Playwright mock (`window.__SPINE_MOCK__`; Chrome is at /usr/bin/google-chrome;
 Cinemeta JSON can be fetched live from the workspace for test data).
