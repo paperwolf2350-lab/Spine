@@ -403,5 +403,10 @@ local `showNext`), Resume / Start over / Other source / Mark as watched on movie
 progress bars on episodes (row resumes if it can, else opens sources), `streamContinueRow` above
 the catalog grid (not on Search). Streaming steps 1–3 are done.
 
+**Next session**: start with ROADMAP "Next up" (0.15 → 0.16 → 0.17). Streaming code lives in
+`ui/stream.js` + `stream.css` and `spine-core/src/addons.rs`; keep new streaming features there.
+UI tests: recreate the Playwright mock (`window.__SPINE_MOCK__`; Chrome is at /usr/bin/google-chrome;
+Cinemeta JSON can be fetched live from the workspace for test data).
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

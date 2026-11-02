@@ -1,6 +1,10 @@
 # Spine — to-do list
 
 ## Next up (planned)
+Owner's list (Nov 2, after streaming steps 1–3). Three small releases, in this order:
+- **0.15 Settings cleanup + Home tile order.** Settings split into short sections (e.g. Look, Library, Streaming, Controller & sound, Updates & window) with much less text per item. New "Home tiles" list in Settings to reorder consoles/tiles (up/down, works with a controller), saved as a setting and used by every Home style.
+- **0.16 Streaming lists.** Inside the Streaming tile only (kept apart from game lists): Favorites (Y on a title), Watch later, Currently watching (Continue watching as its own tab), and your own collections like the game lists.
+- **0.17 Streaming filters.** Genre (from the addon's own genre option, so it filters the whole catalog), Anime, year and minimum rating (on the loaded results).
 - New looks, one per small release (inspired by console menus, never copying their logos, fonts or sounds):
   - Retro CRT theme (done, 0.7.8).
   - Later ideas: Couch (one giant shelf for big TVs), matching sounds per style.
