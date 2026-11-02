@@ -4,7 +4,8 @@ A game library for your PC that feels like a console. Point it at your ROM
 folder and it sorts every game by console and A–Z, finds box art, details and
 trailers, and starts each game with the right emulator. Steam, Epic and GOG
 games show up too. Your movies and TV shows can live there too, with posters, episode lists and
-resume where you left off. Everything works with a controller.
+resume where you left off, and so can Stremio-style streaming addons. Pick the look of your Home
+screen from five styles. Everything works with a controller.
 
 ![Spine's home screen: consoles in a row, with Continue playing below](docs/screenshots/home.jpg)
 
@@ -51,17 +52,26 @@ packages, or AppImages in `~/Applications` (EmuDeck's layout) on Linux.
   merged, updates and DLC attached, several ROM folders and drives, unplugged
   drives remembered. Steam, Epic and GOG games join in (on Linux through Steam and Heroic).
 - **Looks good:** covers from libretro, Steam, SteamGridDB and ScreenScraper,
-  trailers on game pages, four layouts, themes, a moving cover wall per console.
-- **Plays:** the right emulator per console, a different one per game if you
-  like, playtime tracking, hold Select + Start to quit back to Spine.
+  trailers on game pages, four layouts, themes (including a retro CRT look), a moving
+  cover wall per console.
+- **Five Home styles:** Classic, Wave, Channels, Blades and Cube, each with its own
+  feel and sounds (Wave and Channels have their own background music). Put the Home
+  tiles in any order you like.
+- **Plays:** the right emulator per console (Xbox 360 in Xenia too), a different one
+  per game if you like, playtime tracking, hold Select + Start to quit back to Spine.
 - **Helps:** missing BIOS files named with where they go, links to official
   emulator downloads, fix a wrong name or cover in a few clicks.
 - **Movies & TV:** point it at your movie and show folders. Posters, backdrops,
   summaries and episode names come from TMDB (free key). Shows are split into
-  seasons; episodes get thumbnails and checkmarks. Plays in VLC or mpv, resumes
-  where you stopped (VLC), and a "Continue watching" row picks up the next episode.
-- **Streaming addons:** add Stremio-style addons by link, and a Streaming tile on Home
-  lets you browse and search their catalogs. Spine comes with none built in.
+  seasons (anime arcs and specials too); episodes get thumbnails and checkmarks. Plays
+  in VLC or mpv, resumes where you stopped, and a "Continue watching" row picks up the
+  next episode. "Fix match" sorts out a wrong poster or show.
+- **Streaming addons:** add Stremio-style addons by link (from Stremio or Nuvio), and a
+  Streaming tile on Home lets you browse, filter (genre, year, anime, rating) and search
+  their catalogs. Pick a source (with a debrid service like TorBox) and it plays in VLC
+  or mpv, with resume, watched marks, Next episode, Continue watching, Favorites,
+  Watch later and your own lists. Kept separate from your own files. Spine comes with
+  no addons built in, and your addon links stay on your PC.
 - **Extras:** categories you can click ("every Roguelite you own"), your own
   lists, Surprise me, RetroAchievements on game pages.
 
