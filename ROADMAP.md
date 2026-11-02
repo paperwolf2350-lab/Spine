@@ -1,20 +1,19 @@
 # Spine — to-do list
 
 ## Next up (planned)
-Owner's list (Nov 2, after streaming steps 1–3). Three small releases, in this order:
-- **0.15 Settings cleanup + Home tile order.** Settings split into short sections (e.g. Look, Library, Streaming, Controller & sound, Updates & window) with much less text per item. New "Home tiles" list in Settings to reorder consoles/tiles (up/down, works with a controller), saved as a setting and used by every Home style.
+Owner's list (Nov 2, after streaming steps 1–3). Two small releases left, in this order:
 - **0.16 Streaming lists.** Inside the Streaming tile only (kept apart from game lists): Favorites (Y on a title), Watch later, Currently watching (Continue watching as its own tab), and your own collections like the game lists.
 - **0.17 Streaming filters.** Genre (from the addon's own genre option, so it filters the whole catalog), Anime, year and minimum rating (on the loaded results).
 - New looks, one per small release (inspired by console menus, never copying their logos, fonts or sounds):
   - Retro CRT theme (done, 0.7.8).
   - Later ideas: Couch (one giant shelf for big TVs), matching sounds per style.
-- Small fix: the Surprise me tile says "from all 759 games" but counts movies and shows too (it only picks games since 0.7.4).
 
 ## Later
 - Nothing planned. (macOS skipped Nov 1: no Mac to test on.)
 
 ## Done
 
+- Settings in sections (Look, Library, Streaming, Controller & sound, Updates & window; LB/RB switch) and your own Home tile order, used by every Home style; Surprise me counts games only (0.15.0).
 - Streaming addons, part 1: add Stremio-style addons, their catalogs on Movies/TV, details and episode lists (0.12.0); Search addons tab, separate from the library search (0.12.1); own Streaming tile on Home, Movies/TV back to local files only (0.12.2).
 - Streaming addons, part 2: Choose a source (Ready / Not cached, quality, size) and play in VLC or mpv (0.13.0).
 - Streaming addons, part 3: Resume / Start over, watched marks, Next episode, Continue watching (0.14.0).

@@ -82,7 +82,22 @@ function tiles() {
   const st = streamHomeTile();
   if (st) t.push(st);
   t.push({ kind: 'random', id: 'random', name: 'Surprise me', short: 'Surprise me', color: RANDOM_COLOR, count: null });
-  return t;
+  return orderTiles(t);
+}
+// Settings → Home tiles: the user's own order (setting `tileOrder`, a list of tile ids).
+// A tile that isn't in the saved list yet (a new console, a first favorite) stays right
+// after the tile it normally follows.
+function orderTiles(t) {
+  const order = settings().tileOrder;
+  if (!Array.isArray(order) || !order.length) return t;
+  const rank = new Map(order.map((id, i) => [id, i]));
+  let last = -0.5;
+  const keyed = t.map((x, i) => {
+    let r;
+    if (rank.has(x.id)) { r = rank.get(x.id); last = r; } else r = last + 0.5;
+    return { x, r, i };
+  });
+  return keyed.sort((a, b) => a.r - b.r || a.i - b.i).map((k) => k.x);
 }
 // Tiles you can open as a game list (everything except Surprise me).
 const browsable = () => tiles().filter((t) => t.kind !== 'random' && t.kind !== 'stream');
@@ -381,7 +396,7 @@ function home() {
     status = `Movies and shows from your ${t.label} · catalogs and search`;
     cta = 'Open Streaming';
   } else {
-    status = `Can't decide? Spine picks something from all ${sys.reduce((n, x) => n + x.games.length, 0).toLocaleString()} games.`;
+    status = `Can't decide? Spine picks something from all ${sys.filter((x) => x.id !== 'movies' && x.id !== 'tv').reduce((n, x) => n + x.games.length, 0).toLocaleString()} games.`;
     cta = 'Surprise me';
   }
   const cards = T.map((c, i) => `<button class="console ${i === sel ? 'sel' : ''} ${c.kind}" style="background:${c.color};--chip:${c.color}" data-nav data-key="con-${c.id}" data-act="tile" data-i="${i}" data-focus="selcon" aria-label="${esc(c.name)}${c.count != null ? ', ' + c.count + ' ' + things(c.sys, c.count) : c.label ? ', ' + c.label : ''}">
@@ -679,72 +694,84 @@ function playingOverlay() {
   </div></div>`;
 }
 
+// Settings is split into short sections; LB/RB (or the chips at the top) switch between them.
+const SET_TABS = [['look', 'Look'], ['library', 'Library'], ['streaming', 'Streaming'], ['play', 'Controller & sound'], ['system', 'Updates & window']];
+const setTab = () => (SET_TABS.some(([k]) => k === S.setTab) ? S.setTab : 'look');
 function settingsPanel() {
   if (S.panel !== 'settings') return '';
   const st = settings();
-  const theme = st.theme || 'cream';
-  const accent = st.accent || '#C8431F';
-  const sw = ['#C8431F', '#2F5FBF', '#237A52', '#5B21B6', '#C99A1A', '#0E7490'].map((c) =>
-    `<button class="swatch ${c === accent ? 'on' : ''}" style="background:${c}" data-nav data-key="acc-${c}" data-act="accent" data-c="${c}" aria-label="Accent ${c}"></button>`).join('');
-  const fetching = S.fetch ? `${S.fetch.stage === 'tv' ? 'Getting TV details' : S.fetch.stage === 'movies' ? 'Getting movie posters' : S.fetch.stage === 'details' ? 'Looking up details' : 'Downloading covers'} ${S.fetch.done}/${S.fetch.total}` : null;
-  return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="Settings">
-    <h2>Settings</h2>
-    <div class="grp"><span class="k">Theme</span><div class="opts">
-      <button class="chip ${theme === 'cream' ? 'on' : ''}" data-nav data-key="th-cream" data-act="theme" data-t="cream">Cream</button>
-      <button class="chip ${theme === 'midnight' ? 'on' : ''}" data-nav data-key="th-midnight" data-act="theme" data-t="midnight">Midnight</button>
-      <button class="chip ${theme === 'crt' ? 'on' : ''}" data-nav data-key="th-crt" data-act="theme" data-t="crt">Retro CRT</button></div></div>
-    <div class="grp"><span class="k">Home style</span><span class="note">How the Home screen is laid out. Game and movie pages look the same in every style.</span><div class="opts">
-      <button class="chip ${!waveOn() && !channelsOn() && !bladesOn() && !cubeOn() ? 'on' : ''}" data-nav data-key="hs-classic" data-act="homestyle" data-s="classic">Classic</button>
-      <button class="chip ${waveOn() ? 'on' : ''}" data-nav data-key="hs-wave" data-act="homestyle" data-s="wave">Wave</button>
-      <button class="chip ${channelsOn() ? 'on' : ''}" data-nav data-key="hs-channels" data-act="homestyle" data-s="channels">Channels</button>
-      <button class="chip ${bladesOn() ? 'on' : ''}" data-nav data-key="hs-blades" data-act="homestyle" data-s="blades">Blades</button>
-      <button class="chip ${cubeOn() ? 'on' : ''}" data-nav data-key="hs-cube" data-act="homestyle" data-s="cube">Cube</button></div></div>
-    <div class="grp"><span class="k">Accent</span><div class="opts">${sw}</div></div>
-    <div class="grp"><span class="k">ROM folders</span><span class="note">Spine reads every folder here and puts the games together. Folders on a drive that's unplugged keep their games listed until it's back.</span>
-      <div class="roots">${(S.boot.roots || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>
-        <button class="btn small" data-nav data-key="rmroot-${i}" data-act="rmroot" data-p="${esc(r.path)}">Remove</button></div>`).join('')}</div>
-      <div class="opts">
+  const tab = setTab();
+  const chips = (key, act, list, cur) => list.map(([v, l]) => `<button class="chip ${cur === v ? 'on' : ''}" data-nav data-key="${key}-${v}" data-act="${act}" data-v="${v}">${l}</button>`).join('');
+  const grp = (k, note, body) => `<div class="grp"><span class="k">${k}</span>${note ? `<span class="note">${note}</span>` : ''}${body}</div>`;
+  const rootRows = (list, rm, key) => !(list || []).length ? '' : `<div class="roots">${(list || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>
+        <button class="btn small" data-nav data-key="${key}-${i}" data-act="${rm}" data-p="${esc(r.path)}">Remove</button></div>`).join('')}</div>`;
+  let body = '';
+  if (tab === 'look') {
+    const accent = st.accent || '#C8431F';
+    const sw = ['#C8431F', '#2F5FBF', '#237A52', '#5B21B6', '#C99A1A', '#0E7490'].map((c) =>
+      `<button class="swatch ${c === accent ? 'on' : ''}" style="background:${c}" data-nav data-key="acc-${c}" data-act="accent" data-c="${c}" aria-label="Accent ${c}"></button>`).join('');
+    const style = waveOn() ? 'wave' : channelsOn() ? 'channels' : bladesOn() ? 'blades' : cubeOn() ? 'cube' : 'classic';
+    body = grp('Theme', '', `<div class="opts">
+      <button class="chip ${(st.theme || 'cream') === 'cream' ? 'on' : ''}" data-nav data-key="th-cream" data-act="theme" data-t="cream">Cream</button>
+      <button class="chip ${st.theme === 'midnight' ? 'on' : ''}" data-nav data-key="th-midnight" data-act="theme" data-t="midnight">Midnight</button>
+      <button class="chip ${st.theme === 'crt' ? 'on' : ''}" data-nav data-key="th-crt" data-act="theme" data-t="crt">Retro CRT</button></div>`)
+      + grp('Home style', 'How Home is laid out.', `<div class="opts">${['classic', 'wave', 'channels', 'blades', 'cube'].map((v) =>
+        `<button class="chip ${style === v ? 'on' : ''}" data-nav data-key="hs-${v}" data-act="homestyle" data-s="${v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div>`)
+      + grp('Accent', '', `<div class="opts">${sw}</div>`)
+      + grp('Interface size', 'Auto fits your screen.', `<div class="opts">${chips('sz', 'uiscale', ['auto', '1', '1.25', '1.5', '1.75', '2'].map((v) => [v, v === 'auto' ? 'Auto' : Math.round(v * 100) + '%']), String(st.ui_scale || 'auto'))}</div>`)
+      + tileOrderGroup();
+  } else if (tab === 'library') {
+    const fetching = S.fetch ? `${S.fetch.stage === 'tv' ? 'Getting TV details' : S.fetch.stage === 'movies' ? 'Getting movie posters' : S.fetch.stage === 'details' ? 'Looking up details' : 'Downloading covers'} ${S.fetch.done}/${S.fetch.total}` : '';
+    body = grp('ROM folders', 'Unplugged drives keep their games listed.', rootRows(S.boot.roots, 'rmroot', 'rmroot') + `<div class="opts">
       <button class="btn" data-nav data-key="addroot" data-act="addroot">${ICON.plus} Add folder</button>
       <button class="btn" data-nav data-key="rescan" data-act="rescan">Rescan</button>
-      <button class="chip ${settings().autoScan !== false ? 'on' : ''}" data-nav data-key="as-tog" data-act="autoscan">${settings().autoScan !== false ? 'Watching for new games' : 'Not watching for new games'}</button></div></div>
-    <div class="grp"><span class="k">Movies</span><span class="note">Folders with your movie files. They show up as a Movies shelf on Home and play in VLC or mpv. Posters and details come from TMDB (add your free key under Scrapers).</span>
-      <div class="roots">${(S.boot.movie_roots || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>
-        <button class="btn small" data-nav data-key="rmmovie-${i}" data-act="rmmovieroot" data-p="${esc(r.path)}">Remove</button></div>`).join('')}</div>
-      <div class="opts"><button class="btn" data-nav data-key="addmovieroot" data-act="addmovieroot">${ICON.plus} Add movie folder</button></div></div>
-    <div class="grp"><span class="k">TV</span><span class="note">Folders with your shows. Each folder inside is one show; Spine sorts the episodes into seasons and finds names and thumbnails on TMDB.</span>
-      <div class="roots">${(S.boot.tv_roots || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>
-        <button class="btn small" data-nav data-key="rmtv-${i}" data-act="rmtvroot" data-p="${esc(r.path)}">Remove</button></div>`).join('')}</div>
-      <div class="opts"><button class="btn" data-nav data-key="addtvroot" data-act="addtvroot">${ICON.plus} Add TV folder</button></div></div>
-    ${addonSettings()}
-    <div class="grp"><span class="k">PC stores</span><span class="note">Games installed with Steam, Epic Games and GOG show up in PC Games, ready to play.</span><div class="opts">
+      <button class="chip ${st.autoScan !== false ? 'on' : ''}" data-nav data-key="as-tog" data-act="autoscan">${st.autoScan !== false ? 'Watching for new games' : 'Not watching for new games'}</button></div>`)
+      + grp('Movies', 'Details come from TMDB (key under Scrapers).', rootRows(S.boot.movie_roots, 'rmmovieroot', 'rmmovie') + `<div class="opts"><button class="btn" data-nav data-key="addmovieroot" data-act="addmovieroot">${ICON.plus} Add movie folder</button></div>`)
+      + grp('TV', 'One folder per show.', rootRows(S.boot.tv_roots, 'rmtvroot', 'rmtv') + `<div class="opts"><button class="btn" data-nav data-key="addtvroot" data-act="addtvroot">${ICON.plus} Add TV folder</button></div>`)
+      + grp('PC stores', 'Steam, Epic and GOG games in PC Games.', `<div class="opts">
       <button class="chip ${storesOn() ? 'on' : ''}" data-nav data-key="st-on" data-act="stores" data-v="on">Include them</button>
-      <button class="chip ${!storesOn() ? 'on' : ''}" data-nav data-key="st-off" data-act="stores" data-v="off">Off</button></div></div>
-    <div class="grp"><span class="k">Box art &amp; details</span><span class="note">${esc(fetching || 'Covers come from the free libretro collection and Steam. Connect SteamGridDB or ScreenScraper under Scrapers for the rest.')}</span><div class="opts">
+      <button class="chip ${!storesOn() ? 'on' : ''}" data-nav data-key="st-off" data-act="stores" data-v="off">Off</button></div>`)
+      + grp('Box art &amp; details', esc(fetching), `<div class="opts">
       <button class="btn" data-nav data-key="fetchnow" data-act="fetch">Get missing covers</button>
-      <button class="btn" data-nav data-key="scrapers" data-act="scrapers">Scrapers</button></div></div>
-    <div class="grp"><span class="k">Videos</span><span class="note">Game pages play a gameplay video or trailer when one is available.</span><div class="opts">
+      <button class="btn" data-nav data-key="scrapers" data-act="scrapers">Scrapers</button></div>`)
+      + ((S.boot.hidden || []).length ? grp('Hidden games', '', `<div class="roots">${S.boot.hidden.map((h) => `<div class="root"><span></span><span class="rp">${esc(h.title)}</span><span class="rs">${esc(h.system)}</span>
+      <button class="btn small" data-nav data-key="uh-${esc(h.id)}" data-act="unhide" data-id="${esc(h.id)}">Show again</button></div>`).join('')}</div>`) : '');
+  } else if (tab === 'streaming') {
+    body = addonSettings();
+  } else if (tab === 'play') {
+    body = grp('Controller', 'Hold Select + Start in a game to close it.', `<div class="opts">
+      <button class="chip ${exitComboOn() ? 'on' : ''}" data-nav data-key="ex-on" data-act="exitcombo" data-v="on">Select + Start quits</button>
+      <button class="chip ${!exitComboOn() ? 'on' : ''}" data-nav data-key="ex-off" data-act="exitcombo" data-v="off">Off</button></div>`)
+      + grp('Videos', 'Trailers on game pages.', `<div class="opts">
       <button class="chip ${videosOn() ? 'on' : ''}" data-nav data-key="vid-on" data-act="videos" data-v="on">Play videos</button>
       <button class="chip ${!videosOn() ? 'on' : ''}" data-nav data-key="vid-off" data-act="videos" data-v="off">Off</button>
-      <button class="chip ${soundOn() ? 'on' : ''}" data-nav data-key="vid-sound" data-act="sound">${soundOn() ? 'Sound on' : 'Sound off'}</button></div></div>
-    ${(S.boot.hidden || []).length ? `<div class="grp"><span class="k">Hidden games</span><div class="roots">${S.boot.hidden.map((h) => `<div class="root"><span></span><span class="rp">${esc(h.title)}</span><span class="rs">${esc(h.system)}</span>
-      <button class="btn small" data-nav data-key="uh-${esc(h.id)}" data-act="unhide" data-id="${esc(h.id)}">Show again</button></div>`).join('')}</div></div>` : ''}
-    <div class="grp"><span class="k">Sounds</span><span class="note">Little clicks and chimes as you move around, like a console menu.</span><div class="opts">
-      ${[['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']].map(([v, l]) => `<button class="chip ${(settings().uiSounds || 'soft') === v ? 'on' : ''}" data-nav data-key="sfx-${v}" data-act="uisounds" data-v="${v}">${l}</button>`).join('')}</div></div>
-    <div class="grp"><span class="k">Home music</span><span class="note">Background music on the Wave and Channels homes, each with its own song. It fades out while you're in a library or playing or watching something.</span><div class="opts">
-      ${[['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']].map(([v, l]) => `<button class="chip ${(settings().homeMusic || 'soft') === v ? 'on' : ''}" data-nav data-key="bgm-${v}" data-act="homemusic" data-v="${v}">${l}</button>`).join('')}</div></div>
-    <div class="grp"><span class="k">Controller</span><span class="note">Hold Select + Start for a second during a game to close it and come back to Spine. Your game is closed the normal way, so it saves like quitting from its menu.</span><div class="opts">
-      <button class="chip ${exitComboOn() ? 'on' : ''}" data-nav data-key="ex-on" data-act="exitcombo" data-v="on">Select + Start quits</button>
-      <button class="chip ${!exitComboOn() ? 'on' : ''}" data-nav data-key="ex-off" data-act="exitcombo" data-v="off">Off</button></div></div>
-    <div class="grp"><span class="k">Interface size</span><span class="note">Auto fits Spine to your screen, from a laptop to a 4K TV.</span><div class="opts">
-      ${['auto', '1', '1.25', '1.5', '1.75', '2'].map((v) => `<button class="chip ${String(st.ui_scale || 'auto') === v ? 'on' : ''}" data-nav data-key="sz-${v}" data-act="uiscale" data-v="${v}">${v === 'auto' ? 'Auto' : Math.round(v * 100) + '%'}</button>`).join('')}</div></div>
-    <div class="grp"><span class="k">Updates</span><span class="note">${updateNote()}</span><div class="opts">
+      <button class="chip ${soundOn() ? 'on' : ''}" data-nav data-key="vid-sound" data-act="sound">${soundOn() ? 'Sound on' : 'Sound off'}</button></div>`)
+      + grp('Sounds', 'Clicks and chimes as you move around.', `<div class="opts">${chips('sfx', 'uisounds', [['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']], st.uiSounds || 'soft')}</div>`)
+      + grp('Home music', 'On the Wave and Channels homes.', `<div class="opts">${chips('bgm', 'homemusic', [['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']], st.homeMusic || 'soft')}</div>`);
+  } else {
+    body = grp('Updates', updateNote(), `<div class="opts">
       ${S.update?.available ? `<button class="btn primary" data-nav data-key="upd-go" data-act="installupdate">${ICON.download} Update to ${esc(S.update.latest)}</button>` : ''}
       <button class="btn" data-nav data-key="upd-check" data-act="checkupdate">Check now</button>
-      <button class="chip ${settings().autoUpdate !== false ? 'on' : ''}" data-nav data-key="upd-auto" data-act="autoupdate">${settings().autoUpdate !== false ? 'Checks when Spine starts' : 'Not checking automatically'}</button></div></div>
-    <div class="grp"><span class="k">Window</span><div class="opts">
+      <button class="chip ${st.autoUpdate !== false ? 'on' : ''}" data-nav data-key="upd-auto" data-act="autoupdate">${st.autoUpdate !== false ? 'Checks when Spine starts' : 'Not checking automatically'}</button></div>`)
+      + grp('Window', '', `<div class="opts">
       <button class="btn" data-nav data-key="fs" data-act="fullscreen">${st.fullscreen ? 'Leave fullscreen' : 'Fullscreen (couch mode)'}</button>
-      <button class="btn" data-nav data-key="quit" data-act="quit">Quit Spine</button></div></div>
+      <button class="btn" data-nav data-key="quit" data-act="quit">Quit Spine</button></div>`);
+  }
+  return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="Settings">
+    <h2>Settings</h2>
+    <div class="settabs">${SET_TABS.map(([k, l]) => `<button class="chip ${tab === k ? 'on' : ''}" data-nav data-key="stab-${k}" data-act="settab" data-t="${k}">${l}</button>`).join('')}</div>
+    ${body}
   </aside></div>`;
+}
+// Settings → Look → Home tiles: move consoles and tiles up or down (used by every Home style).
+function tileOrderGroup() {
+  const T = tiles();
+  const custom = Array.isArray(settings().tileOrder) && settings().tileOrder.length;
+  return `<div class="grp"><span class="k">Home tiles</span><span class="note">The order on Home, in every style.</span>
+    <div class="roots tileorder">${T.map((t, i) => `<div class="root"><span class="ticon" style="color:${t.color}">${sysIcon(tileIcon(t), 28)}</span><span class="rp">${esc(t.name)}</span>
+      <span class="abtns"><button class="btn small ${i === 0 ? 'dim' : ''}" data-nav data-key="tup-${esc(t.id)}" data-act="tilemove" data-id="${esc(t.id)}" data-d="-1" aria-label="Move ${esc(t.name)} up">↑</button>
+      <button class="btn small ${i === T.length - 1 ? 'dim' : ''}" data-nav data-key="tdn-${esc(t.id)}" data-act="tilemove" data-id="${esc(t.id)}" data-d="1" aria-label="Move ${esc(t.name)} down">↓</button></span></div>`).join('')}</div>
+    ${custom ? `<div class="opts"><button class="btn" data-nav data-key="treset" data-act="tilereset">Back to the usual order</button></div>` : ''}</div>`;
 }
 
 function scrapersPanel() {
@@ -1226,7 +1253,7 @@ function restoreFocus() {
   const els = navEls();
   let el = S.focusKey && els.find((e) => e.dataset.key === S.focusKey);
   if (!el) {
-    const pref = S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : { home: waveOn() ? waveFocusKey() : bladesOn() ? bladeFocusKey() : cubeOn() ? cubeFocusKey() : `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
+    const pref = S.panel === 'settings' ? `stab-${setTab()}` : S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : { home: waveOn() ? waveFocusKey() : bladesOn() ? bladeFocusKey() : cubeOn() ? cubeFocusKey() : `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
     el = (pref && els.find((e) => e.dataset.key === pref)) || els.find((e) => e.dataset.key?.startsWith('g-')) || els.find((e) => e.dataset.key !== 'brand') || els[0];
   }
   if (el) focusEl(el, false);
@@ -1262,6 +1289,14 @@ function move(dir) {
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
+// Reordering tiles mustn't change which console Home or the open library is on.
+function keepTilePlace(change) {
+  const sel = tiles()[S.sel]?.id, con = browsable()[S.con]?.id;
+  const p = change();
+  const si = tiles().findIndex((t) => t.id === sel); if (si >= 0) S.sel = si;
+  const ci = browsable().findIndex((t) => t.id === con); if (ci >= 0) S.con = ci;
+  return p;
+}
 async function setSetting(k, v) {
   S.boot.settings = { ...settings(), [k]: v };
   render();
@@ -1278,6 +1313,16 @@ const ACT = {
   home() { S.panel = null; S.screen = 'home'; S.focusKey = null; render(); },
   search(d) { if (!d || !d.keep) S.query = ''; S.panel = 'search'; S.focusKey = 'q'; render(); },
   settings() { const was = S.panel; S.panel = S.panel === 'settings' ? null : 'settings'; S.focusKey = S.panel ? (was === 'addon' ? 'addaddon' : S.accounts && S.focusKey?.startsWith('acc') ? 'scrapers' : null) : 'gear'; render(); },
+  settab(d) { S.setTab = d.t; S.focusKey = `stab-${d.t}`; render(); document.querySelector('.panel .sheet')?.scrollTo(0, 0); },
+  tilemove(d) {
+    const T = tiles(), i = T.findIndex((t) => t.id === d.id), j = i + Number(d.d);
+    if (i < 0 || j < 0 || j >= T.length) return SFX.play('edge');
+    const ids = T.map((t) => t.id);
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    keepTilePlace(() => setSetting('tileOrder', ids));
+    S.focusKey = `${Number(d.d) < 0 ? 'tup' : 'tdn'}-${d.id}`; render();
+  },
+  tilereset() { keepTilePlace(() => setSetting('tileOrder', [])); S.focusKey = 'stab-look'; render(); },
   closepanel() { const was = S.panel; S.panel = null; S.focusKey = was === 'search' ? 'searchbtn' : was === 'sources' ? (S.srcFrom || 'play') : was === 'emulator' ? 'chemu' : was === 'showfix' ? 'showfix' : 'gear'; render(); },
   tile(d) {
     const t = tiles()[+d.i];
@@ -1890,6 +1935,7 @@ function press(btn) {
       if (S.screen === 'games' && !S.panel && !S.playing) stepLetter(btn === 'RT' ? 1 : -1);
       return;
     case 'LB': case 'RB': {
+      if (S.panel === 'settings') { const k = SET_TABS.findIndex(([t]) => t === setTab()), n = SET_TABS.length; SFX.play('move'); return ACT.settab({ t: SET_TABS[(k + (btn === 'RB' ? 1 : n - 1)) % n][0] }); }
       if (!systems().length || S.panel || S.playing) return;
       if (S.screen === 'games' && S.cat) return;
       if (S.screen === 'games') {

@@ -1,9 +1,7 @@
 ## What's new
-- **Resume streamed movies and episodes.** Spine remembers where you stopped and which source you used: the page then offers **Resume**, **Start over** or **Other source**.
-- **Watched checkmarks** on streamed movies and episodes, with a progress bar on episodes you stopped partway.
-- **Next episode:** a show's main button picks up where you are (Resume, or Next: S1 E4), and the page opens on that season.
-- **Continue watching** row in Streaming (Movies and Shows each have their own). Finished movies drop off; "Remove from Continue watching" on a title's page takes anything off by hand.
-- Works the same in VLC and mpv.
+- **Settings in sections:** Look, Library, Streaming, Controller & sound, and Updates & window. Switch with the tabs at the top or LB / RB on a controller. Much less text to read.
+- **Choose the order of your Home tiles:** Settings → Look → Home tiles. Move any console, Favorites, Streaming or Surprise me up or down. Every Home style uses the same order; "Back to the usual order" undoes it.
+- The Surprise me tile now counts only games, not movies and shows.
 
 ---
 

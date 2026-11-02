@@ -428,3 +428,14 @@ body.kb .ep.focused, body.kb .ep:focus-visible { box-shadow: inset 0 0 0 3px var
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme="crt"] body::before { display: none; }
 }
+
+/* Settings sections (0.15) and Home tiles order */
+.panel .settabs { display: flex; flex-wrap: wrap; gap: 8px; position: sticky; top: -28px; z-index: 2; margin: -6px -28px 0; padding: 10px 28px 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.panel .settabs .chip { font-size: 14px; padding: 8px 13px; min-height: 36px; }
+.tileorder { max-height: none; }
+.tileorder .root { grid-template-columns: 30px 1fr auto; padding: 6px 10px; }
+.tileorder .ticon { display: flex; align-items: center; justify-content: center; }
+.tileorder .ticon svg { display: block; }
+.tileorder .abtns { display: flex; gap: 6px; }
+.tileorder .btn.small { min-width: 40px; justify-content: center; }
+.btn.dim { opacity: .35; }

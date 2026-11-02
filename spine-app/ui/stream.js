@@ -391,7 +391,7 @@ function sourcesPanel() {
 // ---- Settings → Addons
 function addonSettings() {
   const list = streamAddons();
-  return `<div class="grp"><span class="k">Streaming addons</span><span class="note">Stremio-style addons add a Streaming tile to Home with their catalogs (Popular, Trending...) and a search. Paste an addon's link (the same one you'd use in Stremio or Nuvio). Links with your keys in them stay on this PC and are never shown again.</span>
+  return `<div class="grp"><span class="k">Streaming addons</span><span class="note">Paste an addon's link from Stremio or Nuvio. Links stay on this PC.</span>
     ${list.length ? `<div class="roots">${list.map((a, i) => `<div class="root addonrow">${a.logo ? `<img class="alogo" src="${esc(a.logo)}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">` : '<span class="alogo"></span>'}
       <span class="rp" title="${esc(a.description || '')}">${esc(a.name)}${a.version ? ` <span class="rs">${esc(a.version)}</span>` : ''}</span>
       <span class="rs">${esc(addonWhat(a))}</span>

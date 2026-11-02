@@ -403,7 +403,17 @@ local `showNext`), Resume / Start over / Other source / Mark as watched on movie
 progress bars on episodes (row resumes if it can, else opens sources), `streamContinueRow` above
 the catalog grid (not on Search). Streaming steps 1–3 are done.
 
-**Next session**: start with ROADMAP "Next up" (0.15 → 0.16 → 0.17). Streaming code lives in
+**0.15.0**: Settings split into sections: `SET_TABS` (look / library / streaming / play / system), state
+`S.setTab` (`setTab()` falls back to 'look'), chip row `.settabs` (sticky) with keys `stab-<id>`, `ACT.settab`;
+LB/RB switch sections while `S.panel === 'settings'` (in `press`); restoreFocus prefers `stab-<tab>`.
+Notes cut to one short line each. Home tile order: setting `tileOrder` (list of tile ids) applied at the end
+of `tiles()` by `orderTiles` (a tile not in the list, e.g. a new console, stays right after the tile it
+normally follows), so every Home style and LB/RB follow it. Settings → Look → Home tiles (`tileOrderGroup`):
+↑/↓ per tile (`ACT.tilemove`, keys `tup-<id>`/`tdn-<id>`, focus stays on the moved button),
+`ACT.tilereset` saves []. `keepTilePlace()` keeps `S.sel` / `S.con` on the same tile across a reorder.
+Surprise me's count skips movies/tv. Tested in Playwright (Chromium) with a mock backend.
+
+**Next session**: start with ROADMAP "Next up" (0.16 → 0.17). Streaming code lives in
 `ui/stream.js` + `stream.css` and `spine-core/src/addons.rs`; keep new streaming features there.
 UI tests: recreate the Playwright mock (`window.__SPINE_MOCK__`; Chrome is at /usr/bin/google-chrome;
 Cinemeta JSON can be fetched live from the workspace for test data).
