@@ -1,7 +1,6 @@
 ## What's new
-- **New Home style: Channels.** Your consoles become rounded tiles in a grid, each with its covers slowly drifting past, and a big clock sits in a curved bar at the bottom. Move past the right edge (or use LB/RB) to see more tiles. Settings → Home style → Channels.
-- **Home music.** Channels comes with its own relaxed, bouncy background tune, made up by Spine as it plays (no music files). It pauses while you play or watch something. Turn it down or off in Settings → Home music.
-- Since 0.8.0: the Wave Home style.
+- **Real Home music.** Wave and Channels each have their own song now, made for Spine. The music plays on Home, fades out when you open a library or start a game or movie, and picks up where it left off when you come back. Settings → Home music sets it to Off, Soft or Normal.
+- Since 0.9.0: the Channels Home style.
 
 ---
 

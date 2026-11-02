@@ -719,7 +719,7 @@ function settingsPanel() {
       <button class="btn small" data-nav data-key="uh-${esc(h.id)}" data-act="unhide" data-id="${esc(h.id)}">Show again</button></div>`).join('')}</div></div>` : ''}
     <div class="grp"><span class="k">Sounds</span><span class="note">Little clicks and chimes as you move around, like a console menu.</span><div class="opts">
       ${[['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']].map(([v, l]) => `<button class="chip ${(settings().uiSounds || 'soft') === v ? 'on' : ''}" data-nav data-key="sfx-${v}" data-act="uisounds" data-v="${v}">${l}</button>`).join('')}</div></div>
-    <div class="grp"><span class="k">Home music</span><span class="note">Easygoing background music on the Channels home. It stops while you play or watch something.</span><div class="opts">
+    <div class="grp"><span class="k">Home music</span><span class="note">Background music on the Wave and Channels homes, each with its own song. It fades out while you're in a library or playing or watching something.</span><div class="opts">
       ${[['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']].map(([v, l]) => `<button class="chip ${(settings().homeMusic || 'soft') === v ? 'on' : ''}" data-nav data-key="bgm-${v}" data-act="homemusic" data-v="${v}">${l}</button>`).join('')}</div></div>
     <div class="grp"><span class="k">Controller</span><span class="note">Hold Select + Start for a second during a game to close it and come back to Spine. Your game is closed the normal way, so it saves like quitting from its menu.</span><div class="opts">
       <button class="chip ${exitComboOn() ? 'on' : ''}" data-nav data-key="ex-on" data-act="exitcombo" data-v="on">Select + Start quits</button>
@@ -1763,6 +1763,7 @@ function actSound(act) {
 // ---------------------------------------------------------------------------
 function press(btn) {
   document.body.classList.add('kb');
+  BGM.wake(); // a controller press counts as the first input for starting music
   const cur = document.activeElement;
   const typing = cur && cur.tagName === 'INPUT';
   if (btn === 'A' && cur?.dataset?.act) SFX.play(actSound(cur.dataset.act));

@@ -284,5 +284,13 @@ theme: keep the melody and chords original. tauri.conf.json now passes WebView2
 music starts without a click on Windows; first key/click also resumes audio as a fallback.
 Preview MP3 was rendered with OfflineAudioContext in Playwright (fake currentTime).
 
+**0.9.1**: Home music is now the owner's own songs: `ui/music/wave.mp3` and `ui/music/channels.mp3`
+(owner made them; ~3:25 and ~3:04). Loudness-normalized from -14 to -20 LUFS (ffmpeg two-pass
+loudnorm, TP -1.5, 160 kbps). `ui/music.js` (`BGM`) plays one looping <audio> per style
+(`SONGS` map: add a file + entry for a new style), fades out off Home / while playing, resumes
+where it paused. The 0.9.0 synthesized tune was removed (it's in git history). `press()` calls
+`BGM.wake()` so a controller press can start audio if autoplay was held back. Linux AppImage plays
+MP3 through its bundled GStreamer (plugins good/bad/libav in release.yml).
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

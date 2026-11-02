@@ -12,6 +12,7 @@
 
 ## Done
 
+- Own songs for the Wave and Channels homes (0.9.1).
 - Channels Home style with its own background music (0.9.0).
 - "Home style" setting with the first new style, Wave (0.8.0).
 - Retro CRT theme (0.7.8).
