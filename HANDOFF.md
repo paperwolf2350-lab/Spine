@@ -413,7 +413,18 @@ normally follows), so every Home style and LB/RB follow it. Settings → Look �
 `ACT.tilereset` saves []. `keepTilePlace()` keeps `S.sel` / `S.con` on the same tile across a reorder.
 Surprise me's count skips movies/tv. Tested in Playwright (Chromium) with a mock backend.
 
-**Next session**: start with ROADMAP "Next up" (0.16 → 0.17). Streaming code lives in
+**0.16.0**: Streaming lists. spine-state.json `stream_lists` (name -> titles, newest first; each
+{item "<type>:<id>", type, id, name, poster, year, addon, addonName, at}; `stream_list_apply` keeps only
+those keys, no links). "Favorites" / "Watch later" (`STREAM_BUILTIN`) vanish when emptied; own lists stay
+until deleted. Commands `stream_list_set(name, info, member)`, `stream_list_delete(name)`; Boot `stream_lists`.
+UI (stream.js): `streamMyTabs(kind)` = Continue watching (ck `cw`, full `streamContinue(kind, 99)`) +
+Favorites + Watch later + own lists (ck `list:<name>`), each only when it has titles of that kind; tabs go
+Search, yours, a `.tabsep`, catalogs; default tab is still the first catalog. `streamFind(ck, i)` resolves a
+poster from a catalog/search/list (used by `sopen` and Y). Y on the Streaming screens goes to `streamY`
+(before the game Y handler in `press`). Details page: Favorite / Watch later / Add to list (`slists` panel,
+`streamListsPanel`, new list via `slnew`). Hearts (`sFavDot`) on posters. Tested in Playwright with a mock.
+
+**Next session**: start with ROADMAP "Next up" (0.17). Streaming code lives in
 `ui/stream.js` + `stream.css` and `spine-core/src/addons.rs`; keep new streaming features there.
 UI tests: recreate the Playwright mock (`window.__SPINE_MOCK__`; Chrome is at /usr/bin/google-chrome;
 Cinemeta JSON can be fetched live from the workspace for test data).

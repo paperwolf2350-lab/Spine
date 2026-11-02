@@ -37,3 +37,8 @@ span.cat { cursor: default; }
 .scontinue .cwimg .pbar { position: absolute; left: 6px; right: 6px; bottom: 6px; height: 4px; border-radius: 2px; background: rgba(0, 0, 0, .55); overflow: hidden; }
 .scontinue .cwimg .pbar i { display: block; height: 100%; background: var(--accent); }
 .scontinue .game .s { font-size: 13px; color: var(--muted); }
+/* Your streaming lists (0.16) */
+.streamtabs .tabsep { flex: 0 0 auto; width: 2px; margin: 6px 4px; border-radius: 1px; background: var(--line, rgba(127,127,127,.35)); }
+.streamtabs .chip svg { vertical-align: -3px; }
+.stiles .cwimg { position: relative; display: block; }
+.coverbtns .btn.on { background: color-mix(in srgb, var(--accent) 22%, var(--surface2)); }

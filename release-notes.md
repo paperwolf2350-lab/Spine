@@ -1,7 +1,7 @@
 ## What's new
-- **Settings in sections:** Look, Library, Streaming, Controller & sound, and Updates & window. Switch with the tabs at the top or LB / RB on a controller. Much less text to read.
-- **Choose the order of your Home tiles:** Settings → Look → Home tiles. Move any console, Favorites, Streaming or Surprise me up or down. Every Home style uses the same order; "Back to the usual order" undoes it.
-- The Surprise me tile now counts only games, not movies and shows.
+- **Streaming lists:** inside the Streaming tile you now have your own tabs: Continue watching, Favorites, Watch later and lists you make yourself (like "Movie night"). They only show once they have something in them, and they stay separate from your game lists.
+- **Favorite with Y:** press Y on any poster or on a title's page. Favorites get a little heart.
+- On a title's page: **Favorite**, **Watch later** and **Add to list** buttons under the poster. Delete one of your own lists from the bottom of its tab.
 
 ---
 

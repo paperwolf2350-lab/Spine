@@ -52,16 +52,35 @@ function streamKind() {
   if (!ks.includes(S_STREAM.kind)) S_STREAM.kind = ks[0] || 'movies';
   return S_STREAM.kind;
 }
-// Tabs for a kind: Search first (when an addon can search), then every catalog.
+// ---- Your streaming lists: Favorites, Watch later and your own, kept apart from game lists.
+// Stored in spine-state.json `stream_lists` (name -> titles, newest first; no links).
+const SL_FAV = 'Favorites', SL_LATER = 'Watch later';
+const sLists = () => S.boot?.stream_lists || {};
+const sInList = (name, item) => (sLists()[name] || []).some((r) => r.item === item);
+const sOwnLists = () => Object.keys(sLists()).filter((n) => n !== SL_FAV && n !== SL_LATER);
+// What a list keeps of a title.
+const sListInfo = (it, addon, addonName) => ({ item: `${it.type}:${it.id}`, type: it.type, id: it.id, name: it.name, poster: it.poster || null, year: it.year || null, addon: addon || null, addonName: addonName || null });
+// Tabs for your lists on Movies or Shows, each shown once it has something of that kind.
+function streamMyTabs(kind) {
+  const types = STREAM_TYPES[kind];
+  const out = [];
+  if (streamContinue(kind, 99).length) out.push({ ck: 'cw', mine: true, label: 'Continue watching', addonName: 'What you were watching' });
+  for (const n of [SL_FAV, SL_LATER, ...sOwnLists()]) {
+    const items = (sLists()[n] || []).filter((r) => types.includes(r.type));
+    if (items.length) out.push({ ck: `list:${n}`, mine: true, list: n, own: n !== SL_FAV && n !== SL_LATER, items, label: n, addonName: n === SL_FAV ? 'Your favorites' : n === SL_LATER ? 'Saved for later' : 'Your list' });
+  }
+  return out;
+}
+// Tabs for a kind: Search first (when an addon can search), your lists, then every catalog.
 function streamTabList(kind) {
   const out = [];
   if (streamSearchCats(kind).length) out.push({ ck: `search:${kind}`, search: true, sys: kind, label: 'Search', addonName: 'Searches your addons' });
-  return out.concat(streamCats(kind));
+  return out.concat(streamMyTabs(kind), streamCats(kind));
 }
 // The tab shown right now: the one picked last, else the first catalog (else Search).
 function streamCur(kind) {
   const list = streamTabList(kind);
-  return list.find((c) => c.ck === S_STREAM.tab[kind]) || list.find((c) => !c.search) || list[0] || null;
+  return list.find((c) => c.ck === S_STREAM.tab[kind]) || list.find((c) => !c.search && !c.mine) || list[0] || null;
 }
 
 const streamImg = (u, cls = '') => (u ? `<img ${cls ? `class="${cls}" ` : ''}src="${esc(u)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : '');
@@ -73,7 +92,7 @@ const bigPoster = (u) => (u || '').replace('/poster/small/', '/poster/medium/');
 function streamTabs(kind) {
   const cur = streamCur(kind);
   return `<div class="streamtabs" role="tablist" aria-label="Catalogs">
-    ${streamTabList(kind).map((c) => `<button class="chip ${cur?.ck === c.ck ? 'on' : ''}" role="tab" aria-selected="${cur?.ck === c.ck}" data-nav data-key="st-${esc(c.ck)}" data-act="stab" data-s="${esc(kind)}" data-ck="${esc(c.ck)}" title="${esc(c.addonName)}">${c.search ? ICON.search + ' ' : ''}${esc(c.label)}</button>`).join('')}
+    ${streamTabList(kind).map((c, i, all) => `${i && all[i - 1].mine && !c.mine ? '<span class="tabsep" aria-hidden="true"></span>' : ''}<button class="chip ${cur?.ck === c.ck ? 'on' : ''} ${c.mine ? 'mine' : ''}" role="tab" aria-selected="${cur?.ck === c.ck}" data-nav data-key="st-${esc(c.ck)}" data-act="stab" data-s="${esc(kind)}" data-ck="${esc(c.ck)}" title="${esc(c.addonName)}">${c.search ? ICON.search + ' ' : c.list === SL_FAV ? ICON.heartA + ' ' : ''}${esc(c.label)}</button>`).join('')}
   </div>`;
 }
 
@@ -86,18 +105,18 @@ function stream() {
   if (cur && !cur.search && !S_STREAM.cache[cur.ck]) setTimeout(() => streamLoad(cur.ck));
   const body = !kinds.length
     ? `<div class="nofav">Your addons don't have catalogs or search. Add a catalog addon in Settings → Streaming addons, for example Cinemeta:<br><span class="path">https://v3-cinemeta.strem.io/manifest.json</span></div>`
-    : cur ? (cur.search ? '' : streamContinueRow(kind)) + streamGrid(cur) : '';
+    : cur ? (cur.search || cur.mine ? '' : streamContinueRow(kind)) + streamGrid(cur) : '';
   return topbar() + `<main class="main">
     <div class="gamesbar">
       <button class="iconbtn" data-nav data-key="sgback" data-act="back" aria-label="Back to Home">${ICON.back}</button>
       <span class="hdricon" style="background:${STREAM_COLOR}">${sysIcon('streaming', 30)}</span><h2>Streaming</h2>
-      <span style="color:var(--muted)">${esc(cur ? (cur.search ? cur.addonName : `From ${cur.addonName}`) : '')}</span>
+      <span style="color:var(--muted)">${esc(cur ? (cur.search || cur.mine ? cur.addonName : `From ${cur.addonName}`) : '')}</span>
       <div class="spacer"></div>
       ${kinds.length > 1 ? `<div class="seg skinds" role="group" aria-label="Movies or shows">${kinds.map(([k, l]) => `<button class="${k === kind ? 'on' : ''}" data-nav data-key="sk-${k}" data-act="skind" data-k="${k}">${l}</button>`).join('')}</div>` : ''}
     </div>
     ${kinds.length ? streamTabs(kind) : ''}
     <div class="games-wrap"><div class="games scroll" id="gamesscroll">${body}</div></div>
-  </main>` + hints('Movies and shows from your streaming addons', [['A', 'Open'], ['B', 'Back'], ['LB / RB', 'Catalog'], kinds.length > 1 ? ['LT / RT', 'Movies / Shows'] : null].filter(Boolean));
+  </main>` + hints('Movies and shows from your streaming addons', [['A', 'Open'], ['B', 'Back'], ['Y', 'Favorite'], ['LB / RB', 'Catalog'], kinds.length > 1 ? ['LT / RT', 'Movies / Shows'] : null].filter(Boolean));
 }
 
 // Controller on the Streaming screen: LB/RB step through the tabs, LT/RT switch Movies / Shows.
@@ -124,21 +143,38 @@ function streamKey(btn) {
 
 function streamGrid(c) {
   if (c.search) return streamSearchView(c);
+  if (c.mine) return streamListView(c);
   const d = S_STREAM.cache[c.ck];
   if (!d || (d.loading && !d.items.length)) return `<div class="nofav"><div class="spinner" style="margin:0 auto 18px"></div>Loading ${esc(c.label)}…</div>`;
   if (d.error && !d.items.length) return `<div class="nofav">${esc(d.error)}<div style="margin-top:18px"><button class="btn" data-nav data-key="sretry" data-act="smore" data-ck="${esc(c.ck)}">Try again</button></div></div>`;
   if (!d.items.length) return `<div class="nofav">This catalog is empty right now.</div>`;
   const tiles = d.items.map((it, i) => `<button class="game" data-nav data-key="si-${esc(it.id)}" data-act="sopen" data-ck="${esc(c.ck)}" data-i="${i}">
-      ${streamCover(it, it.poster)}
+      <span class="cwimg">${streamCover(it, it.poster)}${sFavDot(`${it.type}:${it.id}`)}</span>
       <span class="t">${esc(it.name)}</span>${it.year ? `<span class="s">${esc(it.year)}</span>` : ''}</button>`).join('');
   const more = d.done ? '' : `<div class="smore">${d.error ? `<span class="note">${esc(d.error)}</span>` : ''}<button class="btn" data-nav data-key="smore" data-act="smore" data-ck="${esc(c.ck)}" ${d.loading ? 'disabled' : ''}>${d.loading ? 'Loading…' : 'Show more'}</button></div>`;
   return `<div class="tiles stiles">${tiles}</div>${more}`;
 }
 
+// A poster with a heart when it's a favorite.
+const sFavDot = (item) => (sInList(SL_FAV, item) ? `<span class="favdot">${ICON.heart}</span>` : '');
+// Continue watching, Favorites, Watch later or one of your lists, as a grid.
+function streamListView(c) {
+  if (c.ck === 'cw') {
+    return `<div class="tiles stiles scontinue">${streamContinue(streamKind(), 99).map(({ r, line, pct }) => `<button class="game" data-nav data-key="cw-${esc(r.item)}" data-act="scontinue" data-item="${esc(r.item)}">
+      <span class="cwimg">${streamCover({ name: r.name, year: r.year }, bigPoster(r.poster))}${sFavDot(r.item)}${pct ? `<span class="pbar"><i style="width:${pct}%"></i></span>` : ''}</span>
+      <span class="t">${esc(r.name)}</span><span class="s">${esc(line)}</span></button>`).join('')}</div>`;
+  }
+  const tiles = c.items.map((r, i) => `<button class="game" data-nav data-key="si-${esc(r.id)}" data-act="sopen" data-ck="${esc(c.ck)}" data-i="${i}">
+      <span class="cwimg">${streamCover(r, r.poster)}${c.list !== SL_FAV ? sFavDot(r.item) : ''}</span>
+      <span class="t">${esc(r.name)}</span>${r.year || r.addonName ? `<span class="s">${esc(r.year || '')}${r.year && r.addonName ? ' · ' : ''}${esc(r.addonName || '')}</span>` : ''}</button>`).join('');
+  const del = c.own ? `<div class="smore"><button class="btn" data-nav data-key="sldel" data-act="sldelete" data-n="${esc(c.list)}">Delete the list “${esc(c.list)}”</button></div>` : '';
+  return `<div class="tiles stiles">${tiles}</div>${del}`;
+}
+
 // ---- Search tab: only searches addons, never your own files (the X search does those).
 function streamTile(it, ck, i) {
   return `<button class="game" data-nav data-key="si-${esc(it.id)}" data-act="sopen" data-ck="${esc(ck)}" data-i="${i}">
-      ${streamCover(it, it.poster)}
+      <span class="cwimg">${streamCover(it, it.poster)}${sFavDot(`${it.type}:${it.id}`)}</span>
       <span class="t">${esc(it.name)}</span>${it.year ? `<span class="s">${esc(it.year)}</span>` : ''}</button>`;
 }
 function streamSearchView(c) {
@@ -253,7 +289,7 @@ function streamInfo(vid) {
 }
 // Continue watching for Movies or Shows: newest first; finished movies and shows with
 // nothing left drop off.
-function streamContinue(kind) {
+function streamContinue(kind, max = 12) {
   const types = STREAM_TYPES[kind];
   return Object.values(S.boot.stream_recent || {}).filter((r) => types.includes(r.type)).sort((a, b) => (b.at || 0) - (a.at || 0)).map((r) => {
     const vid = r.episode ? r.episode.id : r.id;
@@ -263,7 +299,7 @@ function streamContinue(kind) {
     const code = r.episode ? epCodeOf(r.episode) : '';
     const line = canResume(p) ? `Resume ${code ? code + ' · ' : ''}${clock(p.pos)}` : done ? `Next after ${code}` : code ? `Watch ${code}` : 'Watch';
     return { r, line, pct: canResume(p) && p.len ? Math.round((100 * p.pos) / p.len) : 0 };
-  }).filter(Boolean).slice(0, 12);
+  }).filter(Boolean).slice(0, max);
 }
 function streamContinueRow(kind) {
   const list = streamContinue(kind);
@@ -336,13 +372,17 @@ function sdetail() {
     action = srcBtn(first.id, epTitle(first), `Choose a source · ${first.season != null ? `S${first.season} E${first.episode}` : esc(first.title)}`) + `<span class="note">or pick any episode below</span>`;
   } else action = '';
   const inContinue = !!(S.boot.stream_recent || {})[k];
+  const fav = sInList(SL_FAV, k), later = sInList(SL_LATER, k), inOwn = sOwnLists().some((n) => sInList(n, k));
+  const listBtns = `<button class="btn small ${fav ? 'on' : ''}" data-nav data-key="sfav" data-act="sfav" aria-pressed="${fav}">${glyph('Y')}${fav ? 'Remove favorite' : 'Favorite'}</button>
+      <button class="btn small ${later ? 'on' : ''}" data-nav data-key="slater" data-act="slater" aria-pressed="${later}">${later ? ICON.check + ' In Watch later' : 'Watch later'}</button>
+      <button class="btn small" data-nav data-key="slists" data-act="slists">${ICON.list} ${inOwn ? 'In your lists' : 'Add to list'}</button>`;
   const bg = it.background;
   return topbar() + `<main class="main"><div class="backdrop" aria-hidden="true">${it.poster ? streamImg(it.poster) : ''}</div>
   <div class="detail scroll ${bg ? 'has-hero' : ''}" id="detailscroll">
    ${bg ? `<div class="herobanner" aria-hidden="true">${streamImg(bg)}</div>` : ''}
    <div class="detail-top">
     <div class="left"><div class="media">${streamCover(it, bigPoster(it.poster))}</div>
-      ${inContinue ? `<div class="coverbtns"><button class="btn small" data-nav data-key="sforget" data-act="sforget" data-item="${esc(k)}">Remove from Continue watching</button></div>` : ''}</div>
+      <div class="coverbtns">${listBtns}${inContinue ? `<button class="btn small" data-nav data-key="sforget" data-act="sforget" data-item="${esc(k)}">Remove from Continue watching</button>` : ''}</div></div>
     <div class="right">
       <button class="back" data-nav data-key="sback" data-act="back">${ICON.back}${esc(backLabel)}</button>
       ${it.logo ? `<h2 class="haslogo"><img class="gamelogo" src="${esc(it.logo)}" alt="${esc(it.name)}" referrerpolicy="no-referrer" onerror="this.parentNode.classList.remove('haslogo'); this.replaceWith(this.alt)"></h2>` : `<h2>${esc(it.name)}</h2>`}
@@ -356,7 +396,7 @@ function sdetail() {
    </div>
    ${epsHtml}
    ${loading && T !== 'movie' ? '<div class="nofav" style="padding:30px 0">Getting episodes…</div>' : ''}
-  </div></main>` + hints('From a streaming addon', [['A', 'Select'], ['B', 'Back']]);
+  </div></main>` + hints('From a streaming addon', [['A', 'Select'], ['B', 'Back'], ['Y', 'Favorite']]);
 }
 
 // ---- "Choose a source": what your source addons offer for a movie or episode.
@@ -386,6 +426,67 @@ function sourcesPanel() {
     <span class="note">"Ready" sources are already on your debrid service and start right away. Plays in VLC.</span>
     ${body}
   </aside></div>`;
+}
+
+// ---- "Add to list" for a streamed title: Watch later and your own streaming lists.
+function streamListsPanel() {
+  if (S.panel !== 'slists' || !S.slist) return '';
+  const x = S.slist;
+  const names = [SL_LATER, ...sOwnLists()];
+  return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="Streaming lists">
+    <h2>Lists for ${esc(x.name)}</h2>
+    <span class="note">Streaming lists show up as tabs on the Streaming screen. They're separate from your game lists.</span>
+    <div class="choices">${names.map((n, i) => { const on = sInList(n, x.item), cnt = (sLists()[n] || []).length; return `<button class="choice ${on ? 'on' : ''}" data-nav data-key="sls-${i}" data-act="sltoggle" data-n="${esc(n)}">
+      <span class="t">${on ? ICON.check + ' ' : ''}${esc(n)}</span><span class="n">${cnt} title${cnt === 1 ? '' : 's'}${on ? ' · in this list' : ''}</span></button>`; }).join('')}</div>
+    <div class="grp"><span class="k">New list</span>
+      <label class="field"><input type="text" id="snl-name" data-nav data-key="snl-name" data-enter="slnew" placeholder="List name, like “Movie night”" maxlength="40" autocomplete="off" spellcheck="false"></label>
+      <div class="opts"><button class="btn" data-nav data-key="snl-make" data-act="slnew">${ICON.plus} Make list and add</button></div></div>
+  </aside></div>`;
+}
+// The title a Y press means: the focused poster on the Streaming screen, or the open details page.
+function streamTitleAt(el) {
+  const d = el?.dataset || {};
+  if (S.screen === 'stream' && d.act === 'sopen') { const f = streamFind(d.ck, d.i); return f && sListInfo(f.it, f.c.addon, f.c.addonName); }
+  if (S.screen === 'stream' && d.act === 'scontinue') { const r = (S.boot.stream_recent || {})[d.item]; return r && sListInfo(r, r.addon, r.addonName); }
+  if (S.screen === 'sdetail' && S.sitem) return sDetailInfo();
+  return null;
+}
+function sDetailInfo() {
+  const x = S.sitem;
+  const m = S_STREAM.meta[`${x.item.type}:${x.item.id}`];
+  const it = { ...x.item, ...(m && m !== 'loading' ? Object.fromEntries(['name', 'poster', 'year'].filter((f) => m[f]).map((f) => [f, m[f]])) : {}) };
+  return sListInfo(it, x.addon, x.addonName);
+}
+// Y on the Streaming screens: favorite / unfavorite (true = handled here).
+function streamY(el) {
+  if (S.screen !== 'stream' && S.screen !== 'sdetail') return false;
+  const info = streamTitleAt(el);
+  if (info) streamToggle(SL_FAV, info);
+  return true;
+}
+async function streamToggle(name, info, quiet) {
+  const on = sInList(name, info.item);
+  const key = document.activeElement?.dataset?.key || null;
+  try { S.boot = await api.call('stream_list_set', { name, info, member: !on }); } catch (e) { return toast(String(e), 4000); }
+  SFX.play(on ? 'back' : 'select');
+  S.focusKey = key; render();
+  if (!quiet) toast(name === SL_FAV ? (on ? `Removed ${info.name} from Favorites` : `Added ${info.name} to Favorites`) : on ? `Removed from “${name}”` : `Added to “${name}”`, 1800);
+}
+// A title behind a poster: from a catalog, a search or one of your lists.
+function streamFind(ck, i) {
+  if (!ck) return null;
+  if (ck.startsWith('search:')) {
+    const it = S_STREAM.search[ck.slice(7)]?.items[+i];
+    return it && { it, c: { addon: it._addon, addonName: it._addonName, label: 'Search' } };
+  }
+  if (ck.startsWith('list:')) {
+    const tab = streamMyTabs(streamKind()).find((t) => t.ck === ck);
+    const r = tab?.items[+i];
+    return r && { it: { id: r.id, type: r.type, name: r.name, poster: r.poster, year: r.year, genres: [] }, c: { addon: r.addon, addonName: r.addonName, label: tab.label } };
+  }
+  const c = streamCats('movies').concat(streamCats('tv')).find((x) => x.ck === ck);
+  const it = S_STREAM.cache[ck]?.items[+i];
+  return c && it ? { it, c } : null;
 }
 
 // ---- Settings → Addons
@@ -517,20 +618,31 @@ const STREAM_ACT = {
     streamLoad(d.ck);
   },
   sopen(d) {
-    let c, it;
-    if (d.ck.startsWith('search:')) {
-      it = S_STREAM.search[d.ck.slice(7)]?.items[+d.i];
-      c = it && { addon: it._addon, addonName: it._addonName, label: 'Search' };
-    } else {
-      c = streamCats('movies').concat(streamCats('tv')).find((x) => x.ck === d.ck);
-      it = S_STREAM.cache[d.ck]?.items[+d.i];
-    }
-    if (!c || !it) return;
+    const f = streamFind(d.ck, d.i);
+    if (!f) return;
+    const { c, it } = f;
     S.sitem = { item: it, addon: c.addon, addonName: c.addonName, catLabel: c.label, backKey: `si-${it.id}` };
     S.panel = null; S.screen = 'sdetail'; S.focusKey = 'sback';
     render();
     document.getElementById('detailscroll')?.scrollTo(0, 0);
     streamMeta(it, c.addon);
+  },
+  sfav() { if (S.sitem) streamToggle(SL_FAV, sDetailInfo()); },
+  slater() { if (S.sitem) streamToggle(SL_LATER, sDetailInfo()); },
+  slists() { if (!S.sitem) return; S.slist = sDetailInfo(); S.panel = 'slists'; S.focusKey = null; render(); },
+  sltoggle(d) { if (S.slist) streamToggle(d.n, S.slist, true); },
+  async slnew() {
+    const name = (document.getElementById('snl-name')?.value || '').trim();
+    if (!name || !S.slist) return;
+    try { S.boot = await api.call('stream_list_set', { name, info: S.slist, member: true }); } catch (e) { return toast(String(e), 4000); }
+    S.focusKey = 'snl-name'; render(); toast(`Added to “${name}”`);
+  },
+  async sldelete(d) {
+    S.boot = await api.call('stream_list_delete', { name: d.n });
+    const kind = streamKind();
+    if (S_STREAM.tab[kind] === `list:${d.n}`) S_STREAM.tab[kind] = null;
+    S.focusKey = null; render();
+    toast(`Deleted the list “${d.n}”`, 3000);
   },
   sseason(d) {
     const k = `${S.sitem.item.type}:${S.sitem.item.id}`;

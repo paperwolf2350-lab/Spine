@@ -81,6 +81,11 @@ struct Saved {
     /// needs to show it again (name, poster, last episode...) plus `at`. No links in here.
     #[serde(default)]
     stream_recent: BTreeMap<String, serde_json::Value>,
+    /// Streaming lists ("Favorites", "Watch later" and the user's own): name -> titles,
+    /// newest first. Each title is what the interface needs to show it (item "<type>:<id>",
+    /// name, poster, addon key...). No links in here.
+    #[serde(default)]
+    stream_lists: BTreeMap<String, Vec<serde_json::Value>>,
 }
 
 impl Saved {
@@ -340,6 +345,7 @@ struct Boot {
     progress: BTreeMap<String, spine_core::player::Progress>,
     addons: Vec<AddonView>,
     stream_recent: BTreeMap<String, serde_json::Value>,
+    stream_lists: BTreeMap<String, Vec<serde_json::Value>>,
     /// Streamed movies/episodes with a remembered source (Resume can reopen it).
     stream_links: Vec<String>,
 }
@@ -455,6 +461,7 @@ fn view(app: &App) -> Boot {
         notes: lib.as_ref().map(|l| l.notes.clone()).unwrap_or_default(),
         addons: addon_views(app),
         stream_recent: saved.stream_recent.clone(),
+        stream_lists: saved.stream_lists.clone(),
         stream_links: app.links.lock().unwrap().keys().cloned().collect(),
     }
 }
@@ -1623,6 +1630,51 @@ fn stream_forget(item: String, app: State<App>) -> Boot {
     view(&app)
 }
 
+/// The built-in streaming lists: they disappear when emptied (your own lists stay).
+const STREAM_BUILTIN: [&str; 2] = ["Favorites", "Watch later"];
+
+/// Put a streamed movie or show in a streaming list, or take it out.
+fn stream_list_apply(lists: &mut BTreeMap<String, Vec<serde_json::Value>>, name: &str, info: &serde_json::Value, member: bool, at: u64) -> Result<(), String> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 40 {
+        return Err("List names can be 1 to 40 characters.".into());
+    }
+    let item = info.get("item").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).ok_or("Nothing to add.")?.to_string();
+    // Keep only what the interface shows; never anything else an addon sent along.
+    let mut m = serde_json::Map::new();
+    for k in ["item", "type", "id", "name", "poster", "year", "addon", "addonName"] {
+        if let Some(v) = info.get(k).filter(|v| !v.is_null()) {
+            m.insert(k.into(), v.clone());
+        }
+    }
+    m.insert("at".into(), serde_json::json!(at));
+    let list = lists.entry(name.to_string()).or_default();
+    list.retain(|v| v.get("item").and_then(|x| x.as_str()) != Some(item.as_str()));
+    if member {
+        list.insert(0, serde_json::Value::Object(m));
+        list.truncate(1000);
+    }
+    if list.is_empty() && STREAM_BUILTIN.contains(&name) {
+        lists.remove(name);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn stream_list_set(name: String, info: serde_json::Value, member: bool, app: State<App>) -> Result<Boot, String> {
+    stream_list_apply(&mut app.saved.lock().unwrap().stream_lists, &name, &info, member, now())?;
+    app.save();
+    Ok(view(&app))
+}
+
+/// Delete one of your own streaming lists (the titles stay in your addons, of course).
+#[tauri::command]
+fn stream_list_delete(name: String, app: State<App>) -> Boot {
+    app.saved.lock().unwrap().stream_lists.remove(&name);
+    app.save();
+    view(&app)
+}
+
 /// Full details for a title (episodes for shows), from the addon it came from or any other.
 #[tauri::command]
 async fn addon_meta(key: Option<String>, kind: String, id: String, handle: AppHandle) -> Result<Option<addons::Meta>, String> {
@@ -1937,7 +1989,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, stream_list_set, stream_list_delete])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }
@@ -1945,6 +1997,29 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn streaming_lists() {
+        let mut l = BTreeMap::new();
+        let a = serde_json::json!({"item": "movie:tt1", "type": "movie", "id": "tt1", "name": "A", "url": "https://secret", "poster": null});
+        let b = serde_json::json!({"item": "series:tt2", "type": "series", "id": "tt2", "name": "B"});
+        stream_list_apply(&mut l, "Favorites", &a, true, 1).unwrap();
+        stream_list_apply(&mut l, "Favorites", &b, true, 2).unwrap();
+        stream_list_apply(&mut l, "Favorites", &a, true, 3).unwrap(); // again: moves to the front, no duplicate
+        let f = &l["Favorites"];
+        assert_eq!(f.len(), 2);
+        assert_eq!(f[0]["item"], "movie:tt1");
+        assert!(f[0].get("url").is_none() && f[0].get("poster").is_none());
+        // Built-in lists go away when empty; your own stay.
+        stream_list_apply(&mut l, "Favorites", &a, false, 4).unwrap();
+        stream_list_apply(&mut l, "Favorites", &b, false, 5).unwrap();
+        assert!(!l.contains_key("Favorites"));
+        stream_list_apply(&mut l, " Comfort ", &a, true, 6).unwrap();
+        stream_list_apply(&mut l, "Comfort", &a, false, 7).unwrap();
+        assert!(l["Comfort"].is_empty());
+        assert!(stream_list_apply(&mut l, "  ", &a, true, 8).is_err());
+        assert!(stream_list_apply(&mut l, "X", &serde_json::json!({}), true, 8).is_err());
+    }
 
     #[test]
     fn decodes_and_refuses_escapes() {

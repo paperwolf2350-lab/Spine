@@ -1113,7 +1113,7 @@ function render() {
   const scrollers = {};
   app.querySelectorAll('.scroll').forEach((el) => { if (el.id) scrollers[el.id] = el.scrollTop; });
   const screens = { welcome, scanning, home, games, detail, stream, sdetail, loading: () => '' };
-  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + addonPanel() + sourcesPanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
+  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + addonPanel() + sourcesPanel() + streamListsPanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
   silenceDetached();
   Object.entries(scrollers).forEach(([id, top]) => { const el = document.getElementById(id); if (el) el.scrollTop = top; });
   const car = document.getElementById('carousel');
@@ -1323,7 +1323,7 @@ const ACT = {
     S.focusKey = `${Number(d.d) < 0 ? 'tup' : 'tdn'}-${d.id}`; render();
   },
   tilereset() { keepTilePlace(() => setSetting('tileOrder', [])); S.focusKey = 'stab-look'; render(); },
-  closepanel() { const was = S.panel; S.panel = null; S.focusKey = was === 'search' ? 'searchbtn' : was === 'sources' ? (S.srcFrom || 'play') : was === 'emulator' ? 'chemu' : was === 'showfix' ? 'showfix' : 'gear'; render(); },
+  closepanel() { const was = S.panel; S.panel = null; S.focusKey = was === 'search' ? 'searchbtn' : was === 'sources' ? (S.srcFrom || 'play') : was === 'emulator' ? 'chemu' : was === 'showfix' ? 'showfix' : was === 'slists' ? 'slists' : 'gear'; render(); },
   tile(d) {
     const t = tiles()[+d.i];
     if (!t) return;
@@ -1873,10 +1873,10 @@ const SFX = (() => {
 function actSound(act) {
   if (!act) return null;
   if (['back', 'closepanel', 'closeshot', 'closeplay', 'scback'].includes(act)) return 'back';
-  if (['settings', 'scrapers', 'search', 'emu', 'fixgame', 'lists', 'openshot'].includes(act)) return 'open';
+  if (['settings', 'scrapers', 'search', 'emu', 'fixgame', 'lists', 'slists', 'openshot'].includes(act)) return 'open';
   if (act === 'play') return 'launch';
   if (act === 'random') return 'spin';
-  if (act === 'fav' || act === 'uisounds') return null; // they play their own once the result is known
+  if (['fav', 'uisounds', 'sfav', 'slater', 'sltoggle'].includes(act)) return null; // they play their own once the result is known
   if (['jump', 'stepshot', 'sortby', 'filter', 'layout', 'sound', 'videos', 'chpage'].includes(act)) return 'tick';
   if (act === 'bladego' || act === 'cubepick' || act === 'cubetilt') return null; // they play their own turn sounds
   return 'select';
@@ -1916,6 +1916,7 @@ function press(btn) {
     case 'X': if (streamSearchFocus()) return; if (!S.panel && S.boot?.systems?.length && !S.playing) ACT.search(); return;
     case 'Y': {
       if (typing) return;
+      if (streamY(cur)) return;
       const id = cur?.dataset?.id || (S.screen === 'detail' ? S.game : null);
       if (id) ACT.fav({ id });
       return;
