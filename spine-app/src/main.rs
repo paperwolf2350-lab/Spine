@@ -789,7 +789,7 @@ fn set_setting(key: String, value: serde_json::Value, app: State<App>) {
 
 /// Start a game. Emits "game-exited" {id, seconds} when the emulator closes.
 #[tauri::command]
-fn play(id: String, episode: Option<usize>, from_start: Option<bool>, handle: AppHandle) -> Result<String, String> {
+fn play(id: String, episode: Option<usize>, from_start: Option<bool>, next: Option<String>, handle: AppHandle) -> Result<String, String> {
     let app = handle.state::<App>();
     if let Some(r) = app.running.lock().unwrap().as_ref() {
         return Err(format!("{r} is still running."));
@@ -820,6 +820,7 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, handle: Ap
     let pkey = spine_core::player::key(&id, ep_file.as_deref());
     let saved_pos = app.saved.lock().unwrap().progress.get(&pkey).copied();
     let start = if from_start == Some(true) { None } else { spine_core::player::start_at(saved_pos.as_ref()) };
+    let up_next = up_next(&app, next);
     let tracker = if !is_movie || plan.blocked.is_some() {
         None
     } else if plan.emulator == "VLC" {
@@ -844,7 +845,7 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, handle: Ap
         let file_arg = plan.args.pop();
         plan.args.extend(match t {
             Tracker::Vlc(port, pw) => spine_core::player::vlc_args(*port, pw, start),
-            Tracker::Mpv(script, out) => spine_core::player::mpv_args(script, out, start),
+            Tracker::Mpv(script, out) => spine_core::player::mpv_args(script, out, start, up_next.as_ref()),
         });
         plan.args.extend(file_arg);
     }
@@ -915,12 +916,9 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, handle: Ap
             *app.saved.lock().unwrap().playtime.entry(id.clone()).or_insert(0) += secs;
             app.save();
         }
-        // mpv writes its last position as it closes: read it once more.
-        if let Some(Tracker::Mpv(_, out)) = &tracker {
-            if let Some(p) = fs::read_to_string(out).ok().and_then(|t| spine_core::player::parse_mpv_progress(&t)) {
-                *last_pos.lock().unwrap() = Some(p);
-            }
-        }
+        // mpv writes its last position as it closes: read it once more, and whether
+        // the "Up next" countdown ran out.
+        let next = tracker.as_ref().map_or(false, |t| t.finish(&last_pos));
         let progress = last_pos.lock().unwrap().map(|(pos, len)| {
             let mut s = app.saved.lock().unwrap();
             let p = spine_core::player::after_session(s.progress.get(&pkey).copied(), pos, len, now());
@@ -931,13 +929,24 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, handle: Ap
             app.save();
         }
         *app.running.lock().unwrap() = None;
-        let _ = h.emit("game-exited", serde_json::json!({"id": id, "seconds": secs, "error": error, "key": pkey, "progress": progress}));
+        let _ = h.emit("game-exited", serde_json::json!({"id": id, "seconds": secs, "error": error, "key": pkey, "progress": progress, "next": next}));
         if let Some(w) = h.get_webview_window("main") {
             let _ = w.unminimize();
             let _ = w.set_focus();
         }
     });
     Ok(emulator)
+}
+
+/// The "Up next" countdown for the episode after this one (mpv only), unless it's
+/// turned off in Settings (autoplayNext). autoplayWait = seconds to count down.
+fn up_next(app: &App, next: Option<String>) -> Option<spine_core::player::UpNext> {
+    let s = app.saved.lock().unwrap();
+    if s.settings.get("autoplayNext").and_then(|v| v.as_bool()) == Some(false) {
+        return None;
+    }
+    let wait = s.settings.get("autoplayWait").and_then(|v| v.as_u64()).unwrap_or(10).clamp(3, 60);
+    next.filter(|t| !t.trim().is_empty()).map(|t| spine_core::player::UpNext { title: t.trim().chars().take(120).collect(), wait })
 }
 
 /// How Spine follows a movie's position: VLC's web remote (port, password), or
@@ -949,6 +958,17 @@ enum Tracker {
 }
 
 impl Tracker {
+    /// After the player closed: mpv's last word on the position, and whether its
+    /// "Up next" countdown finished (play the next episode).
+    fn finish(&self, last: &std::sync::Mutex<Option<(u64, u64)>>) -> bool {
+        let Tracker::Mpv(_, out) = self else { return false };
+        let Ok(t) = fs::read_to_string(out) else { return false };
+        if let Some(p) = spine_core::player::parse_mpv_progress(&t) {
+            *last.lock().unwrap() = Some(p);
+        }
+        spine_core::player::mpv_wants_next(&t)
+    }
+
     fn poll(&self) -> Option<(u64, u64)> {
         match self {
             Tracker::Vlc(port, pw) => spine_core::player::poll_vlc(*port, pw),
@@ -1498,7 +1518,7 @@ async fn addon_streams(kind: String, id: String, handle: AppHandle) -> Result<Ve
 /// (Resume). Remembers the position like local movies, under "stream/<key>". `info` is what
 /// Continue watching shows (from the interface: item, name, poster, episode...). Emits "game-exited".
 #[tauri::command]
-fn play_stream(token: Option<String>, key: String, title: String, info: Option<serde_json::Value>, from_start: Option<bool>, handle: AppHandle) -> Result<String, String> {
+fn play_stream(token: Option<String>, key: String, title: String, info: Option<serde_json::Value>, from_start: Option<bool>, next: Option<String>, handle: AppHandle) -> Result<String, String> {
     let app = handle.state::<App>();
     if let Some(r) = app.running.lock().unwrap().as_ref() {
         return Err(format!("{r} is still running."));
@@ -1516,6 +1536,7 @@ fn play_stream(token: Option<String>, key: String, title: String, info: Option<s
     // Follow the position, like local movies: VLC's web remote, or Spine's little mpv script.
     let saved_pos = app.saved.lock().unwrap().progress.get(&pkey).copied();
     let start = if from_start == Some(true) { None } else { spine_core::player::start_at(saved_pos.as_ref()) };
+    let up_next = up_next(&app, next);
     let tracker = if plan.emulator == "VLC" {
         spine_core::player::free_port().map(|port| Tracker::Vlc(port, spine_core::player::password()))
     } else {
@@ -1534,7 +1555,7 @@ fn play_stream(token: Option<String>, key: String, title: String, info: Option<s
         let url_arg = plan.args.pop();
         plan.args.extend(match t {
             Tracker::Vlc(port, pw) => spine_core::player::vlc_args(*port, pw, start),
-            Tracker::Mpv(script, out) => spine_core::player::mpv_args(script, out, start),
+            Tracker::Mpv(script, out) => spine_core::player::mpv_args(script, out, start, up_next.as_ref()),
         });
         plan.args.extend(url_arg);
     }
@@ -1598,11 +1619,7 @@ fn play_stream(token: Option<String>, key: String, title: String, info: Option<s
             addons::redact(&msg, &src.url)
         });
         let app = h.state::<App>();
-        if let Some(Tracker::Mpv(_, out)) = &tracker {
-            if let Some(p) = fs::read_to_string(out).ok().and_then(|t| spine_core::player::parse_mpv_progress(&t)) {
-                *last_pos.lock().unwrap() = Some(p);
-            }
-        }
+        let next = tracker.as_ref().map_or(false, |t| t.finish(&last_pos));
         let progress = last_pos.lock().unwrap().map(|(pos, len)| {
             let mut s = app.saved.lock().unwrap();
             let p = spine_core::player::after_session(s.progress.get(&pkey).copied(), pos, len, now());
@@ -1613,7 +1630,7 @@ fn play_stream(token: Option<String>, key: String, title: String, info: Option<s
             app.save();
         }
         *app.running.lock().unwrap() = None;
-        let _ = h.emit("game-exited", serde_json::json!({"id": pkey, "seconds": secs, "error": error, "key": pkey, "progress": progress}));
+        let _ = h.emit("game-exited", serde_json::json!({"id": pkey, "seconds": secs, "error": error, "key": pkey, "progress": progress, "next": next}));
         if let Some(w) = h.get_webview_window("main") {
             let _ = w.unminimize();
             let _ = w.set_focus();

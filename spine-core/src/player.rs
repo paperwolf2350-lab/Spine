@@ -131,32 +131,113 @@ fn base64(data: &[u8]) -> String {
     out
 }
 
-/// The script mpv runs for Spine (mpv has Lua built in). It only writes one
-/// small file, named by Spine in `--script-opts=spine-progress=<file>`.
-pub const MPV_SCRIPT: &str = r#"-- Spine: saves how far into the video you are, so Spine can resume it later.
+/// The script mpv runs for Spine (mpv has Lua built in). It writes one small
+/// file, named by Spine in `--script-opts=spine-progress=<file>`: "<seconds> <length>",
+/// plus " next" once the "Up next" countdown has run out (or Enter was pressed), so
+/// Spine knows to start the next episode. With `spine-next=<title>` the video stays
+/// open on its last frame (Spine passes `--keep-open=yes`) and an "Up next" card counts
+/// down `spine-wait` seconds. Esc (or B on a controller) cancels.
+pub const MPV_SCRIPT: &str = r#"-- Spine: remembers how far in you are, and counts down to the next episode.
 local out = mp.get_opt("spine-progress")
 if not out then return end
+local nxt = mp.get_opt("spine-next") or ""
+local wait = tonumber(mp.get_opt("spine-wait") or "") or 10
+local want_next = false
+
 local function save()
   local pos = mp.get_property_number("time-pos")
   local len = mp.get_property_number("duration")
   if pos and len and len > 0 then
     local f = io.open(out, "w")
     if f then
-      f:write(string.format("%d %d\n", math.floor(pos + 0.5), math.floor(len + 0.5)))
+      f:write(string.format("%d %d%s\n", math.floor(pos + 0.5), math.floor(len + 0.5), want_next and " next" or ""))
       f:close()
     end
   end
 end
 mp.add_periodic_timer(2, save)
 mp.add_hook("on_unload", 50, save)
+
+if nxt == "" then return end
+
+-- "Up next" card, bottom right, drawn on a 1920x1080 canvas (mpv scales it).
+local card = mp.create_osd_overlay("ass-events")
+card.res_x, card.res_y = 1920, 1080
+local timer, left = nil, 0
+local keys = { "ENTER", "KP_ENTER", "GAMEPAD_ACTION_DOWN", "ESC", "GAMEPAD_ACTION_RIGHT", "BS" }
+
+local function esc(s)
+  return (s:gsub("\\", "\\\\"):gsub("{", "\\{"):gsub("}", "\\}"):gsub("\n", " "))
+end
+local function rect(x, y, w, h, color, alpha)
+  return string.format("{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H%s&\\1a&H%s&\\p1}m %d %d l %d %d l %d %d l %d %d{\\p0}",
+    color, alpha, x, y, x + w, y, x + w, y + h, x, y + h)
+end
+local function draw()
+  local x, y, w, h = 1220, 790, 640, 220
+  local done = (wait - left) / wait
+  local ev = {
+    rect(x, y, w, h, "141414", "28"),
+    rect(x, y + h - 8, w, 8, "FFFFFF", "C0"),
+    rect(x, y + h - 8, math.floor(w * done + 0.5), 8, "FFFFFF", "00"),
+    string.format("{\\an7\\pos(%d,%d)\\fs26\\bord0\\shad0\\1c&HB4B4B4&\\b1}UP NEXT", x + 36, y + 30),
+    string.format("{\\an7\\pos(%d,%d)\\fs44\\bord0\\shad0\\1c&HFFFFFF&\\b1\\q2}%s", x + 36, y + 66, esc(nxt)),
+    string.format("{\\an7\\pos(%d,%d)\\fs28\\bord0\\shad0\\1c&HDCDCDC&}Plays in %d   ·   Enter: play now   ·   Esc: stay here", x + 36, y + 142, left),
+  }
+  card.data = table.concat(ev, "\n")
+  card:update()
+end
+local function stop()
+  if timer then timer:kill() timer = nil end
+  card:remove()
+  for _, k in ipairs(keys) do mp.remove_key_binding("spine-" .. k) end
+end
+local function go()
+  stop()
+  want_next = true
+  save()
+  mp.command("quit")
+end
+local function start()
+  if timer then return end
+  left = wait
+  draw()
+  for i, k in ipairs(keys) do
+    mp.add_forced_key_binding(k, "spine-" .. k, i <= 3 and go or stop)
+  end
+  timer = mp.add_periodic_timer(1, function()
+    left = left - 1
+    if left <= 0 then go() else draw() end
+  end)
+end
+mp.observe_property("eof-reached", "bool", function(_, v)
+  if v then start() else stop() end
+end)
 "#;
 
-/// Extra mpv options: Spine's script, the file it writes, and where to start.
-/// They go before the file name.
-pub fn mpv_args(script: &std::path::Path, out: &std::path::Path, start: Option<u64>) -> Vec<String> {
-    // "%<length>%value" keeps a comma or "=" in the folder name from splitting the option.
+/// The "Up next" countdown in mpv: the next episode's name and how many seconds to wait.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UpNext {
+    pub title: String,
+    pub wait: u64,
+}
+
+/// Extra mpv options: Spine's script, the file it writes, where to start, and (for
+/// "Up next") the next episode's name. They go before the file name.
+pub fn mpv_args(script: &std::path::Path, out: &std::path::Path, start: Option<u64>, next: Option<&UpNext>) -> Vec<String> {
+    // "%<length>%value" keeps a comma or "=" in a name from splitting the option.
+    let opt = |k: &str, v: &str| format!("{k}=%{}%{v}", v.len());
     let out = out.display().to_string();
-    let mut a = vec![format!("--script={}", script.display()), format!("--script-opts=spine-progress=%{}%{out}", out.len())];
+    let mut opts = vec![opt("spine-progress", &out)];
+    if let Some(n) = next {
+        opts.push(opt("spine-next", &n.title));
+        opts.push(format!("spine-wait={}", n.wait.max(1)));
+    }
+    let mut a = vec![format!("--script={}", script.display()), format!("--script-opts={}", opts.join(","))];
+    if next.is_some() {
+        // Stay on the last frame so the countdown can show.
+        a.push("--keep-open=yes".into());
+    }
     if let Some(s) = start {
         a.push(format!("--start={s}"));
     }
@@ -168,6 +249,11 @@ pub fn parse_mpv_progress(text: &str) -> Option<(u64, u64)> {
     let mut it = text.split_whitespace().map(|x| x.parse::<u64>().ok());
     let (pos, len) = (it.next()??, it.next()??);
     (len > 0).then_some((pos.min(len), len))
+}
+
+/// Did the "Up next" countdown finish (so Spine should play the next episode)?
+pub fn mpv_wants_next(text: &str) -> bool {
+    text.split_whitespace().nth(2) == Some("next")
 }
 
 #[cfg(test)]
@@ -214,9 +300,17 @@ mod tests {
         assert_eq!(parse_mpv_progress("12 0"), None);
         assert_eq!(parse_mpv_progress("75"), None); // caught mid-write
         assert_eq!(parse_mpv_progress(""), None);
-        let a = mpv_args(std::path::Path::new("/s/spine.lua"), std::path::Path::new("/s/pos.txt"), Some(60));
+        let a = mpv_args(std::path::Path::new("/s/spine.lua"), std::path::Path::new("/s/pos.txt"), Some(60), None);
         assert_eq!(a, vec!["--script=/s/spine.lua".to_string(), "--script-opts=spine-progress=%10%/s/pos.txt".into(), "--start=60".into()]);
-        assert!(MPV_SCRIPT.contains("on_unload") && MPV_SCRIPT.contains("%d %d\\n"));
+        assert!(MPV_SCRIPT.contains("on_unload") && MPV_SCRIPT.contains("eof-reached"));
+        // Up next: the title is length-prefixed so its commas survive, and the video stays open.
+        let t = "S1 · E4 Cursed, Womb";
+        let n = UpNext { title: t.into(), wait: 10 };
+        let a = mpv_args(std::path::Path::new("/s/spine.lua"), std::path::Path::new("/s/pos.txt"), None, Some(&n));
+        assert_eq!(a[1], format!("--script-opts=spine-progress=%10%/s/pos.txt,spine-next=%{}%{t},spine-wait=10", t.len()));
+        assert_eq!(a[2], "--keep-open=yes");
+        assert!(mpv_wants_next("1440 1440 next\n") && !mpv_wants_next("1440 1440\n") && !mpv_wants_next(""));
+        assert_eq!(parse_mpv_progress("1440 1440 next"), Some((1440, 1440)));
     }
 
     #[test]

@@ -1,7 +1,7 @@
 # Spine — to-do list
 
 ## Next up (planned)
-Owner's Nov 2 streaming list is done (0.16 lists, 0.17 filters). Ask the owner what's next.
+Spine's own video player (mpv): Spine downloads mpv on Windows; Skip intro / credits from chapters (0.19); AniSkip for anime without chapters (0.20).
 - New looks, one per small release (inspired by console menus, never copying their logos, fonts or sounds):
   - Retro CRT theme (done, 0.7.8).
   - Later ideas: Couch (one giant shelf for big TVs), matching sounds per style.
@@ -10,6 +10,8 @@ Owner's Nov 2 streaming list is done (0.16 lists, 0.17 filters). Ask the owner w
 - Nothing planned. (macOS skipped Nov 1: no Mac to test on.)
 
 ## Done
+
+- Up next: the next episode starts after a countdown in mpv, for your own and streamed shows; mpv is the default player (0.18.0).
 
 - Channels home: consoles with one or two games show their covers over moving banner art; Streaming tile shows your posters (0.17.1).
 - Streaming filters: genre/year from the addon (whole catalog), Anime only, decade and minimum rating on loaded results with automatic extra pages (0.17.0).

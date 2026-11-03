@@ -481,7 +481,7 @@ function sourcesPanel() {
   }
   return `<div class="panel" data-act="closepanel"><aside class="sheet wide" role="dialog" aria-label="Choose a source">
     <h2>Choose a source</h2><p class="note" style="margin-top:-6px">${esc(x.title)}</p>
-    <span class="note">"Ready" sources are already on your debrid service and start right away. Plays in VLC.</span>
+    <span class="note">"Ready" sources are already on your debrid service and start right away.</span>
     ${body}
   </aside></div>`;
 }
@@ -600,6 +600,27 @@ function addonPanel() {
   </aside></div>`;
 }
 
+// "Up next" for streamed shows: the episode after vid (no specials), its label for mpv's
+// countdown, and the source to look for (same addon and quality as the one playing).
+const sPicks = {};
+function sUpNext(type, vid, pick) {
+  const x = S.sitem;
+  if (!x || !STREAM_TYPES.tv.includes(type)) return null;
+  const eps = sEpisodes(x).filter((e) => e.season !== 0);
+  const i = eps.findIndex((e) => e.id === vid);
+  const e = i >= 0 ? eps[i + 1] : null;
+  if (!e) return null;
+  const code = e.season != null && e.episode != null ? `S${e.season} E${e.episode}` : '';
+  const name = streamInfo(e.id)?.name || x.item.name || '';
+  return { stream: true, k: type, e, label: [code, e.title].filter(Boolean).join('   '), title: `${name} · ${code ? code + ' ' : ''}${e.title || ''}`.trim(), pick: pick || sPicks[`${type}:${vid}`] || null };
+}
+// The best source for the next episode: same addon and quality, ready ones first.
+function sBestSource(groups, pick) {
+  const all = groups.flatMap((g) => g.sources.map((s) => ({ ...s, addon: g.addon })));
+  const score = (s) => (pick && s.addon === pick.addon ? 4 : 0) + (pick && s.quality && s.quality === pick.quality ? 2 : 0) + (s.cached === true ? 3 : s.cached === false ? -3 : 0);
+  return all.map((s, i) => ({ s, i })).sort((a, b) => score(b.s) - score(a.s) || a.i - b.i)[0]?.s || null;
+}
+
 // After a play starts: the interface's copy of Continue watching and Resume links.
 function streamPlayed(type, vid, info) {
   const k = sKey(type, vid);
@@ -627,10 +648,11 @@ const STREAM_ACT = {
   async sresume(d) {
     stopPreview();
     const info = streamInfo(d.v);
-    S.playing = { title: d.t, emulator: 'VLC', movie: true };
+    const nx = sUpNext(d.k, d.v);
+    S.playing = { title: d.t, emulator: 'mpv', movie: true, next: nx };
     render();
     try {
-      const emu = await api.call('play_stream', { token: null, key: `${d.k}:${d.v}`, title: d.t, info, fromStart: d.from === 'start' });
+      const emu = await api.call('play_stream', { token: null, key: `${d.k}:${d.v}`, title: d.t, info, fromStart: d.from === 'start', next: nx?.label || null });
       S.playing = { ...S.playing, emulator: emu, started: true };
       streamPlayed(d.k, d.v, info);
     } catch (e) {
@@ -657,14 +679,41 @@ const STREAM_ACT = {
     const x = S.src;
     if (!x) return;
     S.panel = null; stopPreview();
-    S.playing = { title: x.title, emulator: 'VLC', movie: true };
+    const chosen = (x.groups || []).flatMap((g) => g.sources.map((s) => ({ addon: g.addon, quality: s.quality, token: s.token }))).find((s) => s.token === d.tok);
+    if (chosen) sPicks[`${x.kind}:${x.id}`] = { addon: chosen.addon, quality: chosen.quality };
+    const nx = sUpNext(x.kind, x.id, sPicks[`${x.kind}:${x.id}`]);
+    S.playing = { title: x.title, emulator: 'mpv', movie: true, next: nx };
     render();
     try {
-      const emu = await api.call('play_stream', { token: d.tok, key: `${x.kind}:${x.id}`, title: x.title, info: x.info, fromStart: true });
+      const emu = await api.call('play_stream', { token: d.tok, key: `${x.kind}:${x.id}`, title: x.title, info: x.info, fromStart: true, next: nx?.label || null });
       S.playing = { ...S.playing, emulator: emu, started: true };
       streamPlayed(x.kind, x.id, x.info);
     } catch (e) {
       S.playing = { ...S.playing, error: String(e) };
+    }
+    S.focusKey = 'closeplay';
+    render();
+  },
+  // Up next after a streamed episode: find a source for the next one and play it.
+  async snext(n) {
+    stopPreview();
+    S.playing = { title: n.title, emulator: 'mpv', movie: true, finding: true };
+    S.focusKey = 'closeplay';
+    render();
+    try {
+      const groups = await api.call('addon_streams', { kind: n.k, id: n.e.id });
+      const src = sBestSource(groups, n.pick);
+      if (!src) throw new Error('None of your addons found a source for the next episode. Pick one from the episode list.');
+      sPicks[`${n.k}:${n.e.id}`] = { addon: src.addon, quality: src.quality };
+      const info = streamInfo(n.e.id);
+      const nx = sUpNext(n.k, n.e.id);
+      S.playing = { title: n.title, emulator: 'mpv', movie: true, next: nx };
+      render();
+      const emu = await api.call('play_stream', { token: src.token, key: `${n.k}:${n.e.id}`, title: n.title, info, fromStart: false, next: nx?.label || null });
+      S.playing = { ...S.playing, emulator: emu, started: true };
+      streamPlayed(n.k, n.e.id, info);
+    } catch (e) {
+      S.playing = { ...S.playing, finding: false, error: String(e.message || e) };
     }
     S.focusKey = 'closeplay';
     render();

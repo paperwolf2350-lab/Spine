@@ -207,9 +207,18 @@ const canResume = (p) => !!p && p.pos >= 30 && !finished(p);
 const clock = (t) => { const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), x = t % 60; return `${h ? `${h}:${String(m).padStart(2, '0')}` : m}:${String(x).padStart(2, '0')}`; };
 // A show's main button: back into the episode you stopped in, else the next
 // unwatched one after the last you watched, else the first.
-function showNext(g) {
+function epOrder(g) {
   const eps = g.episodes || [];
-  const order = showGroups(g).flatMap((gr) => eps.map((e, i) => ({ e, i })).filter((x) => x.e.group === gr).map((x) => x.i));
+  return showGroups(g).flatMap((gr) => eps.map((e, i) => ({ e, i })).filter((x) => x.e.group === gr).map((x) => x.i));
+}
+// The episode after episode i, for mpv's "Up next" countdown (not into Movies & specials).
+function epAfter(g, i) {
+  const o = epOrder(g), k = o.indexOf(i), n = k >= 0 ? o[k + 1] : null;
+  return n != null && g.episodes[n].group !== 'Movies & specials' ? n : null;
+}
+const epLabel = (e) => [epCode(e), e.title].filter(Boolean).join('   ');
+function showNext(g) {
+  const order = epOrder(g);
   let last = -1, lastAt = 0;
   order.forEach((i, k) => { const p = progOf(g, i); if (p && p.at > lastAt) { lastAt = p.at; last = k; } });
   if (last < 0) return { i: order[0], kind: 'play' };
@@ -689,7 +698,7 @@ function playingOverlay() {
     ${p.error ? '' : '<div class="spinner"></div>'}
     <p style="font-size:15px;font-weight:600;letter-spacing:.08em;text-transform:uppercase">${p.error ? "Couldn't start" : p.started ? (p.movie ? 'Watching' : 'Playing') : (p.movie ? 'Opening' : 'Launching')}</p>
     <h2>${esc(p.title)}</h2>
-    ${p.error ? `<p class="err">${esc(p.error)}</p>` : `<p>${esc(p.emulator === 'system' ? `Opening with ${p.opener || OS_NAME}` : p.emulator)}</p><p style="font-size:15px">${p.closing ? (p.movie ? 'Closing the player…' : 'Closing the game…') : exitComboOn() ? `Hold ${glyph('SELECT')} + ${glyph('START')} on your controller, or ${p.movie ? 'close the player' : 'quit the game'}, to come back.` : p.movie ? 'Close the player to come back here.' : 'Quit the game to come back here.'}</p>`}
+    ${p.error ? `<p class="err">${esc(p.error)}</p>` : `<p>${p.finding ? 'Up next: finding a source…' : esc(p.emulator === 'system' ? `Opening with ${p.opener || OS_NAME}` : p.emulator)}</p><p style="font-size:15px">${p.closing ? (p.movie ? 'Closing the player…' : 'Closing the game…') : exitComboOn() ? `Hold ${glyph('SELECT')} + ${glyph('START')} on your controller, or ${p.movie ? 'close the player' : 'quit the game'}, to come back.` : p.movie ? 'Close the player to come back here.' : 'Quit the game to come back here.'}</p>`}
     ${p.error || p.emulator === 'system' ? `<button class="btn" data-nav data-key="closeplay" data-act="closeplay">${glyph('B')}Back to library</button>` : ''}
   </div></div>`;
 }
@@ -746,6 +755,8 @@ function settingsPanel() {
       <button class="chip ${videosOn() ? 'on' : ''}" data-nav data-key="vid-on" data-act="videos" data-v="on">Play videos</button>
       <button class="chip ${!videosOn() ? 'on' : ''}" data-nav data-key="vid-off" data-act="videos" data-v="off">Off</button>
       <button class="chip ${soundOn() ? 'on' : ''}" data-nav data-key="vid-sound" data-act="sound">${soundOn() ? 'Sound on' : 'Sound off'}</button></div>`)
+      + grp('Up next', 'When an episode ends in mpv, the next one starts after a countdown.', `<div class="opts">${chips('upn', 'upnext', [['off', 'Off'], ['5', '5 s'], ['10', '10 s'], ['20', '20 s']], st.autoplayNext === false ? 'off' : String(st.autoplayWait || 10))}</div>`)
+      + grp('Streams play in', 'mpv has Resume and Up next. VLC only has Resume.', `<div class="opts">${chips('vp', 'vplayer', [['mpv', 'mpv'], ['vlc', 'VLC']], st.streamPlayer === 'vlc' ? 'vlc' : 'mpv')}</div>`)
       + grp('Sounds', 'Clicks and chimes as you move around.', `<div class="opts">${chips('sfx', 'uisounds', [['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']], st.uiSounds || 'soft')}</div>`)
       + grp('Home music', 'On the Wave and Channels homes.', `<div class="opts">${chips('bgm', 'homemusic', [['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']], st.homeMusic || 'soft')}</div>`);
   } else {
@@ -1633,10 +1644,12 @@ const ACT = {
     stopPreview();
     const ep = d.ep != null && d.ep !== '' ? Number(d.ep) : null;
     const e = ep != null ? (found.g.episodes || [])[ep] : null;
-    S.playing = { title: e ? `${found.g.title} · ${[epCode(e), e.title].filter(Boolean).join(' ')}` : found.g.title, emulator: found.s.emulator, opener: opener(found.g), movie: isMovies(found.s) };
+    const ni = ep != null ? epAfter(found.g, ep) : null;
+    S.playing = { title: e ? `${found.g.title} · ${[epCode(e), e.title].filter(Boolean).join(' ')}` : found.g.title, emulator: found.s.emulator, opener: opener(found.g), movie: isMovies(found.s),
+      next: ni != null ? { id: d.id, ep: ni } : null };
     render();
     try {
-      const emu = await api.call('play', { id: d.id, episode: ep, fromStart: d.from === 'start' });
+      const emu = await api.call('play', { id: d.id, episode: ep, fromStart: d.from === 'start', next: ni != null ? epLabel(found.g.episodes[ni]) : null });
       S.playing = { ...S.playing, emulator: emu, started: true };
       S.boot.last_played = { ...(S.boot.last_played || {}), [d.id]: Math.floor(Date.now() / 1000) };
     } catch (e) {
@@ -1648,6 +1661,8 @@ const ACT = {
   closeplay() { S.playing = null; S.focusKey = 'play'; render(); },
   theme(d) { S.focusKey = `th-${d.t}`; setSetting('theme', d.t); },
   homemusic(d) { S.focusKey = `bgm-${d.v}`; setSetting('homeMusic', d.v); },
+  async upnext(d) { S.focusKey = `upn-${d.v}`; if (d.v !== 'off') await setSetting('autoplayWait', Number(d.v)); setSetting('autoplayNext', d.v !== 'off'); },
+  vplayer(d) { S.focusKey = `vp-${d.v}`; setSetting('streamPlayer', d.v); },
   bladego(d) { bladeGo(+d.i); },
   cubepick(d) {
     const { belt } = cubeState(), k = +d.i, n = belt.length;
@@ -2049,12 +2064,15 @@ api.on('game-exited', (p) => {
     SFX.play('edge');
     return render();
   }
-  setTimeout(() => SFX.play('welcome'), 250);
+  // mpv's "Up next" countdown ran out: straight on to the next episode.
+  const upNext = p.next ? S.playing?.next : null;
   if (S.ach) delete S.ach[p.id]; // pick up anything earned while playing
   padMute = true; // buttons still held from the exit combo shouldn't press anything here
   if (p.progress) S.boot.progress = { ...(S.boot.progress || {}), [p.key]: p.progress };
   S.boot.playtime = { ...(S.boot.playtime || {}), [p.id]: ((S.boot.playtime || {})[p.id] || 0) + (S.playing?.emulator === 'system' ? 0 : p.seconds) };
   S.playing = null;
+  if (upNext) return upNext.stream ? ACT.snext(upNext) : ACT.play({ id: upNext.id, ep: upNext.ep });
+  setTimeout(() => SFX.play('welcome'), 250);
   S.focusKey = 'play';
   render();
   if (p.seconds > 60) toast(`${/^(movies|tv|stream)\//.test(String(p.id)) ? 'Watched' : 'Played'} ${fmtTime(p.seconds)}`);

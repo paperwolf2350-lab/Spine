@@ -293,14 +293,15 @@ fn plan_with(l: &Launcher, game: &Game, installed: &Installed) -> LaunchPlan {
     }
 }
 
-/// Play a web link (a streaming addon's source) in VLC, else mpv. `title` shows in the
+/// Play a web link (a streaming addon's source) in mpv, else VLC. `title` shows in the
 /// player instead of the link (which can hold the user's key); `headers` are what the
 /// addon says the link needs (User-Agent, Referer).
 pub fn plan_stream(installed: &Installed, url: &str, title: &str, headers: &[(String, String)], preferred: Option<&str>) -> LaunchPlan {
     let header = |k: &str| headers.iter().find(|(h, _)| h.eq_ignore_ascii_case(k)).map(|(_, v)| v.clone());
     let (ua, referer) = (header("user-agent"), header("referer"));
-    let mut order = vec!["vlc", "mpv"];
-    if preferred == Some("mpv") {
+    // mpv first (Spine's player: resume, Up next); VLC if asked for, or if there's no mpv.
+    let mut order = vec!["mpv", "vlc"];
+    if preferred == Some("vlc") {
         order.reverse();
     }
     for id in order {
@@ -609,5 +610,9 @@ mod stream_tests {
         assert_eq!(p.args[..2], ["run".to_string(), "org.videolan.VLC".to_string()]);
         assert!(p.args.contains(&"--meta-title=Dune".to_string()) && p.args.contains(&"--http-user-agent=UA".to_string()));
         assert_eq!(p.args.last().unwrap(), "https://x.example/K/v.mkv");
+        // With both: mpv first, VLC when asked for.
+        inst.flatpak.insert("mpv".into(), "io.mpv.Mpv".into());
+        assert_eq!(plan_stream(&inst, "https://x.example/v.mkv", "Dune", &[], None).emulator, "mpv");
+        assert_eq!(plan_stream(&inst, "https://x.example/v.mkv", "Dune", &[], Some("vlc")).emulator, "VLC");
     }
 }

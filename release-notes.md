@@ -1,6 +1,7 @@
 ## What's new
-- **Channels home: small consoles look finished.** A console with only one or two games now shows those covers standing in front of the game's own banner art, which slowly pans behind them, instead of a plain colored box. A console with no art at all gets a soft glowing color with its icon.
-- **Streaming tile shows posters** in the Channels home: what you watched last and the titles in your streaming lists. Until you have some, it keeps its icon.
+- **Up next.** When an episode ends, a card in the corner of the player counts down and the next episode starts by itself. Enter plays it now, Esc stays. Works for your own shows and for streamed shows (Spine picks a source for the next episode from the same addon and quality, ready ones first). Settings → Controller & sound → Up next: off, 5, 10 or 20 seconds.
+- **mpv is now Spine's video player** for movies, shows and streams whenever it's installed. Up next needs mpv; VLC still works, just without it. Settings → Controller & sound → Streams play in, if you'd rather keep VLC for streams.
+- Windows: get mpv from https://mpv.io/installation/ (a Windows build), and put the folder in Program Files or in an Emulators folder next to your ROMs. Linux: `flatpak install flathub io.mpv.Mpv` or `sudo apt install mpv`.
 
 ---
 

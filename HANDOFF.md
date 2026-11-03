@@ -445,7 +445,28 @@ old drifting strip. Streaming tile pool = `chStreamPosters()` (stream_recent new
 stream_lists; addon https URLs, not mediaUrl). Surprise me's dice = `chBadge`; `.ch-art` has
 `isolation: isolate` so the dice tint stays under the name label. Tested in Playwright, Cream + Midnight.
 
-**Next session**: the owner's streaming list is done; ask what's next (ROADMAP "Later ideas"). Streaming code lives in
+## Spine's own video player (mpv), started Nov 2
+
+Owner asked for intro skip / autoplay next. Agreed: mpv becomes Spine's player (owner happily
+dropped VLC), dressed up by Spine's Lua script rather than embedded in the window (embedding
+libmpv under a Tauri webview was judged too risky). Plan: 0.18 Up next; then Spine downloads mpv
+on Windows (official Windows builds are .7z: needs a 7z reader); 0.19 Skip intro / credits from
+chapters ("Opening"/"OP"/"Ending"...); 0.20 AniSkip (community anime intro times) without chapters.
+
+**0.18.0**: Up next. `player::MPV_SCRIPT` now also takes `spine-next=<label>` and `spine-wait=<s>`
+(`mpv_args(.., Some(&UpNext))`, which also adds `--keep-open=yes`). On `eof-reached` it draws an
+ASS card (bottom right, 1920x1080 canvas) counting down; Enter / A = now, Esc / B / Backspace =
+stay. When it runs out it writes "<pos> <len> next" and quits; `Tracker::finish` reads it and
+"game-exited" carries `next: true`. The interface decides what's next: local shows `epAfter(g, i)`
+(viewing order from `epOrder`, never into Movies & specials), stored in `S.playing.next`, then
+`ACT.play`; streams `sUpNext` + `ACT.snext` (asks `addon_streams` for the next episode id and
+`sBestSource` picks: same addon, same quality, Ready first; picks remembered in `sPicks`).
+Settings (Controller & sound): `autoplayNext` (bool) + `autoplayWait` (3-60 s, default 10);
+`streamPlayer` mpv/vlc. `plan_stream` now tries mpv first. Tested in real mpv 0.37 under Xvfb
+(card drawn, countdown, quit with "next"; Esc keeps mpv open). Between episodes mpv closes and
+reopens (a short flash of Spine).
+
+**Next session**: ask the owner how 0.18 felt, then the mpv download on Windows (or 0.19 intro skip). Streaming code lives in
 `ui/stream.js` + `stream.css` and `spine-core/src/addons.rs`; keep new streaming features there.
 UI tests: recreate the Playwright mock (`window.__SPINE_MOCK__`; Chrome is at /usr/bin/google-chrome;
 Cinemeta JSON can be fetched live from the workspace for test data).
