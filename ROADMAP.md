@@ -1,7 +1,7 @@
 # Spine — to-do list
 
 ## Next up (planned)
-Spine's own video player (mpv): Spine downloads mpv on Windows; Skip intro / credits from chapters (0.19); AniSkip for anime without chapters (0.20).
+Spine's own video player (mpv): AniSkip for anime without chapters; Spine downloads mpv on Windows.
 - New looks, one per small release (inspired by console menus, never copying their logos, fonts or sounds):
   - Retro CRT theme (done, 0.7.8).
   - Later ideas: Couch (one giant shelf for big TVs), matching sounds per style.
@@ -10,6 +10,8 @@ Spine's own video player (mpv): Spine downloads mpv on Windows; Skip intro / cre
 - Nothing planned. (macOS skipped Nov 1: no Mac to test on.)
 
 ## Done
+
+- New player look drawn by Spine in mpv, Skip intro / Skip credits from chapters, audio & subtitle menu (0.19.0).
 
 - Audio language and subtitle preferences for movies, shows and streams (0.18.1).
 

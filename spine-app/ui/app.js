@@ -216,6 +216,14 @@ function epAfter(g, i) {
   const o = epOrder(g), k = o.indexOf(i), n = k >= 0 ? o[k + 1] : null;
   return n != null && g.episodes[n].group !== 'Movies & specials' ? n : null;
 }
+// What Spine's player shows: "Show · S1 E3 Title" becomes a title and a second line,
+// in the interface's accent colour.
+function playerLook(t) {
+  const i = String(t || '').indexOf(' · ');
+  let accent = '';
+  try { accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(); } catch (e) { /* default colour */ }
+  return { title: i > 0 ? t.slice(0, i) : t, sub: i > 0 ? t.slice(i + 3) : '', accent: /^#[0-9a-f]{6}$/i.test(accent) ? accent : (settings().accent || '') };
+}
 const epLabel = (e) => [epCode(e), e.title].filter(Boolean).join('   ');
 function showNext(g) {
   const order = epOrder(g);
@@ -758,6 +766,7 @@ function settingsPanel() {
       + grp('Up next', 'When an episode ends in mpv, the next one starts after a countdown.', `<div class="opts">${chips('upn', 'upnext', [['off', 'Off'], ['5', '5 s'], ['10', '10 s'], ['20', '20 s']], st.autoplayNext === false ? 'off' : String(st.autoplayWait || 10))}</div>`)
       + grp('Audio language', 'Movies, shows and streams start in this language when the file has it.', `<div class="opts">${chips('al', 'audiolang', [['', 'File\'s choice'], ...[['en', 'English'], ['ja', 'Japanese'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['pt', 'Portuguese'], ['it', 'Italian'], ['ko', 'Korean']]], st.audioLang || '')}</div>`)
       + grp('Subtitles', 'Shown in this language when the file has them.', `<div class="opts">${chips('sl', 'sublang', [['', 'File\'s choice'], ['off', 'Off'], ...[['en', 'English'], ['ja', 'Japanese'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['pt', 'Portuguese'], ['it', 'Italian'], ['ko', 'Korean']]], st.subLang || '')}</div>`)
+      + grp('Skip intro', 'Uses the chapters inside the file (Opening, Ending...).', `<div class="opts">${chips('ski', 'skipintro', [['button', 'Show a button'], ['auto', 'Skip by itself'], ['off', 'Off']], st.skipIntro || 'button')}</div>`)
       + grp('Streams play in', 'mpv has Resume and Up next. VLC only has Resume.', `<div class="opts">${chips('vp', 'vplayer', [['mpv', 'mpv'], ['vlc', 'VLC']], st.streamPlayer === 'vlc' ? 'vlc' : 'mpv')}</div>`)
       + grp('Sounds', 'Clicks and chimes as you move around.', `<div class="opts">${chips('sfx', 'uisounds', [['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']], st.uiSounds || 'soft')}</div>`)
       + grp('Home music', 'On the Wave and Channels homes.', `<div class="opts">${chips('bgm', 'homemusic', [['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']], st.homeMusic || 'soft')}</div>`);
@@ -1651,7 +1660,7 @@ const ACT = {
       next: ni != null ? { id: d.id, ep: ni } : null };
     render();
     try {
-      const emu = await api.call('play', { id: d.id, episode: ep, fromStart: d.from === 'start', next: ni != null ? epLabel(found.g.episodes[ni]) : null });
+      const emu = await api.call('play', { id: d.id, episode: ep, fromStart: d.from === 'start', next: ni != null ? epLabel(found.g.episodes[ni]) : null, look: playerLook(S.playing.title) });
       S.playing = { ...S.playing, emulator: emu, started: true };
       S.boot.last_played = { ...(S.boot.last_played || {}), [d.id]: Math.floor(Date.now() / 1000) };
     } catch (e) {
@@ -1666,6 +1675,7 @@ const ACT = {
   async upnext(d) { S.focusKey = `upn-${d.v}`; if (d.v !== 'off') await setSetting('autoplayWait', Number(d.v)); setSetting('autoplayNext', d.v !== 'off'); },
   audiolang(d) { S.focusKey = `al-${d.v}`; setSetting('audioLang', d.v); },
   sublang(d) { S.focusKey = `sl-${d.v}`; setSetting('subLang', d.v); },
+  skipintro(d) { S.focusKey = `ski-${d.v}`; setSetting('skipIntro', d.v); },
   vplayer(d) { S.focusKey = `vp-${d.v}`; setSetting('streamPlayer', d.v); },
   bladego(d) { bladeGo(+d.i); },
   cubepick(d) {

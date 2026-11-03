@@ -470,7 +470,22 @@ reopens (a short flash of Spine).
 -> `player::lang_args` (mpv `--alang/--slang/--sid`, VLC `--audio-language/--sub-language`), added by `langs()`
 in main.rs for local movies/TV and streams. Checked in real mpv with a two-audio/two-sub MKV.
 
-**Next session**: ask the owner how 0.18 felt, then the mpv download on Windows (or 0.19 intro skip). Streaming code lives in
+**0.19.0**: Spine's player look (owner's feedback: mpv's own controls looked dated; examples were
+Disney+/Netflix players). The mpv script is now its own file, `spine-core/src/spine_player.lua`
+(`include_str!` as `player::MPV_SCRIPT`), started with `--osc=no --osd-bar=no --osd-on-seek=no`.
+It draws everything with one ASS overlay sized to `osd-dimensions` (scale S = min(w/1920, h/1080)):
+top/bottom gradients (exact-edge bands, overlaps showed as lines), back + title/sub, seek bar with
+chapter gaps + hover time, round buttons (play, -10, +10, mute, next, tracks menu, fullscreen), a
+tracks menu (aid/sid), a Skip pill and the Up next card. `hit()` records clickable boxes each render;
+MBTN_LEFT (complex) reads `mouse-pos` fresh and re-renders before hit-testing. Chapters: `kind_of`
+(intro: OP/Opening/Intro...; credits: ED/Ending/Credits/Preview). Credits with only credits after
+them + an Up next = "Next episode". `PlayerUi` {title, sub, accent, skip, next, wait}: the interface
+sends `look` {title, sub, accent} (`playerLook()` splits "Show · rest" at the first " · ", accent
+from CSS `--accent`); setting `skipIntro` button/auto/off. Gamepad keys bound but mpv needs SDL
+(`pcall(set input-gamepad)`); Select+Start still closes. Tested in mpv 0.37 under Xvfb with a
+chaptered MKV (screenshots of each state). Not yet: AniSkip for files without chapters.
+
+**Next session**: ask how 0.19 feels on the owner's PC (Windows mpv), then AniSkip or the Windows mpv download., then the mpv download on Windows (or 0.19 intro skip). Streaming code lives in
 `ui/stream.js` + `stream.css` and `spine-core/src/addons.rs`; keep new streaming features there.
 UI tests: recreate the Playwright mock (`window.__SPINE_MOCK__`; Chrome is at /usr/bin/google-chrome;
 Cinemeta JSON can be fetched live from the workspace for test data).

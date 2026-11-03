@@ -652,7 +652,7 @@ const STREAM_ACT = {
     S.playing = { title: d.t, emulator: 'mpv', movie: true, next: nx };
     render();
     try {
-      const emu = await api.call('play_stream', { token: null, key: `${d.k}:${d.v}`, title: d.t, info, fromStart: d.from === 'start', next: nx?.label || null });
+      const emu = await api.call('play_stream', { token: null, key: `${d.k}:${d.v}`, title: d.t, info, fromStart: d.from === 'start', next: nx?.label || null, look: playerLook(S.playing.title) });
       S.playing = { ...S.playing, emulator: emu, started: true };
       streamPlayed(d.k, d.v, info);
     } catch (e) {
@@ -685,7 +685,7 @@ const STREAM_ACT = {
     S.playing = { title: x.title, emulator: 'mpv', movie: true, next: nx };
     render();
     try {
-      const emu = await api.call('play_stream', { token: d.tok, key: `${x.kind}:${x.id}`, title: x.title, info: x.info, fromStart: true, next: nx?.label || null });
+      const emu = await api.call('play_stream', { token: d.tok, key: `${x.kind}:${x.id}`, title: x.title, info: x.info, fromStart: true, next: nx?.label || null, look: playerLook(S.playing.title) });
       S.playing = { ...S.playing, emulator: emu, started: true };
       streamPlayed(x.kind, x.id, x.info);
     } catch (e) {
@@ -709,7 +709,7 @@ const STREAM_ACT = {
       const nx = sUpNext(n.k, n.e.id);
       S.playing = { title: n.title, emulator: 'mpv', movie: true, next: nx };
       render();
-      const emu = await api.call('play_stream', { token: src.token, key: `${n.k}:${n.e.id}`, title: n.title, info, fromStart: false, next: nx?.label || null });
+      const emu = await api.call('play_stream', { token: src.token, key: `${n.k}:${n.e.id}`, title: n.title, info, fromStart: false, next: nx?.label || null, look: playerLook(S.playing.title) });
       S.playing = { ...S.playing, emulator: emu, started: true };
       streamPlayed(n.k, n.e.id, info);
     } catch (e) {

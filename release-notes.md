@@ -1,11 +1,12 @@
 ## What's new
-- **Audio language and Subtitles** in Settings → Controller & sound. Pick the language movies, shows and streams should start in (for example Japanese), and the subtitles you want (for example English, or Off). If a file doesn't have that language, it plays as it normally would. Works in mpv and VLC (Subtitles: Off is mpv only).
-- In the player you can still switch by hand: **#** changes the audio track, **j** the subtitles, **v** turns subtitles on or off.
+- **A new look for the player.** Spine now draws its own controls in mpv: the show and episode at the top, a slim progress bar in your accent color (chapters show as small marks, hover to see the time), and big round buttons for play/pause, back and forward 10 seconds, sound, next episode, audio & subtitles, and full screen. The controls fade away while you watch and come back when you move the mouse.
+- **Skip intro / Skip credits.** When a file marks its opening or ending (most anime releases do), a button shows up for the whole intro or credits. During the credits it says **Next episode**. Settings → Controller & sound → Skip intro: show a button, skip by itself, or off.
+- **Audio & subtitles menu** right in the player: click the subtitles button and pick a track.
+- **New Up next card** with Play now and Cancel.
+- Keys: Enter = skip / play now (or pause), Esc = close a menu or cancel Up next, arrow keys = seek. On a controller (if your mpv supports controllers): A, B, d-pad left/right to seek, Y for the audio & subtitles menu.
 
-From 0.18.0:
-- **Up next.** When an episode ends, a card in the corner of the player counts down and the next episode starts by itself. Enter plays it now, Esc stays. Works for your own shows and for streamed shows (Spine picks a source for the next episode from the same addon and quality, ready ones first). Settings → Controller & sound → Up next: off, 5, 10 or 20 seconds.
-- **mpv is now Spine's video player** for movies, shows and streams whenever it's installed. Up next needs mpv; VLC still works, just without it. Settings → Controller & sound → Streams play in, if you'd rather keep VLC for streams.
-- Windows: get mpv from https://mpv.io/installation/ (a Windows build), and put the folder in Program Files or in an Emulators folder next to your ROMs. Linux: `flatpak install flathub io.mpv.Mpv` or `sudo apt install mpv`.
+From 0.18:
+- Audio language and Subtitles settings; Up next countdown; mpv is Spine's video player.
 
 ---
 
