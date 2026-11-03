@@ -509,7 +509,13 @@ op/recap keep their times, ed is shifted by (our len - their len) so it stays an
 Spine.old2.exe ... Spine.old19.exe and retries the rename a few times; `cleanup` removes those too;
 `is_old()` recognises any of them.
 
-**Next session**: ask how AniSkip does on the owner's anime, then the Windows mpv download (or what's next)., then the mpv download on Windows (or 0.19 intro skip). Streaming code lives in
+AniSkip confirmed on the owner's PC (Nov 2): Demon Slayer and Edgerunners S1E2 (after 0.20.1) skip at the right time.
+(The 0.20.0 -> 0.20.1 "Access is denied" was two Spine windows open; 0.20.2 handles it anyway.)
+
+**Next session (owner's choice, Nov 3)**: Spine downloads and sets up mpv on Windows. Owner installed it by hand
+from shinchiro/mpv-winbuild-cmake GitHub releases: plain `mpv-x86_64-<date>-git-<hash>.7z` (not dev / v3 /
+aarch64 / i686 / ffmpeg). Assets are .7z only, so this needs a 7z reader (e.g. the `sevenz-rust` crate) or
+another source; check the release's sha256 shown on GitHub, unpack into an `mpv` folder Spine searches.
 `ui/stream.js` + `stream.css` and `spine-core/src/addons.rs`; keep new streaming features there.
 UI tests: recreate the Playwright mock (`window.__SPINE_MOCK__`; Chrome is at /usr/bin/google-chrome;
 Cinemeta JSON can be fetched live from the workspace for test data).
