@@ -466,6 +466,10 @@ Settings (Controller & sound): `autoplayNext` (bool) + `autoplayWait` (3-60 s, d
 (card drawn, countdown, quit with "next"; Esc keeps mpv open). Between episodes mpv closes and
 reopens (a short flash of Spine).
 
+**0.18.1**: Settings `audioLang` / `subLang` ("" = file's choice, "off" for subs, or en/ja/es/fr/de/pt/it/ko)
+-> `player::lang_args` (mpv `--alang/--slang/--sid`, VLC `--audio-language/--sub-language`), added by `langs()`
+in main.rs for local movies/TV and streams. Checked in real mpv with a two-audio/two-sub MKV.
+
 **Next session**: ask the owner how 0.18 felt, then the mpv download on Windows (or 0.19 intro skip). Streaming code lives in
 `ui/stream.js` + `stream.css` and `spine-core/src/addons.rs`; keep new streaming features there.
 UI tests: recreate the Playwright mock (`window.__SPINE_MOCK__`; Chrome is at /usr/bin/google-chrome;

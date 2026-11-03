@@ -1,4 +1,8 @@
 ## What's new
+- **Audio language and Subtitles** in Settings → Controller & sound. Pick the language movies, shows and streams should start in (for example Japanese), and the subtitles you want (for example English, or Off). If a file doesn't have that language, it plays as it normally would. Works in mpv and VLC (Subtitles: Off is mpv only).
+- In the player you can still switch by hand: **#** changes the audio track, **j** the subtitles, **v** turns subtitles on or off.
+
+From 0.18.0:
 - **Up next.** When an episode ends, a card in the corner of the player counts down and the next episode starts by itself. Enter plays it now, Esc stays. Works for your own shows and for streamed shows (Spine picks a source for the next episode from the same addon and quality, ready ones first). Settings → Controller & sound → Up next: off, 5, 10 or 20 seconds.
 - **mpv is now Spine's video player** for movies, shows and streams whenever it's installed. Up next needs mpv; VLC still works, just without it. Settings → Controller & sound → Streams play in, if you'd rather keep VLC for streams.
 - Windows: get mpv from https://mpv.io/installation/ (a Windows build), and put the folder in Program Files or in an Emulators folder next to your ROMs. Linux: `flatpak install flathub io.mpv.Mpv` or `sudo apt install mpv`.

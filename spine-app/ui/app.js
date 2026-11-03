@@ -756,6 +756,8 @@ function settingsPanel() {
       <button class="chip ${!videosOn() ? 'on' : ''}" data-nav data-key="vid-off" data-act="videos" data-v="off">Off</button>
       <button class="chip ${soundOn() ? 'on' : ''}" data-nav data-key="vid-sound" data-act="sound">${soundOn() ? 'Sound on' : 'Sound off'}</button></div>`)
       + grp('Up next', 'When an episode ends in mpv, the next one starts after a countdown.', `<div class="opts">${chips('upn', 'upnext', [['off', 'Off'], ['5', '5 s'], ['10', '10 s'], ['20', '20 s']], st.autoplayNext === false ? 'off' : String(st.autoplayWait || 10))}</div>`)
+      + grp('Audio language', 'Movies, shows and streams start in this language when the file has it.', `<div class="opts">${chips('al', 'audiolang', [['', 'File\'s choice'], ...[['en', 'English'], ['ja', 'Japanese'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['pt', 'Portuguese'], ['it', 'Italian'], ['ko', 'Korean']]], st.audioLang || '')}</div>`)
+      + grp('Subtitles', 'Shown in this language when the file has them.', `<div class="opts">${chips('sl', 'sublang', [['', 'File\'s choice'], ['off', 'Off'], ...[['en', 'English'], ['ja', 'Japanese'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['pt', 'Portuguese'], ['it', 'Italian'], ['ko', 'Korean']]], st.subLang || '')}</div>`)
       + grp('Streams play in', 'mpv has Resume and Up next. VLC only has Resume.', `<div class="opts">${chips('vp', 'vplayer', [['mpv', 'mpv'], ['vlc', 'VLC']], st.streamPlayer === 'vlc' ? 'vlc' : 'mpv')}</div>`)
       + grp('Sounds', 'Clicks and chimes as you move around.', `<div class="opts">${chips('sfx', 'uisounds', [['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']], st.uiSounds || 'soft')}</div>`)
       + grp('Home music', 'On the Wave and Channels homes.', `<div class="opts">${chips('bgm', 'homemusic', [['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']], st.homeMusic || 'soft')}</div>`);
@@ -1662,6 +1664,8 @@ const ACT = {
   theme(d) { S.focusKey = `th-${d.t}`; setSetting('theme', d.t); },
   homemusic(d) { S.focusKey = `bgm-${d.v}`; setSetting('homeMusic', d.v); },
   async upnext(d) { S.focusKey = `upn-${d.v}`; if (d.v !== 'off') await setSetting('autoplayWait', Number(d.v)); setSetting('autoplayNext', d.v !== 'off'); },
+  audiolang(d) { S.focusKey = `al-${d.v}`; setSetting('audioLang', d.v); },
+  sublang(d) { S.focusKey = `sl-${d.v}`; setSetting('subLang', d.v); },
   vplayer(d) { S.focusKey = `vp-${d.v}`; setSetting('streamPlayer', d.v); },
   bladego(d) { bladeGo(+d.i); },
   cubepick(d) {

@@ -256,6 +256,44 @@ pub fn mpv_wants_next(text: &str) -> bool {
     text.split_whitespace().nth(2) == Some("next")
 }
 
+/// Language codes the players look for (files tag tracks with 2- or 3-letter codes).
+fn lang_codes(lang: &str) -> Option<&'static str> {
+    Some(match lang {
+        "en" => "eng,en,en-US,en-GB",
+        "ja" => "jpn,ja,jp",
+        "es" => "spa,es,es-419,es-ES",
+        "fr" => "fre,fra,fr",
+        "de" => "ger,deu,de",
+        "pt" => "por,pt,pt-BR",
+        "it" => "ita,it",
+        "ko" => "kor,ko",
+        _ => return None,
+    })
+}
+
+/// Preferred audio and subtitle languages (Settings: audioLang / subLang).
+/// audio: "" = the file's own choice, or a language ("ja"). subs: "" = the file's
+/// own choice, "off" (mpv only), or a language. `player` is "mpv" or "VLC".
+pub fn lang_args(player: &str, audio: &str, subs: &str) -> Vec<String> {
+    let mut a = Vec::new();
+    let vlc = player == "VLC";
+    if let Some(c) = lang_codes(audio) {
+        a.push(if vlc { format!("--audio-language={c}") } else { format!("--alang={c}") });
+    }
+    if subs == "off" {
+        if !vlc {
+            a.push("--sid=no".into());
+        }
+    } else if let Some(c) = lang_codes(subs) {
+        a.push(if vlc { format!("--sub-language={c}") } else { format!("--slang={c}") });
+        if !vlc {
+            // Show them even when the file marks no subtitle track as default.
+            a.push("--sid=auto".into());
+        }
+    }
+    a
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,6 +349,14 @@ mod tests {
         assert_eq!(a[2], "--keep-open=yes");
         assert!(mpv_wants_next("1440 1440 next\n") && !mpv_wants_next("1440 1440\n") && !mpv_wants_next(""));
         assert_eq!(parse_mpv_progress("1440 1440 next"), Some((1440, 1440)));
+    }
+
+    #[test]
+    fn languages() {
+        assert_eq!(lang_args("mpv", "ja", "en"), vec!["--alang=jpn,ja,jp", "--slang=eng,en,en-US,en-GB", "--sid=auto"]);
+        assert_eq!(lang_args("mpv", "", "off"), vec!["--sid=no"]);
+        assert_eq!(lang_args("VLC", "ja", "en"), vec!["--audio-language=jpn,ja,jp", "--sub-language=eng,en,en-US,en-GB"]);
+        assert!(lang_args("mpv", "", "").is_empty() && lang_args("VLC", "xx", "zz").is_empty());
     }
 
     #[test]

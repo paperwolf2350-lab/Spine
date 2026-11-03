@@ -847,6 +847,7 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, next: Opti
             Tracker::Vlc(port, pw) => spine_core::player::vlc_args(*port, pw, start),
             Tracker::Mpv(script, out) => spine_core::player::mpv_args(script, out, start, up_next.as_ref()),
         });
+        plan.args.extend(langs(&app, &plan.emulator));
         plan.args.extend(file_arg);
     }
     if let Some(why) = &plan.blocked {
@@ -947,6 +948,13 @@ fn up_next(app: &App, next: Option<String>) -> Option<spine_core::player::UpNext
     }
     let wait = s.settings.get("autoplayWait").and_then(|v| v.as_u64()).unwrap_or(10).clamp(3, 60);
     next.filter(|t| !t.trim().is_empty()).map(|t| spine_core::player::UpNext { title: t.trim().chars().take(120).collect(), wait })
+}
+
+/// Preferred audio and subtitle languages from Settings, as player options.
+fn langs(app: &App, player: &str) -> Vec<String> {
+    let s = app.saved.lock().unwrap();
+    let get = |k: &str| s.settings.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+    spine_core::player::lang_args(player, &get("audioLang"), &get("subLang"))
 }
 
 /// How Spine follows a movie's position: VLC's web remote (port, password), or
@@ -1557,6 +1565,7 @@ fn play_stream(token: Option<String>, key: String, title: String, info: Option<s
             Tracker::Vlc(port, pw) => spine_core::player::vlc_args(*port, pw, start),
             Tracker::Mpv(script, out) => spine_core::player::mpv_args(script, out, start, up_next.as_ref()),
         });
+        plan.args.extend(langs(&app, &plan.emulator));
         plan.args.extend(url_arg);
     }
     let log = app.dir.join("logs").join("last-game.log");

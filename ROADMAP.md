@@ -11,6 +11,8 @@ Spine's own video player (mpv): Spine downloads mpv on Windows; Skip intro / cre
 
 ## Done
 
+- Audio language and subtitle preferences for movies, shows and streams (0.18.1).
+
 - Up next: the next episode starts after a countdown in mpv, for your own and streamed shows; mpv is the default player (0.18.0).
 
 - Channels home: consoles with one or two games show their covers over moving banner art; Streaming tile shows your posters (0.17.1).
