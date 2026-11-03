@@ -795,7 +795,7 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, next: Opti
         return Err(format!("{r} is still running."));
     }
     let is_movie = id.starts_with("movies/") || id.starts_with("tv/");
-    let (plan, title) = {
+    let (plan, title, lookup) = {
         let lib = app.library.lock().unwrap();
         let lib = lib.as_ref().ok_or("No library yet.")?;
         let (sys, game) = lib.systems.iter().find_map(|s| s.games.iter().find(|g| g.id == id).map(|g| (s, g))).ok_or("Game not found.")?;
@@ -812,7 +812,14 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, next: Opti
             game.path = game.episodes.get(i).ok_or("Episode not found.")?.path.clone();
             file = game.path.file_name().map(|f| f.to_string_lossy().to_string());
         }
-        (launch::plan_preferred(def, &game, &app.installed.lock().unwrap(), pref.as_deref()), (game.title.clone(), file))
+        // The episode's TMDB numbers, for AniSkip (anime without chapter marks).
+        let lookup = episode.and_then(|i| {
+            let t = spine_core::tv::load_seasons(&app.media(), &id)?;
+            let arcs = app.saved.lock().unwrap().arc_seasons.clone();
+            let m = spine_core::tv::resolve(&game, &t, &|g| arcs.get(&format!("{id}|{g}")).copied());
+            m.get(i).copied().flatten().map(|(season, episode)| spine_core::aniskip::Lookup::Tmdb { tv: t.tmdb, season, episode })
+        });
+        (launch::plan_preferred(def, &game, &app.installed.lock().unwrap(), pref.as_deref()), (game.title.clone(), file), lookup)
     };
     let (title, ep_file) = title;
     // Movies and episodes in VLC or mpv: remember where you stop, and start there next time.
@@ -820,7 +827,11 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, next: Opti
     let pkey = spine_core::player::key(&id, ep_file.as_deref());
     let saved_pos = app.saved.lock().unwrap().progress.get(&pkey).copied();
     let start = if from_start == Some(true) { None } else { spine_core::player::start_at(saved_pos.as_ref()) };
-    let ui = player_ui(&app, next, look);
+    let mut ui = player_ui(&app, next, look);
+    let lookup = lookup.filter(|_| ui.skip != "off");
+    if lookup.is_some() {
+        ui.skips = Some(skips_file(&app).display().to_string());
+    }
     let tracker = if !is_movie || plan.blocked.is_some() {
         None
     } else if plan.emulator == "VLC" {
@@ -892,6 +903,9 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, next: Opti
             }
         });
     }
+    if let (Some(l), Some(Tracker::Mpv(..))) = (lookup.clone(), &tracker) {
+        aniskip_lookup(&app, l, last_pos.clone(), done.clone());
+    }
     std::thread::spawn(move || {
         let started = std::time::Instant::now();
         let status = child.wait();
@@ -953,7 +967,39 @@ fn player_ui(app: &App, next: Option<String>, look: Option<serde_json::Value>) -
         skip: s.settings.get("skipIntro").and_then(|v| v.as_str()).unwrap_or("button").to_string(),
         next: next.filter(|t| on && !t.trim().is_empty()),
         wait: s.settings.get("autoplayWait").and_then(|v| v.as_u64()).unwrap_or(10).clamp(3, 60),
+        skips: None,
     }
+}
+
+/// Where AniSkip's times for the video now playing go (next to the mpv script).
+fn skips_file(app: &App) -> PathBuf {
+    let f = app.media().join("cache").join("mpv").join("skips.txt");
+    let _ = fs::remove_file(&f);
+    f
+}
+
+/// Once the player knows the video's length, ask AniSkip for intro / credits times and
+/// write them where Spine's player script looks (it uses them only without chapter marks).
+fn aniskip_lookup(app: &App, l: spine_core::aniskip::Lookup, last: std::sync::Arc<std::sync::Mutex<Option<(u64, u64)>>>, done: std::sync::Arc<std::sync::atomic::AtomicBool>) {
+    let cache = app.media().join("cache");
+    std::thread::spawn(move || {
+        let mut len = 0;
+        for _ in 0..60 {
+            if done.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+            if let Some((_, l)) = *last.lock().unwrap() {
+                len = l;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+        if let Ok(skips) = spine_core::aniskip::fetch(&cache, &l, len as f64) {
+            if !skips.is_empty() && !done.load(std::sync::atomic::Ordering::Relaxed) {
+                let _ = fs::write(cache.join("mpv").join("skips.txt"), spine_core::aniskip::to_text(&skips));
+            }
+        }
+    });
 }
 
 /// Preferred audio and subtitle languages from Settings, as player options.
@@ -1550,7 +1596,11 @@ fn play_stream(token: Option<String>, key: String, title: String, info: Option<s
     // Follow the position, like local movies: VLC's web remote, or Spine's little mpv script.
     let saved_pos = app.saved.lock().unwrap().progress.get(&pkey).copied();
     let start = if from_start == Some(true) { None } else { spine_core::player::start_at(saved_pos.as_ref()) };
-    let ui = player_ui(&app, next, look);
+    let mut ui = player_ui(&app, next, look);
+    let lookup = spine_core::aniskip::from_stream_key(&key).filter(|_| ui.skip != "off");
+    if lookup.is_some() {
+        ui.skips = Some(skips_file(&app).display().to_string());
+    }
     let tracker = if plan.emulator == "VLC" {
         spine_core::player::free_port().map(|port| Tracker::Vlc(port, spine_core::player::password()))
     } else {
@@ -1616,6 +1666,9 @@ fn play_stream(token: Option<String>, key: String, title: String, info: Option<s
                 std::thread::sleep(std::time::Duration::from_secs(3));
             }
         });
+    }
+    if let (Some(l), Some(Tracker::Mpv(..))) = (lookup.clone(), &tracker) {
+        aniskip_lookup(&app, l, last_pos.clone(), done.clone());
     }
     let h = handle.clone();
     std::thread::spawn(move || {

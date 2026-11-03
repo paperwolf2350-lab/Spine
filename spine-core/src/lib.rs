@@ -5,6 +5,7 @@
 //! line tool exercises it on its own.
 
 pub mod addons;
+pub mod aniskip;
 pub mod bios;
 pub mod config;
 pub mod covers;

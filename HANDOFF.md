@@ -485,7 +485,22 @@ from CSS `--accent`); setting `skipIntro` button/auto/off. Gamepad keys bound bu
 (`pcall(set input-gamepad)`); Select+Start still closes. Tested in mpv 0.37 under Xvfb with a
 chaptered MKV (screenshots of each state). Not yet: AniSkip for files without chapters.
 
-**Next session**: ask how 0.19 feels on the owner's PC (Windows mpv), then AniSkip or the Windows mpv download., then the mpv download on Windows (or 0.19 intro skip). Streaming code lives in
+0.19.0 confirmed by the owner ("looks and works great", Nov 2).
+
+**0.20.0**: AniSkip. `spine-core/src/aniskip.rs`: `Lookup` (Tmdb {tv, season, episode} for local
+shows via `tv::resolve`; Imdb / Kitsu / Mal from stream keys, `from_stream_key`), `mal_episode` maps
+to a MyAnimeList id + episode with Fribb's anime-list-mini.json (raw.githubusercontent, cached a week
+in media/cache; `pick` = same season, biggest episode_offset below the episode: TMDB's long seasons),
+`fetch` asks api.aniskip.com/v2/skip-times/<mal>/<ep> (op, ed, recap; mixed-* ignored: they overlap
+the story) and `parse_skips` keeps, per kind, the result closest to our length (dropped if >20 s off).
+main.rs: `skips_file()` (media/cache/mpv/skips.txt, deleted at each start), `aniskip_lookup()` thread
+waits for the tracker's first length, then writes "op <start> <end>" lines. `PlayerUi.skips` ->
+script-opt `spine-skips`; the Lua polls for it (2 s, up to 90 s) and uses it only when the file has
+no Opening/Ending chapters. AniSkip credits with <45 s after them + Up next = "Next episode"; auto
+mode skips intro/recap once. Live test: `cargo test -- --ignored live_aniskip` (both hosts reachable
+from the workspace). Checked the Lua under Xvfb with a chapter-less file.
+
+**Next session**: ask how AniSkip does on the owner's anime, then the Windows mpv download (or what's next)., then the mpv download on Windows (or 0.19 intro skip). Streaming code lives in
 `ui/stream.js` + `stream.css` and `spine-core/src/addons.rs`; keep new streaming features there.
 UI tests: recreate the Playwright mock (`window.__SPINE_MOCK__`; Chrome is at /usr/bin/google-chrome;
 Cinemeta JSON can be fetched live from the workspace for test data).

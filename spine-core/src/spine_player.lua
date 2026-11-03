@@ -106,21 +106,69 @@ local function kind_of(title)
   if t == "ed" or t:match("^ed%s*%d") or t:find("ending", 1, true) or t:find("credits", 1, true) or t:match("^outro") or t:find("preview", 1, true) then return "credits" end
   return nil
 end
--- The intro/credits chapter we're in: { kind, from, to, index }.
+-- Intro / credits / recap times from AniSkip (Spine writes them to a file once it has them),
+-- used when the file has no Opening / Ending chapters of its own.
+local SKIPS_FILE = opt("spine-skips", "")
+local web = nil
+if SKIPS_FILE ~= "" then
+  local tries, t = 0, nil
+  t = mp.add_periodic_timer(2, function()
+    tries = tries + 1
+    local f = io.open(SKIPS_FILE, "r")
+    if f then
+      local list = {}
+      for line in f:lines() do
+        local k, a, b = line:match("^(%a+)%s+([%d%.]+)%s+([%d%.]+)")
+        if k then
+          list[#list + 1] = { kind = (k == "op" and "intro") or (k == "ed" and "credits") or "recap", from = tonumber(a), to = tonumber(b) }
+        end
+      end
+      f:close()
+      web = list
+      t:kill()
+    elseif tries > 45 then
+      t:kill()
+    end
+  end)
+end
+local function has_chapter_parts()
+  for _, c in ipairs(chapters()) do if kind_of(c.title) then return true end end
+  return false
+end
+
+-- The intro/credits part we're in: { kind, from, to, index } from a chapter, or
+-- { kind, from, to, web = true, tail } from AniSkip.
 local function current_part()
   local i = mp.get_property_number("chapter")
   local list = chapters()
-  if not i or i < 0 or not list[i + 1] then return nil end
-  local k = kind_of(list[i + 1].title)
-  if not k then return nil end
-  local to = list[i + 2] and list[i + 2].time or mp.get_property_number("duration")
-  return { kind = k, from = list[i + 1].time, to = to, index = i, last = list[i + 2] == nil }
+  if i and i >= 0 and list[i + 1] then
+    local k = kind_of(list[i + 1].title)
+    if k then
+      local to = list[i + 2] and list[i + 2].time or mp.get_property_number("duration")
+      return { kind = k, from = list[i + 1].time, to = to, index = i, last = list[i + 2] == nil }
+    end
+  end
+  if web and #web > 0 and not has_chapter_parts() then
+    local pos = mp.get_property_number("time-pos") or 0
+    local len = mp.get_property_number("duration") or 0
+    for _, p in ipairs(web) do
+      if pos >= p.from and pos < p.to - 0.5 then
+        return { kind = p.kind, from = p.from, to = p.to, web = true, tail = len > 0 and (len - p.to) or 0 }
+      end
+    end
+  end
+  return nil
 end
 
 local quit_next, start_upnext, stop_upnext
 
 local function do_skip(part)
   if not part then return end
+  if part.web then
+    -- AniSkip credits close to the end (a short preview at most): on to the next episode.
+    if part.kind == "credits" and NEXT ~= "" and part.tail < 45 then return quit_next() end
+    return mp.commandv("seek", tostring(part.to), "absolute+exact")
+  end
   -- Credits with nothing after them but more credits / a preview: on to the next episode.
   local list, rest_is_credits = chapters(), true
   for j = part.index + 2, #list do if kind_of(list[j].title) ~= "credits" then rest_is_credits = false end end
@@ -287,7 +335,8 @@ local function render()
 
   -- Skip intro / credits: shown the whole time you're in that part, controls or not.
   if part and not upnext and not menu then
-    local label = part.kind == "intro" and "Skip intro" or (NEXT ~= "" and "Next episode" or "Skip credits")
+    local next_ep = NEXT ~= "" and (not part.web or part.tail < 45)
+    local label = (part.kind == "intro" and "Skip intro") or (part.kind == "recap" and "Skip recap") or (next_ep and "Next episode" or "Skip credits")
     pill(W - 60 * S, H - (show and 200 or 80) * S, label, function() do_skip(part) end, "skip", false)
   end
 
@@ -429,6 +478,14 @@ end)
 
 local shown = false
 mp.add_periodic_timer(0.2, function()
+  if SKIP == "auto" then
+    local p = current_part()
+    if p and p.web and p.kind ~= "credits" and not skipped["w" .. p.from] then
+      skipped["w" .. p.from] = true
+      do_skip(p)
+      mp.osd_message(p.kind == "recap" and "Skipped recap" or "Skipped intro", 2)
+    end
+  end
   local paused = mp.get_property_bool("pause")
   local want = paused or menu or drag or upnext ~= nil or now() < visible_until or ((SKIP ~= "off") and current_part() ~= nil)
   if want or shown then render() end

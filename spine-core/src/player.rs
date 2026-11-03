@@ -151,6 +151,8 @@ pub struct PlayerUi {
     pub next: Option<String>,
     /// Seconds the Up next card counts down.
     pub wait: u64,
+    /// Where AniSkip's intro / credits times will be written (the script checks for it).
+    pub skips: Option<String>,
 }
 
 /// Extra mpv options: Spine's script and its settings, and where to start.
@@ -165,6 +167,9 @@ pub fn mpv_args(script: &std::path::Path, out: &std::path::Path, start: Option<u
         if !v.is_empty() {
             opts.push(opt(k, &v));
         }
+    }
+    if let Some(f) = &ui.skips {
+        opts.push(opt("spine-skips", f));
     }
     if let Some(n) = ui.next.as_deref().map(clean).filter(|n| !n.is_empty()) {
         opts.push(opt("spine-next", &n));

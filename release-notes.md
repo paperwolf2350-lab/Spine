@@ -1,12 +1,10 @@
 ## What's new
-- **A new look for the player.** Spine now draws its own controls in mpv: the show and episode at the top, a slim progress bar in your accent color (chapters show as small marks, hover to see the time), and big round buttons for play/pause, back and forward 10 seconds, sound, next episode, audio & subtitles, and full screen. The controls fade away while you watch and come back when you move the mouse.
-- **Skip intro / Skip credits.** When a file marks its opening or ending (most anime releases do), a button shows up for the whole intro or credits. During the credits it says **Next episode**. Settings → Controller & sound → Skip intro: show a button, skip by itself, or off.
-- **Audio & subtitles menu** right in the player: click the subtitles button and pick a track.
-- **New Up next card** with Play now and Cancel.
-- Keys: Enter = skip / play now (or pause), Esc = close a menu or cancel Up next, arrow keys = seek. On a controller (if your mpv supports controllers): A, B, d-pad left/right to seek, Y for the audio & subtitles menu.
+- **Skip intro for more anime.** When an episode has no chapter marks of its own, Spine now asks **AniSkip** (a free, shared list of anime opening and ending times) and shows the same Skip intro / Next episode buttons. Works for your own anime folders (shows matched on TMDB) and for streamed anime. It can also offer **Skip recap**.
+- Times only appear when they fit your file: if AniSkip's times were made for a different-length version, Spine leaves them out rather than skip to the wrong spot.
+- Uses your Skip intro setting (button, by itself, or off). Off means Spine doesn't ask AniSkip at all.
 
-From 0.18:
-- Audio language and Subtitles settings; Up next countdown; mpv is Spine's video player.
+From 0.19:
+- New player look, Skip intro / credits from chapters, audio & subtitles menu, Up next card.
 
 ---
 
