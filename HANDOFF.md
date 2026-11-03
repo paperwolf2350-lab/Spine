@@ -500,6 +500,10 @@ no Opening/Ending chapters. AniSkip credits with <45 s after them + Up next = "N
 mode skips intro/recap once. Live test: `cargo test -- --ignored live_aniskip` (both hosts reachable
 from the workspace). Checked the Lua under Xvfb with a chapter-less file.
 
+**0.20.1**: owner's test: Demon Slayer S1E3 got the button, Edgerunners S1E2 didn't (mapping was right;
+AniSkip's only submission was for a 1534 s version). `parse_skips` now allows up to 120 s difference:
+op/recap keep their times, ed is shifted by (our len - their len) so it stays anchored to the end.
+
 **Next session**: ask how AniSkip does on the owner's anime, then the Windows mpv download (or what's next)., then the mpv download on Windows (or 0.19 intro skip). Streaming code lives in
 `ui/stream.js` + `stream.css` and `spine-core/src/addons.rs`; keep new streaming features there.
 UI tests: recreate the Playwright mock (`window.__SPINE_MOCK__`; Chrome is at /usr/bin/google-chrome;

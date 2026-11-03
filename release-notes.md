@@ -1,10 +1,8 @@
 ## What's new
-- **Skip intro for more anime.** When an episode has no chapter marks of its own, Spine now asks **AniSkip** (a free, shared list of anime opening and ending times) and shows the same Skip intro / Next episode buttons. Works for your own anime folders (shows matched on TMDB) and for streamed anime. It can also offer **Skip recap**.
-- Times only appear when they fit your file: if AniSkip's times were made for a different-length version, Spine leaves them out rather than skip to the wrong spot.
-- Uses your Skip intro setting (button, by itself, or off). Off means Spine doesn't ask AniSkip at all.
+- **Skip intro finds more episodes.** AniSkip's times are often made from a version of the episode that's a little longer or shorter than yours (a studio logo, longer credits). Spine used to leave those out. Now the opening stays timed from the start and the ending is moved to line up with the end of your file, for versions up to 2 minutes apart. (Cyberpunk: Edgerunners episode 2 is one that was missed before.)
 
-From 0.19:
-- New player look, Skip intro / credits from chapters, audio & subtitles menu, Up next card.
+From 0.20.0:
+- Skip intro / recap / Next episode from AniSkip for anime without chapter marks, for your own folders and streams.
 
 ---
 

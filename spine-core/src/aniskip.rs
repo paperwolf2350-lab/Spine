@@ -85,7 +85,9 @@ pub struct Skip {
 }
 
 /// AniSkip's answer, keeping for each kind the submission whose episode length is closest
-/// to ours (and not more than 20 s off: a different cut would put the times in the wrong place).
+/// to ours. Versions of an episode often differ in length (a studio logo, longer credits):
+/// openings and recaps stay counted from the start, endings are moved to stay the same
+/// distance from the end. More than 2 minutes apart is likely a different cut: left out.
 pub fn parse_skips(json: &str, len: f64) -> Vec<Skip> {
     let v: Value = serde_json::from_str(json).unwrap_or(Value::Null);
     let mut best: Vec<(Skip, f64)> = Vec::new();
@@ -97,8 +99,13 @@ pub fn parse_skips(json: &str, len: f64) -> Vec<Skip> {
         let iv = r.get("interval");
         let (Some(start), Some(end)) = (iv.and_then(|i| i.get("startTime")).and_then(|x| x.as_f64()), iv.and_then(|i| i.get("endTime")).and_then(|x| x.as_f64())) else { continue };
         let their = r.get("episodeLength").and_then(|x| x.as_f64()).unwrap_or(0.0);
-        let off = if len > 0.0 && their > 0.0 { (their - len).abs() } else { 0.0 };
-        if off > 20.0 || end <= start {
+        let shift = if len > 0.0 && their > 0.0 { len - their } else { 0.0 };
+        let off = shift.abs();
+        if off > 120.0 || end <= start {
+            continue;
+        }
+        let (start, end) = if kind == "ed" { (start + shift, (end + shift).min(if len > 0.0 { len } else { f64::MAX })) } else { (start, end) };
+        if start < 0.0 || end <= start {
             continue;
         }
         let s = Skip { kind: kind.to_string(), start, end };
@@ -187,11 +194,15 @@ mod tests {
           {"interval":{"startTime":50.0,"endTime":140.0},"skipType":"op","episodeLength":1500.0},
           {"interval":{"startTime":1338.2,"endTime":1428.2},"skipType":"ed","episodeLength":1435.0},
           {"interval":{"startTime":223.9,"endTime":313.9},"skipType":"mixed-ed","episodeLength":1492.1}]}"#;
-        let s = parse_skips(j, 1436.0);
+        let s = parse_skips(j, 1435.0);
         assert_eq!(s, vec![Skip { kind: "op".into(), start: 54.7, end: 145.1 }, Skip { kind: "ed".into(), start: 1338.2, end: 1428.2 }]);
         assert_eq!(to_text(&s[..1]), "op 54.700 145.100\n");
+        // A version 40 s shorter: the opening stays, the ending moves with the end.
+        let s = parse_skips(j, 1395.0);
+        assert_eq!(s[0], Skip { kind: "op".into(), start: 54.7, end: 145.1 });
+        assert!((s[1].start - 1298.2).abs() < 0.01 && (s[1].end - 1388.2).abs() < 0.01);
         // A much longer cut: its times would be off.
-        assert!(parse_skips(j, 1600.0).is_empty());
+        assert!(parse_skips(j, 1700.0).is_empty());
         assert!(parse_skips("{\"found\":false,\"results\":[]}", 1400.0).is_empty());
     }
 
