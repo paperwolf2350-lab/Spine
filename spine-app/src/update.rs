@@ -160,7 +160,7 @@ pub fn install(app_dir: &Path, _exe: &Path) -> Result<std::path::PathBuf, String
 /// (the caller restarts into it).
 #[cfg(not(target_os = "linux"))]
 pub fn install(app_dir: &Path, exe: &Path) -> Result<std::path::PathBuf, String> {
-    if exe.file_name().map_or(false, |n| n.to_string_lossy().eq_ignore_ascii_case("Spine.old.exe")) {
+    if is_old(exe) {
         return Err("This window is the old Spine from before the last update. Close it and open Spine again: it's already up to date.".into());
     }
     let repo = repo(app_dir).ok_or("Updates aren't set up for this copy of Spine.")?;
@@ -177,14 +177,40 @@ pub fn install(app_dir: &Path, exe: &Path) -> Result<std::path::PathBuf, String>
         let _ = fs::remove_file(&new);
         return Err("The download didn't match its fingerprint, so Spine didn't install it. Try again later.".into());
     }
-    let old = exe.with_file_name("Spine.old.exe");
+    // The copy from the last update may still be locked (an old window, antivirus): then
+    // use another name instead of failing. Windows can also refuse for a moment while
+    // antivirus looks at a file, so try a few times.
+    let mut old = exe.with_file_name("Spine.old.exe");
     let _ = fs::remove_file(&old);
-    fs::rename(exe, &old).map_err(|e| format!("Couldn't move the current Spine aside ({e})."))?;
+    for n in 2..20 {
+        if !old.exists() {
+            break;
+        }
+        old = exe.with_file_name(format!("Spine.old{n}.exe"));
+        let _ = fs::remove_file(&old);
+    }
+    let mut moved = fs::rename(exe, &old);
+    for _ in 0..6 {
+        if moved.is_ok() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        moved = fs::rename(exe, &old);
+    }
+    moved.map_err(|e| format!("Couldn't move the current Spine aside ({e}). Quit Spine, open it again and retry; if it still fails, delete Spine.old.exe in Spine's folder."))?;
     if let Err(e) = fs::rename(&new, exe) {
         let _ = fs::rename(&old, exe); // put things back
         return Err(format!("Couldn't put the new Spine in place ({e})."));
     }
     Ok(exe.to_path_buf())
+}
+
+/// Is this the copy an update moved aside (Spine.old.exe, Spine.old2.exe...)?
+fn is_old(exe: &Path) -> bool {
+    exe.file_name().map_or(false, |n| {
+        let n = n.to_string_lossy().to_ascii_lowercase();
+        n.starts_with("spine.old") && n.ends_with(".exe")
+    })
 }
 
 /// After an update: make sure the previous version has closed, then tidy it away.
@@ -196,7 +222,14 @@ pub fn cleanup(exe: &Path) {
     }
     let old = exe.with_file_name("Spine.old.exe");
     let _ = fs::remove_file(exe.with_file_name("Spine.new.exe"));
-    if !old.exists() || exe.file_name().map_or(false, |n| n.to_string_lossy().eq_ignore_ascii_case("Spine.old.exe")) {
+    if is_old(exe) {
+        return;
+    }
+    // Extra copies from updates where Spine.old.exe was locked.
+    for n in 2..20 {
+        let _ = fs::remove_file(exe.with_file_name(format!("Spine.old{n}.exe")));
+    }
+    if !old.exists() {
         return;
     }
     for i in 0..40 {

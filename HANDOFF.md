@@ -504,6 +504,11 @@ from the workspace). Checked the Lua under Xvfb with a chapter-less file.
 AniSkip's only submission was for a 1534 s version). `parse_skips` now allows up to 120 s difference:
 op/recap keep their times, ed is shifted by (our len - their len) so it stays anchored to the end.
 
+**0.20.2**: Windows self-update failed with "Couldn't move the current Spine aside (Access is denied)"
+(the previous Spine.old.exe was still there and locked). `update::install` now falls back to
+Spine.old2.exe ... Spine.old19.exe and retries the rename a few times; `cleanup` removes those too;
+`is_old()` recognises any of them.
+
 **Next session**: ask how AniSkip does on the owner's anime, then the Windows mpv download (or what's next)., then the mpv download on Windows (or 0.19 intro skip). Streaming code lives in
 `ui/stream.js` + `stream.css` and `spine-core/src/addons.rs`; keep new streaming features there.
 UI tests: recreate the Playwright mock (`window.__SPINE_MOCK__`; Chrome is at /usr/bin/google-chrome;
