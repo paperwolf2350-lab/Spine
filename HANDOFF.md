@@ -653,6 +653,14 @@ Watch (placeholder for release 2): tiles for Movies/TV (`con-movies`/`con-tv`) a
 `body.kb`. Tested in Playwright (1920x1080 and 1280x720, mock) and real WebKitGTK 2.52 under Xvfb (snapshots there can
 lag a transition by a frame or two: wait ~2 s before judging). Next: release 2 (Watch screen with the two Continue rows).
 
+**0.28.1** (Nov 4, owner's request after trying 0.28.0 "would be happy to have this on my main tv"): TV mode's dark look on
+every screen. `applyTheme()` sets `data-theme="tv"` while `tvOn()` (the saved `theme` setting is untouched and returns when
+TV mode is off), accent = setting or `TV_ACCENT`, and `--accent-ink` = `tvInk(accent)` (removed again outside TV mode).
+`:root[data-theme="tv"]` in tv.css: same colors as `.tvm` (bg #101218, surface #1a1d26/#262b38, text #f2efe8, muted
+#b4b9c5) and Lexend for --display/--body; the two Midnight-only rules in app.css (herowall strip, backdrop opacity) cover
+tv too. Settings → Look → Theme note says it's used when TV mode is off. Checked in Playwright: game page, library,
+Settings, Streaming.
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).

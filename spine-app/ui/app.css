@@ -103,7 +103,7 @@ body.kb .game:focus-visible, body.kb .game.focused { box-shadow: none; }
 .herowall .strip img { height: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 14px; }
 @keyframes wallpan { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 .herowall::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, var(--bg) 0%, color-mix(in srgb, var(--bg) 70%, transparent) 28%, color-mix(in srgb, var(--bg) 10%, transparent) 60%, transparent 100%); opacity: .85; }
-:root[data-theme="midnight"] .herowall .strip { opacity: .3; }
+:root[data-theme="midnight"] .herowall .strip, :root[data-theme="tv"] .herowall .strip { opacity: .3; }
 @media (prefers-reduced-motion: reduce) { .herowall .strip { animation: none; } }
 .console { flex: 0 0 auto; width: 150px; height: 190px; border-radius: 18px; color: #fff; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; transition: width .18s ease, height .18s ease, box-shadow .18s ease; box-shadow: 0 4px 12px rgba(0,0,0,.14); }
 .console.sel { width: 186px; height: 230px; box-shadow: 0 0 0 4px var(--bg), 0 0 0 7px var(--chip), 0 14px 30px rgba(0,0,0,.25); }
@@ -291,7 +291,7 @@ body.kb .shelf .game.focused, body.kb .shelf .game:focus-visible { transform: tr
 .backdrop canvas { opacity: 0; transition: opacity 1.2s ease; }
 .backdrop canvas.on { opacity: .55; }
 .backdrop::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 25%, transparent) 0%, color-mix(in srgb, var(--bg) 55%, transparent) 55%, var(--bg) 100%); }
-:root[data-theme="midnight"] .backdrop img, :root[data-theme="midnight"] .backdrop .tint { opacity: .6; }
+:root[data-theme="midnight"] .backdrop img, :root[data-theme="midnight"] .backdrop .tint, :root[data-theme="tv"] .backdrop img, :root[data-theme="tv"] .backdrop .tint { opacity: .6; }
 .detail .fact, .detail .btn:not(.primary), .detail .badge { background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: blur(6px); }
 
 /* Meta line and category chips */

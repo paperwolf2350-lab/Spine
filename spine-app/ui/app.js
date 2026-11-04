@@ -748,7 +748,7 @@ function settingsPanel() {
       `<button class="swatch ${c === accent ? 'on' : ''}" style="background:${c}" data-nav data-key="acc-${c}" data-act="accent" data-c="${c}" aria-label="Accent ${c}"></button>`).join('');
     const style = waveOn() ? 'wave' : channelsOn() ? 'channels' : bladesOn() ? 'blades' : cubeOn() ? 'cube' : 'classic';
     body = grp('TV mode', 'Spine as your living-room console: Play and Watch, big text for the couch.', `<div class="opts">${chips('tvm', 'tvmode', [['off', 'Off'], ['on', 'On']], tvOn() ? 'on' : 'off')}</div>`)
-      + grp('Theme', '', `<div class="opts">
+      + grp('Theme', tvOn() ? 'Used when TV mode is off. TV mode has its own dark look.' : '', `<div class="opts">
       <button class="chip ${(st.theme || 'cream') === 'cream' ? 'on' : ''}" data-nav data-key="th-cream" data-act="theme" data-t="cream">Cream</button>
       <button class="chip ${st.theme === 'midnight' ? 'on' : ''}" data-nav data-key="th-midnight" data-act="theme" data-t="midnight">Midnight</button>
       <button class="chip ${st.theme === 'crt' ? 'on' : ''}" data-nav data-key="th-crt" data-act="theme" data-t="crt">Retro CRT</button></div>`)
@@ -1134,8 +1134,12 @@ window.addEventListener('resize', () => applyScale());
 function applyTheme() {
   applyScale();
   const st = settings();
-  document.documentElement.dataset.theme = st.theme || 'cream';
-  document.documentElement.style.setProperty('--accent', st.accent || '#C8431F');
+  // TV mode brings its own dark look to every screen (theme "tv" in tv.css); the chosen theme comes back when it's off.
+  const tv = tvOn(), root = document.documentElement.style;
+  const accent = st.accent || (tv ? TV_ACCENT : '#C8431F');
+  document.documentElement.dataset.theme = tv ? 'tv' : st.theme || 'cream';
+  root.setProperty('--accent', accent);
+  if (tv) root.setProperty('--accent-ink', tvInk(accent)); else root.removeProperty('--accent-ink');
 }
 
 let carLeft = null;

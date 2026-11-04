@@ -4,6 +4,17 @@
    tv.js reads card sizes from the page. Bundled font: Lexend (SIL OFL, fonts/Lexend-OFL.txt). */
 @font-face { font-family: 'Lexend'; src: url('fonts/Lexend.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
 
+/* Theme "tv": the same dark look on every other screen (game pages, libraries, Settings, Streaming) while
+   TV mode is on. Set by applyTheme() in app.js; the person's own theme returns when TV mode is off. */
+:root[data-theme="tv"] {
+  --bg: #101218; --surface: #1a1d26; --surface2: #262b38; --text: #f2efe8; --muted: #b4b9c5; --line: #2a2f3d;
+  --focus: #f2efe8;
+  --shadow: 0 6px 18px rgba(0,0,0,.5);
+  --display: 'Lexend', 'Segoe UI', system-ui, sans-serif;
+  --body: 'Lexend', 'Segoe UI', system-ui, sans-serif;
+}
+:root[data-theme="tv"] h1, :root[data-theme="tv"] h2, :root[data-theme="tv"] h3 { letter-spacing: 0; }
+
 .tvm { --tbg: #101218; --tsurf: #1a1d26; --tsurf2: #262b38; --ttext: #f2efe8; --tmuted: #b4b9c5;
   position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; display: flex; flex-direction: column; padding-top: 30px;
   background: var(--tbg); color: var(--ttext); font-family: 'Lexend', 'Segoe UI', system-ui, sans-serif; }
