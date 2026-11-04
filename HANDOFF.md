@@ -584,7 +584,26 @@ twice by the ignored test (`SPINE_MPV_7Z=<path> cargo test -- --ignored unpacks_
 Playwright with a Windows user agent. Not testable here: the real download on Windows (owner to check).
 Workspace note: release pages of other repos: WebFetch `github.com/<o>/<r>/releases/expanded_assets/<tag>`
 (the API is blocked for unattached repos); release downloads themselves work with curl.
-Next: controller in the mpv player (the shinchiro build includes SDL, check `--input-gamepad`).
+Owner confirmed (Nov 4): Get mpv downloaded and unpacked correctly on Windows.
+
+**0.25.0** (Nov 4): controller in the mpv player. mpv only starts SDL gamepad input at launch
+(`input-gamepad` is read in input init; setting it from Lua does nothing, so the old pad bindings never
+worked). `player::MPV_CONF` ("input-gamepad=yes") is written as `spine-input.conf` next to the script by
+`player::write_mpv_files(dir)` (both play paths) and passed with `--include=` (after --script-opts): an mpv
+without SDL gamepad only warns about the line (checked: unknown options in an included file aren't fatal).
+The shinchiro build has `-Dsdl2-gamepad=enabled`; Ubuntu's mpv 0.37 has the option too.
+Lua (`spine_player.lua`): `bind_pad` sets `pad = true` (mouse movement clears it) and wakes the controls.
+A = `confirm` (menu row / Up next / Skip / pause), B = close menu, cancel Up next, else first press only
+shows the controls and a press while they're up quits (progress saved as usual), X = next episode, Y = menu
+(`open_menu` focuses the playing audio track; `menu_cols` shared with `draw_menu`, focus `msel`
+drawn with an accent outline), Start = pause, D-pad / left stick = `jump(±10)` or volume ±5 (OSD message),
+in the menu `menu_move`; LB/RB = `jump(±60)`. `jump` stops 2 s before the end (seeking past the end with
+keep-open didn't set eof-reached, so Up next never showed). Hint row (pad only) left-aligned above the seek bar:
+"A Pause · B Close video · Y Audio & subtitles · X Next episode · ◀▶ 10 s · LB RB 1 min"; menu and Up next have
+their own two hints. Esc keeps its old meaning (menu / Up next / leave fullscreen). Tested in real mpv 0.37 under
+xvfb-run with a driver script sending `keypress GAMEPAD_*` and taking `screenshot-to-file ... window`
+(needs `XDG_RUNTIME_DIR` set and `--vo=x11`; gpu vo fails there). Not testable here: a physical controller.
+Ideas left: hide by age rating (needs TMDB certifications).
 
 **Old note (Nov 3), done in 0.24.0**: Spine downloads and sets up mpv on Windows. Owner installed it by hand
 from shinchiro/mpv-winbuild-cmake GitHub releases: plain `mpv-x86_64-<date>-git-<hash>.7z` (not dev / v3 /

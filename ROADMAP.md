@@ -1,7 +1,7 @@
 # Spine — to-do list
 
 ## Next up (planned)
-Owner's order (Nov 4): controller in the video player next. Later maybe: hide by age rating (needs TMDB).
+Nothing queued. Ideas: hide by age rating (needs TMDB certifications).
 - New looks, one per small release (inspired by console menus, never copying their logos, fonts or sounds):
   - Retro CRT theme (done, 0.7.8).
   - Later ideas: Couch (one giant shelf for big TVs), matching sounds per style.
@@ -11,6 +11,7 @@ Owner's order (Nov 4): controller in the video player next. Later maybe: hide by
 
 ## Done
 
+- Controller in the video player: A/B/X/Y, D-pad, LB/RB, Audio & subtitles menu, button hints (0.25.0).
 - Get mpv from Settings on Windows: Spine downloads, checks and unpacks it (0.24.0).
 - Hide genres you never want to see in Streaming catalogs and search (0.23.0).
 - Clickable actors and directors on Streaming details pages, with their own page from TMDB (0.22.0).

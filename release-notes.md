@@ -1,8 +1,8 @@
 ## What's new
-- **Spine gets mpv for you (Windows).** mpv is Spine's video player for movies, shows and streams (Resume, Up next, Skip intro). Settings → Controller & sound → mpv now has a **Get mpv** button: Spine downloads the latest 64-bit build (about 35 MB), checks it against the fingerprint GitHub shows for it, and unpacks it into a `tools` folder next to Spine. The Movies tile shows the same button when mpv is missing. Press it again later to update. Already installed mpv yourself? Spine still finds and uses it.
+- **Use your controller in the video player (mpv).** A pauses and plays (or presses Skip intro / Play now when they show), B shows the controls and a second B closes the video, Y opens Audio & subtitles (move with the D-pad, A picks), X jumps to the next episode, Start pauses. D-pad or left stick: left/right skip 10 s, up/down change the volume. LB / RB skip a minute. Once you touch the controller, the player shows which button does what. Hold Select + Start still closes it from anywhere.
 
-From 0.23.0:
-- Hide genres you never want to see in Streaming catalogs and search (Settings → Streaming).
+From 0.24.0:
+- Get mpv from Settings → Controller & sound on Windows: Spine downloads, checks and unpacks it.
 
 ---
 

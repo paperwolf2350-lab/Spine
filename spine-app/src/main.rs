@@ -912,7 +912,7 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, next: Opti
         let script = dir.join("spine-progress.lua");
         let out = dir.join("position.txt");
         let _ = fs::remove_file(&out);
-        (fs::create_dir_all(&dir).is_ok() && fs::write(&script, spine_core::player::MPV_SCRIPT).is_ok()).then(|| {
+        spine_core::player::write_mpv_files(&dir).is_ok().then(|| {
             // The Flatpak only sees folders it's given: share this one for this run.
             if plan.args.first().map(String::as_str) == Some("run") && plan.program.to_string_lossy().ends_with("flatpak") {
                 plan.args.insert(1, format!("--filesystem={}", dir.display()));
@@ -1689,7 +1689,7 @@ fn play_stream(token: Option<String>, key: String, title: String, info: Option<s
         let script = dir.join("spine-progress.lua");
         let out = dir.join("position.txt");
         let _ = fs::remove_file(&out);
-        (fs::create_dir_all(&dir).is_ok() && fs::write(&script, spine_core::player::MPV_SCRIPT).is_ok()).then(|| {
+        spine_core::player::write_mpv_files(&dir).is_ok().then(|| {
             if plan.args.first().map(String::as_str) == Some("run") && plan.program.to_string_lossy().ends_with("flatpak") {
                 plan.args.insert(1, format!("--filesystem={}", dir.display()));
             }

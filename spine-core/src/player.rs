@@ -137,6 +137,19 @@ fn base64(data: &[u8]) -> String {
 /// "<seconds> <length>", plus " next" when the countdown ran out (or Next / Play now was
 /// pressed) so Spine starts the next episode. Source: spine_player.lua next to this file.
 pub const MPV_SCRIPT: &str = include_str!("spine_player.lua");
+/// Read by mpv through `--include`: switches on controller input (it can only be turned on
+/// at start). An mpv built without controller support just warns about the line and plays.
+pub const MPV_CONF: &str = "input-gamepad=yes\n";
+pub const MPV_CONF_NAME: &str = "spine-input.conf";
+
+/// Write Spine's player script and its settings file into `dir`; returns the script's path.
+pub fn write_mpv_files(dir: &std::path::Path) -> std::io::Result<std::path::PathBuf> {
+    std::fs::create_dir_all(dir)?;
+    std::fs::write(dir.join(MPV_CONF_NAME), MPV_CONF)?;
+    let script = dir.join("spine-progress.lua");
+    std::fs::write(&script, MPV_SCRIPT)?;
+    Ok(script)
+}
 
 /// What Spine's player shows: title lines, accent colour, skip mode, and "Up next".
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -178,6 +191,8 @@ pub fn mpv_args(script: &std::path::Path, out: &std::path::Path, start: Option<u
     let mut a = vec![
         format!("--script={}", script.display()),
         format!("--script-opts={}", opts.join(",")),
+        // Controller input (MPV_CONF), next to the script.
+        format!("--include={}", script.with_file_name(MPV_CONF_NAME).display()),
         // Spine draws its own controls; mpv's own bar and seek pop-ups would sit on top.
         "--osc=no".into(),
         "--osd-bar=no".into(),

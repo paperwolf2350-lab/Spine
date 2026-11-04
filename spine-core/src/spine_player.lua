@@ -96,6 +96,8 @@ local menu = false
 local drag = false
 local upnext = nil -- { left = seconds }
 local skipped = {} -- chapters already auto-skipped
+local pad = false -- the controller was used last (shows button hints and the menu focus)
+local msel = { c = 1, r = 1 } -- focused row in the audio & subtitles menu (controller)
 local function now() return mp.get_time() end
 local function wake(secs) visible_until = math.max(visible_until, now() + (secs or 2.5)) end
 
@@ -246,6 +248,26 @@ local function track_label(t)
   if #s > 34 then s = s:sub(1, 33) .. "…" end
   return s
 end
+-- The menu's two columns: { prop, title, rows = { {id, label, selected} } }.
+local function menu_cols()
+  local tracks = mp.get_property_native("track-list") or {}
+  local out = {}
+  for _, c in ipairs({ { "audio", "Audio", "aid" }, { "sub", "Subtitles", "sid" } }) do
+    local rows = {}
+    if c[1] == "sub" then rows[1] = { id = "no", label = "Off", selected = mp.get_property("sid") == "no" } end
+    for _, t in ipairs(tracks) do
+      if t.type == c[1] then rows[#rows + 1] = { id = t.id, label = track_label(t), selected = t.selected } end
+    end
+    out[#out + 1] = { prop = c[3], title = c[2], rows = rows }
+  end
+  return out
+end
+-- Open the menu with the focus on the audio track that's playing.
+local function open_menu()
+  menu = true
+  msel = { c = 1, r = 1 }
+  for i, t in ipairs(menu_cols()[1].rows) do if t.selected then msel.r = i end end
+end
 local function draw_menu()
   local tracks = mp.get_property_native("track-list") or {}
   local cols = { { "audio", "Audio" }, { "sub", "Subtitles" } }
@@ -272,6 +294,10 @@ local function draw_menu()
       local prop = c[1] == "audio" and "aid" or "sid"
       local on = hit(cx - 12 * S, ry, colw - 16 * S, rowh - 6 * S, function() mp.set_property(prop, tostring(t.id)) end, prop .. t.id)
       if on then shape("FFFFFF", "D8", rrect(cx - 12 * S, ry, colw - 16 * S, rowh - 6 * S, 8 * S)) end
+      if pad and msel.c == ci and msel.r == i then
+        shape("FFFFFF", "D0", rrect(cx - 12 * S, ry, colw - 16 * S, rowh - 6 * S, 8 * S))
+        outline(ACC, "00", n(3 * S), rrect(cx - 12 * S, ry, colw - 16 * S, rowh - 6 * S, 8 * S))
+      end
       if t.selected then shape(ACC, "00", circle(cx + 8 * S, ry + rowh / 2 - 3 * S, 7 * S)) end
       text(cx + 30 * S, ry + rowh / 2 - 3 * S, 4, 28 * S, t.selected and "FFFFFF" or "DCDCDC", t.label, t.selected)
     end
@@ -318,6 +344,31 @@ local function render()
       text(W - 60 * S, by, 6, 28 * S, "FFFFFF", "-" .. fmt(len - pos), false)
     end
 
+    if pad then
+      -- Controller hints, above the seek bar on the left (the menu and Skip sit on the right).
+      local fs, gr = 24 * S, 17 * S
+      local list = upnext and { { "A", "Play now" }, { "B", "Cancel" } }
+        or menu and { { "A", "Choose" }, { "B", "Close menu" } }
+        or { { "A", paused and "Play" or "Pause" }, { "B", "Close video" }, { "Y", "Audio & subtitles" } }
+      if not menu and not upnext and NEXT ~= "" then list[#list + 1] = { "X", "Next episode" } end
+      if not menu and not upnext then list[#list + 1] = { "\226\151\128\226\150\182", "10 s" }; list[#list + 1] = { "LB RB", "1 min" } end
+      local widths, total = {}, 0
+      for i, h in ipairs(list) do
+        local gw = (#h[1] > 1 and (#h[1] > 3 and 2.6 or 1.6) or 1) * 2 * gr
+        widths[i] = gw + 10 * S + #h[2] * 0.44 * fs + 30 * S
+        total = total + widths[i]
+      end
+      local hx, hy = bx, by - 58 * S
+      local tint = { A = "4FA34A", B = "3C3CD8", X = "D8783C", Y = "2CB8E0" } -- BBGGRR
+      for i, h in ipairs(list) do
+        local gw = (#h[1] > 1 and (#h[1] > 3 and 2.6 or 1.6) or 1) * 2 * gr
+        shape(tint[h[1]] or "3C3C3C", "10", rrect(hx, hy - gr, gw, 2 * gr, gr))
+        text(hx + gw / 2, hy, 5, (#h[1] > 3 and 0.62 or 0.8) * fs, "FFFFFF", h[1], true)
+        text(hx + gw + 10 * S, hy, 4, fs, "E6E6E6", h[2], false)
+        hx = hx + widths[i]
+      end
+    end
+
     -- Controls row.
     local cy, r = H - 66 * S, 32 * S
     button(84 * S, cy, r, "play", function() mp.command("cycle pause") end, paused and ic_play or ic_pause)
@@ -328,7 +379,7 @@ local function render()
     text(386 * S, cy, 4, 28 * S, "DCDCDC", fmt(pos) .. "  /  " .. fmt(len), false)
     local fx = W - 84 * S
     button(fx, cy, r, "full", function() mp.command("cycle fullscreen") end, function(x, y, rr) ic_full(x, y, rr, mp.get_property_bool("fullscreen")) end)
-    button(fx - 82 * S, cy, r, "subs", function() menu = not menu end, ic_subs)
+    button(fx - 82 * S, cy, r, "subs", function() if menu then menu = false else open_menu() end end, ic_subs)
     if NEXT ~= "" then button(fx - 164 * S, cy, r, "next", function() quit_next() end, ic_next) end
     if menu then draw_menu() end
   end
@@ -432,7 +483,7 @@ mp.observe_property("mouse-pos", "native", function(_, m)
   local moved = m.x ~= mouse.x or m.y ~= mouse.y
   mouse.x, mouse.y, mouse.inside = m.x, m.y, m.hover ~= false
   if drag then seek_to(mouse.x) end
-  if moved then wake() end
+  if moved then wake(); pad = false end
   render()
 end)
 mp.observe_property("osd-dimensions", "native", function(_, d)
@@ -440,25 +491,87 @@ mp.observe_property("osd-dimensions", "native", function(_, d)
   render()
 end)
 
--- Enter / A: the skip or Up next button if one is showing, else play/pause.
+-- Enter / A: the focused menu row, the skip or Up next button if one is showing, else play/pause.
 local function confirm()
+  if menu then
+    local col = menu_cols()[msel.c]
+    local t = col and col.rows[msel.r]
+    if t then mp.set_property(col.prop, tostring(t.id)) end
+    return render()
+  end
   if upnext then return quit_next() end
   local part = (SKIP ~= "off") and current_part() or nil
   if part then return do_skip(part) end
   mp.command("cycle pause")
   wake()
 end
+-- Esc: close the menu, cancel Up next, else leave fullscreen.
 local function back()
   if menu then menu = false; return render() end
   if upnext then return stop_upnext() end
   if mp.get_property_bool("fullscreen") then mp.set_property_bool("fullscreen", false) end
 end
-for _, k in ipairs({ "ENTER", "KP_ENTER", "GAMEPAD_ACTION_DOWN" }) do mp.add_forced_key_binding(k, "spine-ok-" .. k, confirm) end
-for _, k in ipairs({ "ESC", "GAMEPAD_ACTION_RIGHT" }) do mp.add_forced_key_binding(k, "spine-back-" .. k, back) end
-mp.add_forced_key_binding("GAMEPAD_DPAD_LEFT", "spine-pad-l", function() mp.commandv("seek", "-10"); wake() end, { repeatable = true })
-mp.add_forced_key_binding("GAMEPAD_DPAD_RIGHT", "spine-pad-r", function() mp.commandv("seek", "10"); wake() end, { repeatable = true })
-mp.add_forced_key_binding("GAMEPAD_ACTION_UP", "spine-pad-y", function() menu = not menu; wake(); render() end)
-pcall(mp.set_property, "input-gamepad", "yes")
+local function controls_up() return mp.get_property_bool("pause") or menu or upnext ~= nil or now() < visible_until end
+-- Move the menu focus (controller).
+local function menu_move(dc, dr)
+  local cols = menu_cols()
+  msel.c = math.max(1, math.min(#cols, msel.c + dc))
+  local rows = #cols[msel.c].rows
+  if dc ~= 0 then
+    -- Switching column: land on that column's chosen track.
+    msel.r = 1
+    for i, t in ipairs(cols[msel.c].rows) do if t.selected then msel.r = i end end
+  end
+  msel.r = math.max(1, math.min(math.max(rows, 1), msel.r + dr))
+end
+-- Jump d seconds, but never past the last 2 s: the end has to play for Up next to show.
+local function jump(d)
+  local pos = mp.get_property_number("time-pos") or 0
+  local len = mp.get_property_number("duration") or 0
+  local to = pos + d
+  if len > 0 then to = math.min(to, math.max(0, len - 2)) end
+  mp.commandv("seek", tostring(math.max(0, to)), "absolute")
+end
+local function volume(d)
+  mp.commandv("add", "volume", tostring(d))
+  mp.osd_message(string.format("Volume %d%%", n(mp.get_property_number("volume") or 0)), 1)
+end
+
+-- Controller (mpv reads it through SDL; Spine switches it on with --include, see MPV_CONF).
+-- A choose · B back / show controls / close · X next episode · Y audio & subtitles ·
+-- Start play/pause · D-pad / left stick: seek 10 s (left/right), volume (up/down) or move in the menu ·
+-- LB / RB: 1 minute. Hold Select + Start: Spine closes the player (works without SDL too).
+local function bind_pad(keys, name, fn, rep)
+  for _, k in ipairs(keys) do
+    mp.add_forced_key_binding(k, name .. "-" .. k, function()
+      local first = not pad
+      pad = true
+      fn(first)
+      wake()
+      render()
+    end, { repeatable = rep or false })
+  end
+end
+bind_pad({ "GAMEPAD_ACTION_DOWN" }, "spine-pad-a", function() confirm() end)
+bind_pad({ "GAMEPAD_ACTION_RIGHT" }, "spine-pad-b", function()
+  if menu then menu = false; return end
+  if upnext then return stop_upnext() end
+  -- First press only shows the controls (with "B Close video"); the next one closes.
+  if not controls_up() then return end
+  mp.command("quit")
+end)
+bind_pad({ "GAMEPAD_ACTION_LEFT" }, "spine-pad-x", function() if not menu and NEXT ~= "" then quit_next() end end)
+bind_pad({ "GAMEPAD_ACTION_UP" }, "spine-pad-y", function() if menu then menu = false else open_menu() end end)
+bind_pad({ "GAMEPAD_START" }, "spine-pad-start", function() if not menu then mp.command("cycle pause") end end)
+bind_pad({ "GAMEPAD_DPAD_LEFT", "GAMEPAD_LEFT_STICK_LEFT" }, "spine-pad-l", function() if menu then menu_move(-1, 0) else jump(-10) end end, true)
+bind_pad({ "GAMEPAD_DPAD_RIGHT", "GAMEPAD_LEFT_STICK_RIGHT" }, "spine-pad-r", function() if menu then menu_move(1, 0) else jump(10) end end, true)
+bind_pad({ "GAMEPAD_DPAD_UP", "GAMEPAD_LEFT_STICK_UP" }, "spine-pad-u", function() if menu then menu_move(0, -1) else volume(5) end end, true)
+bind_pad({ "GAMEPAD_DPAD_DOWN", "GAMEPAD_LEFT_STICK_DOWN" }, "spine-pad-d", function() if menu then menu_move(0, 1) else volume(-5) end end, true)
+bind_pad({ "GAMEPAD_LEFT_SHOULDER" }, "spine-pad-lb", function() if not menu then jump(-60) end end, true)
+bind_pad({ "GAMEPAD_RIGHT_SHOULDER" }, "spine-pad-rb", function() if not menu then jump(60) end end, true)
+-- Keyboard.
+for _, k in ipairs({ "ENTER", "KP_ENTER" }) do mp.add_forced_key_binding(k, "spine-ok-" .. k, function() confirm(); render() end) end
+mp.add_forced_key_binding("ESC", "spine-back-ESC", back)
 
 -- Show the controls briefly on pause/seek/new file; keep them fresh while visible.
 mp.observe_property("pause", "bool", function() wake(); render() end)
