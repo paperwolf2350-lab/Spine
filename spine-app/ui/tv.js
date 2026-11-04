@@ -269,7 +269,7 @@ function tvWatchSync() {
   }
   const hero = document.getElementById('tvwhero');
   const id = item ? `${item.key}|${item.verb}` : '-';
-  if (hero && hero.dataset.id !== id) { hero.dataset.id = id; hero.innerHTML = tvWatchHero(item); }
+  if (hero && hero.dataset.id !== id) { hero.dataset.id = id; hero.innerHTML = tvWatchHero(item); tvFit(); }
   const h = document.getElementById('tvwhints');
   if (h && h.dataset.row !== S.tv.w.row) { h.dataset.row = S.tv.w.row; h.innerHTML = tvHints(tvWatchHints(S.tv.w.row)); }
 }
@@ -342,7 +342,7 @@ function tvSync() {
   }
   const hero = document.getElementById('tvhero');
   const x = con.items[at];
-  if (hero && x && hero.dataset.id !== x.g.id) { hero.dataset.id = x.g.id; hero.innerHTML = tvHero(x); }
+  if (hero && x && hero.dataset.id !== x.g.id) { hero.dataset.id = x.g.id; hero.innerHTML = tvHero(x); tvFit(); }
   // Consoles row: keep the selected one in view (offsetWidth is unzoomed, like the step).
   const ctrack = document.getElementById('tvcontrack'), cbox = document.getElementById('tvcons');
   if (ctrack && cbox) {
@@ -426,8 +426,24 @@ function tvKey(btn) {
   return false;
 }
 
+// Make the banner fit its room: a short screen gets .short (measured in CSS px, so any Interface size
+// and window size works), then a banner still too tall steps down through fit1..fit3 (tv.css).
+function tvFit() {
+  const m = document.getElementById('tvm');
+  if (!m) return;
+  m.classList.toggle('short', m.offsetHeight < 840);
+  const hero = document.getElementById('tvhero') || document.getElementById('tvwhero');
+  const info = hero?.querySelector('.tv-info');
+  if (!info) return;
+  hero.classList.remove('fit1', 'fit2', 'fit3');
+  const room = () => hero.clientHeight - 16; // its 8px top and bottom padding
+  for (const c of ['fit1', 'fit2', 'fit3']) { if (info.offsetHeight <= room()) break; hero.classList.add(c); }
+}
+window.addEventListener('resize', () => { if (document.getElementById('tvm')) { tvFit(); tvSync(); tvWatchSync(); } });
+
 // Mouse wheel over the games row moves through it; the cursor hides while a controller is used (tv.css).
 function tvMount() {
+  tvFit();
   tvWatchMount();
   const box = document.getElementById('tvgames');
   if (!box) return;

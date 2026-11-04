@@ -684,6 +684,17 @@ Play. Play: B in games → consoles, B in consoles → games, top bar down → b
 `window.__pad` {buttons[17], axes} + `navigator.getGamepads = () => [__pad]` + `document.hasFocus = () => true`, then
 toggle `__pad.buttons[i].pressed` with ~90 ms holds. If the owner still gets stuck: ask Windows or Linux, D-pad or stick.
 
+**0.29.2** (Nov 4): the owner's screenshot (Windows, 1920x1009 window at 125% scaling = 1536x807 CSS px, Auto size =
+zoom 1; Demon Slayer logo + long special title) showed the real cause of "stuck in a row": the banner's content was taller
+than `.tv-hero`'s room and spilled over the top bar and tiles, putting buttons on top of each other. The 0.28 short layout
+was `@media (max-height: 800px)` (807 missed it, and media queries ignore the root zoom anyway). Now `tvFit()` (tv.js,
+called in tvMount, after each banner swap and on resize) sets `.tvm.short` when `#tvm.offsetHeight < 840` (rules in
+tv.css are `.tvm.short ...`), then steps the banner through `.fit1` (logo 64px / title 32px), `.fit2` (no label line),
+`.fit3` (no logo/title) until `.tv-info` fits; `.tv-hero` also clips (`overflow: hidden`). Logo has a fixed height (so
+its size is known before it loads); progress/meta text is one line with an ellipsis. Checked overlap numerically in
+Playwright at 1536x807@1.25, 1920x1009, 1920x1080, 1280x720, 1366x768, 3840x2160, 1920x1080@1.5 (Play and Watch).
+Test at real-world window sizes with device_scale_factor, not just full-screen 1080p.
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).

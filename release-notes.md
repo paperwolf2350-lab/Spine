@@ -1,4 +1,7 @@
 ## What's new
+- **TV mode fits your screen.** With Windows display scaling, a window with a title bar, or a show with a big logo and a long episode name, the banner at the top could spill over the top bar and the tiles, leaving the controller on buttons hidden under other buttons. Spine now measures the room it has and shrinks the logo and title (and drops the small label line if needed) so nothing overlaps.
+
+From 0.29.1:
 - **TV mode: easier to move around with a controller.** Up and down now always go to the next row: top bar → banner → tiles → Continue watching · your files → Continue watching · streaming, and back up the same way. **B** backs out of a row (a Continue row goes back to the tiles; the games row goes back to the consoles), and B on the Watch tiles goes to Play.
 
 From 0.29.0:

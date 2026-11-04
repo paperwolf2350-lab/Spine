@@ -38,7 +38,7 @@ body.kb .tvm [data-nav].focused, body.kb .tvm [data-nav]:focus-visible { box-sha
 
 /* Banner of the focused game */
 /* .tv-hero is a plain flex item that takes the room left over; its picture (.tv-bg) is placed against the whole screen. */
-.tv-hero { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; padding: 0 72px; }
+.tv-hero { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; padding: 8px 72px; overflow: hidden; }
 .tv-bg { position: absolute; top: 0; right: 0; width: 66%; height: 64%; overflow: hidden; z-index: 0; }
 .tv-art { width: 100%; height: 100%; object-fit: cover; display: block; animation: tvfade .5s ease both; }
 .tv-art.blur { filter: blur(28px) saturate(1.2); transform: scale(1.15); opacity: .65; }
@@ -49,7 +49,7 @@ body.kb .tvm [data-nav].focused, body.kb .tvm [data-nav]:focus-visible { box-sha
 .tv-info { position: relative; z-index: 1; width: 52%; display: flex; flex-direction: column; gap: 12px; }
 .tv-sys { font-size: 16px; color: var(--tmuted); letter-spacing: .08em; text-transform: uppercase; }
 .tv-title { font-size: 52px; font-weight: 600; line-height: 1.06; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.tv-logo { max-width: 440px; max-height: 120px; object-fit: contain; object-position: left center; align-self: flex-start; filter: drop-shadow(0 4px 18px rgba(0,0,0,.5)); }
+.tv-logo { width: auto; height: 120px; max-width: 440px; object-fit: contain; object-position: left center; align-self: flex-start; filter: drop-shadow(0 4px 18px rgba(0,0,0,.5)); }
 .tv-meta { font-size: 19px; color: var(--tmuted); }
 .tv-meta.warn { color: #f0a58a; }
 .tv-acts { display: flex; gap: 14px; margin-top: 8px; }
@@ -108,7 +108,14 @@ body.kb .tvm .tv-cwc.focused, body.kb .tvm .tv-cwc:focus-visible { outline: 4px 
 .tvm.watch .tv-title { font-size: 46px; -webkit-line-clamp: 1; }
 .tv-labelrow { display: flex; align-items: center; gap: 12px; }
 .tv-badge { font-size: 13px; padding: 3px 11px; border-radius: 999px; background: rgba(255,255,255,.1); color: #d6d9e0; }
-.tv-prog { display: flex; align-items: center; gap: 14px; font-size: 18px; color: var(--tmuted); }
+.tv-prog { display: flex; align-items: center; gap: 14px; font-size: 18px; color: var(--tmuted); min-width: 0; }
+.tv-prog > span:last-child, .tv-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Fit levels for a banner taller than its room (tvFit in tv.js): smaller logo/title, then no label line, then no logo/title. */
+.tv-hero.fit1 .tv-logo { height: 64px; }
+.tv-hero.fit1 .tv-title { font-size: 32px; -webkit-line-clamp: 1; }
+.tv-hero.fit1 .tv-info { gap: 6px; }
+.tv-hero.fit2 .tv-sys, .tv-hero.fit2 .tv-labelrow { display: none; }
+.tv-hero.fit3 .tv-logo, .tv-hero.fit3 .tv-title { display: none; }
 .tv-prog .bar { width: 220px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.15); flex: none; }
 .tv-note { font-size: 18px; color: var(--tmuted); margin: 0 12px 12px; }
 .tvm.watch .tv-lower { gap: 4px; }
@@ -125,35 +132,34 @@ body.kb .tvm .tv-cwc.focused, body.kb .tvm .tv-cwc:focus-visible { outline: 4px 
 .tv-hints b { height: 28px; min-width: 28px; padding: 0 8px; border-radius: 7px; border: 2px solid var(--tmuted); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
 .tv-hints b.r { border-radius: 50%; padding: 0; }
 
-/* Short screens (1280x720 at 100%, or 1920x1080 at 150% Windows scaling): everything a bit smaller. */
-@media (max-height: 800px) {
-  .tvm { padding-top: 22px; }
-  .tv-gear { width: 42px; height: 42px; }
-  .tv-title { font-size: 40px; }
-  .tv-logo { max-height: 92px; max-width: 360px; }
-  .tv-meta { font-size: 17px; }
-  .tv-sys { font-size: 14px; }
-  .tv-info { gap: 8px; }
-  .tv-btn { height: 48px; font-size: 17px !important; }
-  .tv-btn.primary .glyph { width: 28px; height: 28px; }
-  .tv-lower { gap: 6px; }
-  .tv-row h2 { font-size: 15px; }
-  .tv-cons { height: 92px; }
-  .tv-con { flex-basis: 108px; height: 70px; gap: 4px; font-size: 12px !important; }
-  .tv-con .sysicon { transform: scale(.72); margin: -6px 0; }
-  .tv-games { height: 210px; }
-  .tv-game { flex-basis: 104px; width: 104px; height: 146px; }
-  .tv-game.sel { flex-basis: 129px; width: 129px; height: 181px; }
-  .tv-hints { padding: 10px 72px 18px; font-size: 14px; }
-  .tv-hints b { height: 24px; min-width: 24px; }
-  .tv-con.tv-wt { height: 60px; flex-basis: 116px; font-size: 14px !important; }
-  .tv-wtrow { padding: 10px 12px; }
-  .tv-vdiv { height: 56px; margin-bottom: 12px; }
-  .tv-cw { height: 133px; }
-  .tv-cwc { flex-basis: 176px; width: 176px; height: 99px; }
-  .tv-cw:focus-within .tv-cwc.sel { flex-basis: 204px; width: 204px; height: 115px; }
-  .tvm.watch .tv-title { font-size: 34px; }
-  .tv-prog { font-size: 15px; }
-}
+/* Short screens (1280x720, 1080p with Windows scaling, a window with a title bar): tv.js adds .short when the
+   screen is under 840 CSS px tall (measured, so it works with any Interface size), and everything gets a bit smaller. */
+.tvm.short { padding-top: 22px; }
+.tvm.short .tv-gear { width: 42px; height: 42px; }
+.tvm.short .tv-title { font-size: 40px; }
+.tvm.short .tv-logo { height: 84px; max-width: 360px; }
+.tvm.short .tv-meta { font-size: 17px; }
+.tvm.short .tv-sys { font-size: 14px; }
+.tvm.short .tv-info { gap: 8px; }
+.tvm.short .tv-btn { height: 48px; font-size: 17px !important; }
+.tvm.short .tv-btn.primary .glyph { width: 28px; height: 28px; }
+.tvm.short .tv-lower { gap: 6px; }
+.tvm.short .tv-row h2 { font-size: 15px; }
+.tvm.short .tv-cons { height: 92px; }
+.tvm.short .tv-con { flex-basis: 108px; height: 70px; gap: 4px; font-size: 12px !important; }
+.tvm.short .tv-con .sysicon { transform: scale(.72); margin: -6px 0; }
+.tvm.short .tv-games { height: 210px; }
+.tvm.short .tv-game { flex-basis: 104px; width: 104px; height: 146px; }
+.tvm.short .tv-game.sel { flex-basis: 129px; width: 129px; height: 181px; }
+.tvm.short .tv-hints { padding: 10px 72px 18px; font-size: 14px; }
+.tvm.short .tv-hints b { height: 24px; min-width: 24px; }
+.tvm.short .tv-con.tv-wt { height: 60px; flex-basis: 116px; font-size: 14px !important; }
+.tvm.short .tv-wtrow { padding: 10px 12px; }
+.tvm.short .tv-vdiv { height: 56px; margin-bottom: 12px; }
+.tvm.short .tv-cw { height: 133px; }
+.tvm.short .tv-cwc { flex-basis: 176px; width: 176px; height: 99px; }
+.tvm.short .tv-cw:focus-within .tv-cwc.sel { flex-basis: 204px; width: 204px; height: 115px; }
+.tvm.short.watch .tv-title { font-size: 34px; }
+.tvm.short .tv-prog { font-size: 15px; }
 
 @media (prefers-reduced-motion: reduce) { .tv-track, .tv-game, .tv-art { transition: none; animation: none; } }
