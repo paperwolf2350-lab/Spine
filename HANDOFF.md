@@ -661,6 +661,21 @@ TV mode is off), accent = setting or `TV_ACCENT`, and `--accent-ink` = `tvInk(ac
 tv too. Settings → Look → Theme note says it's used when TV mode is off. Checked in Playwright: game page, library,
 Settings, Streaming.
 
+**0.29.0** (Nov 4): TV mode release 2, the Watch screen (tv.js, after the Play code). Layout like Play: top bar, `#tvwhero`
+(banner of the picked Continue card), `.tv-lower` = tiles (`tvWatchTiles`: Movies/TV `con-<id>` → `ACT.tile`; Streaming;
+Search `tvw-search` → `TV_ACT.tvsearch` = stream screen with `S_STREAM.tab[k] = 'search:<k>'`, only when an addon can search),
+then two rows kept apart: `tvLocalCont()` (last_played movies/tv; shows via `showNext`, fully watched shows and finished
+movies drop off; cards use the episode still) and `tvStreamCont()` (`streamContinue('movies'|'tv')` merged by `at`; addon
+https pictures, not mediaUrl). State `S.tv.w` {row 'l'|'s', l, s, lk, sk}: each row remembers its card by key (`tvwSet`,
+resolved in `tvWatchState`) because the list reorders after playing. `tvWatchSync` slides rows (`TVSTEP.l/.s`), swaps the
+banner and the hints (`#tvwhints`: your files A Resume / X Start over / Y Remove; streaming A Open / Y Remove). A focusin
+listener makes any focused card (up/down spatial moves, mouse) the row's pick. `TV_ACT.tvcw`: local = `ACT.play` with the
+showNext episode (backend resumes; X passes from 'start'); streaming = `ACT.scontinue` + `S.sitem.fromTv`, and `back()`
+returns from such an sdetail to the TV home on that card. Y = `TV_ACT.tvforget`: new command **`forget_played(id)`** (main.rs,
+removes last_played[id]; resume position kept) or `stream_forget`. Picked card grows only while its row has focus
+(`.tv-cw:focus-within`). Tested in Playwright (1920x1080, 1280x720) with mock progress/stream_recent data.
+Next: release 3 (TV-sized game/movie pages, soft sounds, start in TV mode full-screen).
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).

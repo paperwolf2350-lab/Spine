@@ -1798,6 +1798,15 @@ fn play_stream(token: Option<String>, key: String, title: String, info: Option<s
     Ok(emulator)
 }
 
+/// Take one of your own movies or shows off Continue watching (TV mode's Watch screen):
+/// forgets when it was last played; its resume position stays for when it's played again.
+#[tauri::command]
+fn forget_played(id: String, app: State<App>) -> Boot {
+    app.saved.lock().unwrap().last_played.remove(&id);
+    app.save();
+    view(&app)
+}
+
 /// Take a movie or show off Streaming's Continue watching ("<type>:<id>").
 #[tauri::command]
 fn stream_forget(item: String, app: State<App>) -> Boot {
@@ -2234,7 +2243,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, set_autostart, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, set_autostart, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, forget_played, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

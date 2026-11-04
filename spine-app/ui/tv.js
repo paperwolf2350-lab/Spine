@@ -53,23 +53,26 @@ function tvState() {
 }
 const tvGameKey = (x) => `tvg-${x.g.id}`;
 
-// Watch: what there is to watch (release 2 adds the two Continue rows).
+// Watch tiles: your Movies and TV, then (after a divider) Streaming and addon Search.
 function tvWatchTiles() {
-  const T = tiles();
   const lib = [], addons = [];
-  T.forEach((t, ti) => {
+  tiles().forEach((t, ti) => {
     if (t.kind === 'sys' && isMovies(t.sys)) lib.push({ ...t, ti });
     else if (t.kind === 'stream') addons.push({ ...t, ti });
   });
+  const canSearch = addons.length && typeof streamKinds === 'function' && streamKinds().some(([k]) => streamSearchCats(k).length);
+  if (canSearch) addons.push({ kind: 'search', id: 'tvsearch', name: 'Search', short: 'Search' });
   return { lib, addons };
 }
 
 function tvFocusKey() {
   const st = tvState();
   if (S.tv.sec === 'watch') {
+    const w = tvWatchState();
+    if (w.item) return w.item.key;
     const { lib, addons } = tvWatchTiles();
     const t = lib[0] || addons[0];
-    return t ? `con-${t.id}` : 'tvs-watch';
+    return t ? (t.kind === 'search' ? 'tvw-search' : `con-${t.id}`) : 'tvs-watch';
   }
   if (!st.con) return 'tvs-play';
   return tvGameKey(st.con.items[st.at]);
@@ -145,19 +148,155 @@ function homeTv() {
     </main>`;
 }
 
+// ---- Watch (release 2): Continue watching kept apart: your own files, then streaming.
+const tvLeft = (p) => { const m = Math.max(1, Math.round((p.len - p.pos) / 60)); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min ` : ''}left` : `${m} min left`; };
+
+// Your own movies and shows that are partway through (or have a next episode), newest first.
+function tvLocalCont() {
+  const lp = S.boot.last_played || {};
+  return Object.entries(lp).sort((a, b) => b[1] - a[1]).map(([id]) => findGame(id)).filter((x) => x && isMovies(x.s)).map(({ s, g }) => {
+    const eps = g.episodes || [];
+    if (eps.length) {
+      if (eps.some((_, i) => progOf(g, i)) && eps.every((_, i) => progOf(g, i)?.watched)) return null;
+      const n = showNext(g), e = eps[n.i], p = progOf(g, n.i);
+      const where = e.season != null && e.number != null ? `Season ${e.season} · Episode ${e.number}` : e.number != null ? `Episode ${e.number}` : e.group || '';
+      return { row: 'l', key: `tvw-l-${g.id}`, id: g.id, ep: n.i, title: g.title, logo: g.logo, label: ['TV', where].filter(Boolean).join(' · '),
+        code: [epCode(e), e.title].filter(Boolean).join(' · ') || 'Episode', p: canResume(p) ? p : null,
+        verb: n.kind === 'resume' ? 'Resume' : n.kind === 'next' ? 'Next episode' : 'Play', more: 'Episodes',
+        pic: e.still || g.hero || g.cover, art: g.hero || e.still, blur: !g.hero && !e.still ? g.cover : null, local: true };
+    }
+    const p = progOf(g, null);
+    if (p?.watched && !canResume(p)) return null;
+    const r = canResume(p);
+    return { row: 'l', key: `tvw-l-${g.id}`, id: g.id, ep: null, title: g.title, logo: g.logo, label: ['Movie', yearOf(g)].filter(Boolean).join(' · '),
+      code: r ? tvLeft(p) : 'Movie', p: r ? p : null, verb: r ? 'Resume' : 'Play', more: 'Details',
+      pic: g.hero || g.cover, art: g.hero, blur: g.hero ? null : g.cover, local: true };
+  }).filter(Boolean).slice(0, 12);
+}
+
+// Streaming's Continue watching (movies and shows together), newest first. Pictures are the addon's own links.
+function tvStreamCont() {
+  if (typeof streamContinue !== 'function') return [];
+  return [...streamContinue('movies', 12), ...streamContinue('tv', 12)].sort((a, b) => (b.r.at || 0) - (a.r.at || 0)).slice(0, 12).map(({ r, line, pct }) => {
+    const e = r.episode;
+    const p = sProg(r.type, e ? e.id : r.id);
+    return { row: 's', key: `tvw-s-${r.item}`, item: r.item, title: r.name, label: [r.type === 'movie' ? 'Movie' : 'Show', e && e.season != null ? `Season ${e.season} · Episode ${e.episode}` : r.year].filter(Boolean).join(' · '),
+      code: line, p: pct && p ? p : null, pct, verb: 'Open', addonName: r.addonName, pic: r.background || r.poster, art: r.background, blur: r.background ? null : r.poster, local: false };
+  });
+}
+
+function tvWatchState() {
+  S.tv.w = S.tv.w || { row: 'l', l: 0, s: 0 };
+  const rows = { l: tvLocalCont(), s: tvStreamCont() };
+  // Each row remembers its card by key, so it stays put when the list reorders (after playing something).
+  for (const r of ['l', 's']) {
+    const k = S.tv.w[r + 'k'] ? rows[r].findIndex((x) => x.key === S.tv.w[r + 'k']) : -1;
+    if (k >= 0) S.tv.w[r] = k;
+    S.tv.w[r] = Math.max(0, Math.min(S.tv.w[r] || 0, rows[r].length - 1));
+    S.tv.w[r + 'k'] = rows[r][S.tv.w[r]]?.key || null;
+  }
+  if (!rows[S.tv.w.row].length) S.tv.w.row = rows.l.length ? 'l' : 's';
+  const item = rows[S.tv.w.row][S.tv.w[S.tv.w.row]] || null;
+  return { rows, item };
+}
+// Pick card k of row r (by position; tvWatchState then remembers its key).
+function tvwSet(r, k) { S.tv.w.row = r; S.tv.w[r] = k; S.tv.w[r + 'k'] = null; }
+const tvUrl = (x, u) => (x.local ? mediaUrl(u) : u);
+
+function tvWatchHero(x) {
+  if (!x) {
+    return `<div class="tv-info"><span class="tv-sys">Watch</span><h1 class="tv-title">Nothing in progress</h1>
+      <span class="tv-meta">Movies and shows you start show up here, ready to pick up again.</span></div>`;
+  }
+  const art = x.art ? `<img class="tv-art" src="${tvUrl(x, x.art)}" alt="">` : x.blur ? `<img class="tv-art blur" src="${tvUrl(x, x.blur)}" alt="">` : '';
+  const bar = x.p && x.p.len ? `<div class="tv-prog"><span class="bar"><i style="width:${Math.round((100 * x.p.pos) / x.p.len)}%"></i></span><span>${esc(x.local ? (x.ep != null ? `${x.code} · ${tvLeft(x.p)}` : tvLeft(x.p)) : x.code)}</span></div>`
+    : `<span class="tv-meta">${esc(x.code)}</span>`;
+  const acts = x.local
+    ? `<button class="tv-btn primary" data-nav data-key="tvwgo" data-act="tvcw" data-row="l" data-k="${S.tv.w.l}">${glyph('A')}${esc(x.verb)}</button>
+       <button class="tv-btn" data-nav data-key="tvwmore" data-act="open" data-id="${esc(x.id)}" data-from="home">${esc(x.more)}</button>`
+    : `<button class="tv-btn primary" data-nav data-key="tvwgo" data-act="tvcw" data-row="s" data-k="${S.tv.w.s}">${glyph('A')}Open</button>`;
+  return `<div class="tv-bg" aria-hidden="true">${art}<div class="tv-scrim"></div></div>
+    <div class="tv-info">
+      <div class="tv-labelrow"><span class="tv-sys">${esc(x.label)}</span><span class="tv-badge">${x.local ? 'Your files' : `Streaming${x.addonName ? ' · ' + esc(x.addonName) : ''}`}</span></div>
+      ${x.logo ? `<img class="tv-logo" src="${mediaUrl(x.logo)}" alt="${esc(x.title)}">` : `<h1 class="tv-title">${esc(x.title)}</h1>`}
+      ${bar}
+      <div class="tv-acts">${acts}</div>
+    </div>`;
+}
+
+function tvWatchCard(x, k, sel) {
+  const pic = x.pic ? `<img src="${tvUrl(x, x.pic)}" alt="" loading="lazy" decoding="async">` : `<span class="ph" style="background:${PAL[hash(x.title) % PAL.length]}"></span>`;
+  const pct = x.p && x.p.len ? Math.round((100 * x.p.pos) / x.p.len) : 0;
+  return `<button class="tv-cwc${k === sel ? ' sel' : ''}" data-nav data-key="${esc(x.key)}" data-act="tvcw" data-row="${x.row}" data-k="${k}" aria-label="${esc(x.title)}, ${esc(x.code)}">
+      ${pic}<span class="txt"><span class="t">${esc(x.title)}</span><span class="s">${esc(x.code)}</span></span>
+      ${pct ? `<span class="bar"><i style="width:${pct}%"></i></span>` : ''}</button>`;
+}
+
+function tvWatchHints(row) {
+  return row === 's'
+    ? [['A', 'Open'], ['Y', 'Remove'], ['B', 'Play'], ['LT RT', 'Play / Watch']]
+    : [['A', 'Resume'], ['X', 'Start over'], ['Y', 'Remove'], ['LT RT', 'Play / Watch']];
+}
+
 function tvWatch(style) {
   const { lib, addons } = tvWatchTiles();
-  const tile = (t, sub) => `<button class="tv-wtile" style="--tc:${t.color}" data-nav data-key="con-${esc(t.id)}" data-act="tile" data-i="${t.ti}">
-      <span class="ic">${sysIcon(tileIcon(t), 64)}</span><span class="t">${esc(t.name)}</span><span class="s">${esc(sub)}</span></button>`;
-  const libHtml = lib.map((t) => tile(t, `${t.count.toLocaleString()} ${things(t.sys, t.count)}`)).join('');
-  const addHtml = addons.map((t) => tile(t, `Catalogs and search · ${t.label}`)).join('');
-  const body = lib.length || addons.length ? `<div class="tv-watch">
-      ${lib.length ? `<section class="tv-row"><h2>Your library</h2><div class="tv-wrow">${libHtml}</div></section>` : ''}
-      ${lib.length && addons.length ? '<hr class="tv-div">' : ''}
-      ${addons.length ? `<section class="tv-row"><h2>From your addons</h2><div class="tv-wrow">${addHtml}</div></section>` : ''}
-    </div>` : `<div class="tv-empty"><h1>Nothing to watch yet</h1><p>Add movie or TV folders in Settings → Library, or a streaming addon in Settings → Streaming.</p></div>`;
-  return `<main class="tvm watch" id="tvm" style="${style}">${tvTop('watch')}${body}
-    ${tvHints([['A', 'Open'], ['B', 'Play'], ['LT RT', 'Play / Watch'], ['☰', 'Settings']])}</main>`;
+  const { rows, item } = tvWatchState();
+  const tile = (t) => t.kind === 'search'
+    ? `<button class="tv-con tv-wt" data-nav data-key="tvw-search" data-act="tvsearch" aria-label="Search your addons">${ICON.search}<span>Search</span></button>`
+    : `<button class="tv-con tv-wt" data-nav data-key="con-${esc(t.id)}" data-act="tile" data-i="${t.ti}" aria-label="${esc(t.name)}">${sysIcon(tileIcon(t), 52)}<span>${esc(t.name)}</span></button>`;
+  const group = (h, list) => list.length ? `<div class="tv-wgroup"><h2>${h}</h2><div class="tv-wtrow">${list.map(tile).join('')}</div></div>` : '';
+  const tilesHtml = lib.length || addons.length
+    ? `<div class="tv-wtiles">${group('Your library', lib)}${lib.length && addons.length ? '<i class="tv-vdiv" aria-hidden="true"></i>' : ''}${group('From your addons', addons)}</div>`
+    : `<p class="tv-note">Add movie or TV folders in Settings → Library, or a streaming addon in Settings → Streaming.</p>`;
+  const row = (r, h) => rows[r].length ? `<section class="tv-row"><h2>${h}</h2>
+      <div class="tv-cw" id="tvcw-${r}"><div class="tv-track" id="tvcwt-${r}">${rows[r].map((x, k) => tvWatchCard(x, k, S.tv.w[r])).join('')}</div></div></section>` : '';
+  return `<main class="tvm watch" id="tvm" style="${style}">${tvTop('watch')}
+      <section class="tv-hero" id="tvwhero">${tvWatchHero(item)}</section>
+      <div class="tv-lower">${tilesHtml}${row('l', 'Continue watching · your files')}${row('s', 'Continue watching · streaming')}</div>
+      <div id="tvwhints">${tvHints(tvWatchHints(S.tv.w.row))}</div>
+    </main>`;
+}
+
+// Keep each Continue row's picked card in view and the banner on the row you're in.
+function tvWatchSync() {
+  const { item } = tvWatchState();
+  for (const r of ['l', 's']) {
+    const t = document.getElementById(`tvcwt-${r}`);
+    if (!t) continue;
+    const at = S.tv.w[r];
+    [...t.children].forEach((el, k) => el.classList.toggle('sel', k === at));
+    t.style.transform = `translateX(${-Math.max(0, at - 1) * (TVSTEP[r] || 0)}px)`;
+  }
+  const hero = document.getElementById('tvwhero');
+  const id = item ? `${item.key}|${item.verb}` : '-';
+  if (hero && hero.dataset.id !== id) { hero.dataset.id = id; hero.innerHTML = tvWatchHero(item); }
+  const h = document.getElementById('tvwhints');
+  if (h && h.dataset.row !== S.tv.w.row) { h.dataset.row = S.tv.w.row; h.innerHTML = tvHints(tvWatchHints(S.tv.w.row)); }
+}
+
+function tvWatchStep(row, d) {
+  const { rows } = tvWatchState();
+  const n = S.tv.w[row] + d;
+  if (n < 0 || n >= rows[row].length) return SFX.play('edge');
+  tvwSet(row, n);
+  tvWatchSync();
+  const el = document.querySelectorAll(`#tvcwt-${row} .tv-cwc`)[n];
+  if (el) focusEl(el, false, false);
+  SFX.play('move');
+}
+
+function tvWatchMount() {
+  const box = document.getElementById('tvm');
+  if (!box || !box.classList.contains('watch')) return;
+  for (const r of ['l', 's']) { const t = document.getElementById(`tvcwt-${r}`); if (t) TVSTEP[r] = tvStepOf(t, S.tv.w[r] === 0 ? 1 : 0); }
+  tvWatchSync();
+  // Focus that reaches a card any way (up/down, mouse) makes it the picked one of its row.
+  box.addEventListener('focusin', (e) => {
+    const c = e.target.closest?.('.tv-cwc');
+    if (!c) return;
+    const r = c.dataset.row, k = +c.dataset.k;
+    if (S.tv.w.row !== r || S.tv.w[r] !== k) { tvwSet(r, k); tvWatchSync(); }
+  });
 }
 
 // Slide the carousels and refresh the banner without rebuilding the page.
@@ -223,7 +362,21 @@ function tvKey(btn) {
   if (btn === 'LT' || btn === 'RT') { tvSec(S.tv.sec === 'play' ? 'watch' : 'play'); return true; }
   if (S.tv.sec === 'watch') {
     if (btn === 'B') { tvSec('play'); return true; }
-    return btn === 'LB' || btn === 'RB';
+    if (btn === 'LB' || btn === 'RB') return true;
+    const c = document.activeElement?.closest?.('.tv-cwc');
+    if (!c) {
+      // From the banner, down goes to the Continue row you were on.
+      if (btn === 'down' && document.activeElement?.closest?.('#tvwhero')) {
+        const el = document.querySelectorAll(`#tvcwt-${S.tv.w.row} .tv-cwc`)[S.tv.w[S.tv.w.row]];
+        if (el) { focusEl(el, false, false); SFX.play('move'); return true; }
+      }
+      return false;
+    }
+    const r = c.dataset.row;
+    if (btn === 'left' || btn === 'right') { tvWatchStep(r, btn === 'right' ? 1 : -1); return true; }
+    if (btn === 'X') { if (r === 'l') TV_ACT.tvcw({ row: r, k: c.dataset.k, from: 'start' }); return true; }
+    if (btn === 'Y') { TV_ACT.tvforget({ row: r, k: c.dataset.k }); return true; }
+    return false;
   }
   const cur = document.activeElement;
   const zone = cur?.closest?.('#tvgames') ? 'games' : cur?.closest?.('#tvcons') ? 'cons' : 'other';
@@ -250,6 +403,7 @@ function tvKey(btn) {
 
 // Mouse wheel over the games row moves through it; the cursor hides while a controller is used (tv.css).
 function tvMount() {
+  tvWatchMount();
   const box = document.getElementById('tvgames');
   if (!box) return;
   const track = document.getElementById('tvtrack'), ctrack = document.getElementById('tvcontrack');
@@ -272,6 +426,36 @@ function tvMount() {
 
 const TV_ACT = {
   tvsec(d) { tvSec(d.s); },
+  // A Continue card (or the banner's main button): your files resume or play, streaming opens the title's page
+  // (its Resume button is focused there). X on your files = Start over.
+  tvcw(d) {
+    const { rows } = tvWatchState();
+    const x = rows[d.row]?.[+d.k];
+    if (!x) return;
+    tvwSet(d.row, +d.k); S.tv.w[d.row + 'k'] = x.key;
+    S.focusKey = x.key;
+    if (x.local) return ACT.play({ id: x.id, ep: x.ep, from: d.from });
+    ACT.scontinue({ item: x.item });
+    if (S.sitem) { S.sitem.fromTv = true; S.sitem.backKey = x.key; }
+  },
+  async tvforget(d) {
+    const { rows } = tvWatchState();
+    const x = rows[d.row]?.[+d.k];
+    if (!x) return;
+    try { S.boot = x.local ? await api.call('forget_played', { id: x.id }) : await api.call('stream_forget', { item: x.item }); } catch (e) { return toast(String(e), 4000); }
+    SFX.play('favOff');
+    const left = (d.row === 'l' ? tvLocalCont() : tvStreamCont());
+    tvwSet(d.row, Math.max(0, Math.min(+d.k, left.length - 1)));
+    S.focusKey = left.length ? left[S.tv.w[d.row]].key : null;
+    render();
+  },
+  // Watch → Search: Streaming opened on its Search tab.
+  tvsearch() {
+    const k = streamKind();
+    S_STREAM.kind = k; S_STREAM.tab[k] = `search:${k}`;
+    S.panel = null; S.screen = 'stream'; S.focusKey = 'sq';
+    render();
+  },
   tvmode(d) { S.tv = null; S.focusKey = `tvm-${d.v}`; setSetting('tvMode', d.v === 'on'); },
   // Click on a cover: the first click picks it, a click on the picked one plays it (A plays).
   tvgame(d) {

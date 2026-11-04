@@ -1660,6 +1660,7 @@ const ACT = {
   back() {
     if (S.panel) return ACT.closepanel();
     if (S.screen === 'sdetail' && S.sitem?.fromPerson && sPersonNow()) { S.screen = 'sperson'; S.focusKey = S.sitem.backKey; return render(); }
+    if (S.screen === 'sdetail' && S.sitem?.fromTv) { S.screen = 'home'; S.focusKey = S.sitem.backKey; return render(); } // opened from TV mode's Watch
     if (S.screen === 'sdetail') { S.screen = 'stream'; S.focusKey = S.sitem?.backKey || null; return render(); }
     if (S.screen === 'sperson') { const p = S_STREAM.people.pop(); S.sitem = p?.from || S.sitem; S.screen = 'sdetail'; S.focusKey = p?.fromKey || 'sback'; return render(); }
     if (S.screen === 'detail') {
