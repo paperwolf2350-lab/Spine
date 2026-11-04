@@ -604,6 +604,20 @@ their own two hints. Esc keeps its old meaning (menu / Up next / leave fullscree
 xvfb-run with a driver script sending `keypress GAMEPAD_*` and taking `screenshot-to-file ... window`
 (needs `XDG_RUNTIME_DIR` set and `--vo=x11`; gpu vo fails there). Not testable here: a physical controller.
 Owner confirmed 0.25.0 (Nov 4): controller in the player works well.
+**0.26.0** (Nov 4): console icons. Owner asked about KyleBing/retro-game-console-icons (CC BY 4.0, but retro
+only: no PS2/Vita/360/PC, and several with brand text); searched alternatives and picked RetroArch's own sets from
+libretro/retroarch-assets (CC BY 4.0): **Monochrome** (Kivutar; white controller silhouettes) = default,
+**Systematic** (baxysquare; flat top-down console drawings) = option, **Lines** = Spine's old SVGs. Files in
+`ui/icons/mono|systematic/<spine id>.png` (256px, pngquant, ~330 KB total), credits in `ui/icons/CREDITS.txt` + README.
+Mono pc/dos = "IBM - PC and Compatibles" (Mono's DOS and arcade icons are logos: arcade has no mono file);
+Systematic has no PC; ps3 = "(PSN)" variant there. `sysIcon(id, size, set = iconSet())` returns a `<span class=
+"sysicon sysimg mono|systematic">` with `--ii:url(...)` when `ICON_SETS[set]` has the id, else `sysLines` (old SVG).
+`.sysimg.mono` is a CSS mask filled with currentColor (follows themes like the SVGs); `.systematic` a background
+image. Setting `consoleIcons` (mono default / systematic / lines), Settings → Look → Console icons (`ACT.consoleicons`).
+Movies/TV/Streaming/Favorites/etc. keep line icons. Masks don't load from file:// in Chromium: test the UI through
+`python3 -m http.server` in ui/ (the app serves it from its own origin, so it's fine there). Owner's call (Nov 4):
+empty console folders stay hidden (only consoles with games show).
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).

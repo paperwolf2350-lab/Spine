@@ -11,6 +11,7 @@ Nothing queued. On hold (owner, Nov 4): hide by age rating, only if people ask f
 
 ## Done
 
+- Console icons from RetroArch's Monochrome (default) and Systematic sets, with a setting (0.26.0).
 - Controller in the video player: A/B/X/Y, D-pad, LB/RB, Audio & subtitles menu, button hints (0.25.0).
 - Get mpv from Settings on Windows: Spine downloads, checks and unpacks it (0.24.0).
 - Hide genres you never want to see in Streaming catalogs and search (0.23.0).

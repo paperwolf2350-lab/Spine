@@ -108,6 +108,11 @@ body.kb .game:focus-visible, body.kb .game.focused { box-shadow: none; }
 .console { flex: 0 0 auto; width: 150px; height: 190px; border-radius: 18px; color: #fff; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; transition: width .18s ease, height .18s ease, box-shadow .18s ease; box-shadow: 0 4px 12px rgba(0,0,0,.14); }
 .console.sel { width: 186px; height: 230px; box-shadow: 0 0 0 4px var(--bg), 0 0 0 7px var(--chip), 0 14px 30px rgba(0,0,0,.25); }
 .console .sysicon { opacity: .95; }
+/* Console icon pictures (Settings → Look → Console icons). Monochrome is a mask filled with the
+   text color, so it behaves like the line icons on every theme; Systematic keeps its own colors. */
+.sysimg { display: inline-block; flex: none; vertical-align: middle; }
+.sysimg.mono { background-color: currentColor; -webkit-mask: var(--ii) center / contain no-repeat; mask: var(--ii) center / contain no-repeat; }
+.sysimg.systematic { background: var(--ii) center / contain no-repeat; filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
 .console > span { display: flex; flex-direction: column; gap: 2px; }
 .console .short { font-family: var(--display); font-size: 22px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.05; }
 .console.sel .short { font-size: 26px; }

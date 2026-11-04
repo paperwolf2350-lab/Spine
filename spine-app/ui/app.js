@@ -332,7 +332,24 @@ const SYS_ICON = {
   random: '<rect x="8" y="12" width="24" height="24" rx="4"/><circle cx="14" cy="18" r="1.6" fill="currentColor"/><circle cx="20" cy="24" r="1.6" fill="currentColor"/><circle cx="26" cy="30" r="1.6" fill="currentColor"/><path d="M36 20l12-6 8 18-12 6z"/><circle cx="45" cy="22" r="1.5" fill="currentColor"/><circle cx="48" cy="29" r="1.5" fill="currentColor"/>',
   _: '<path d="M14 18h36c5 0 8 4 8 9l-1 7c-1 4-6 5-9 2l-5-5H21l-5 5c-3 3-8 2-9-2l-1-7c0-5 3-9 8-9z"/><path d="M20 23v6M17 26h6"/><circle cx="43" cy="24" r="1.6"/><circle cx="47" cy="28" r="1.6"/>',
 };
-const sysIcon = (id, size = 56) => `<svg class="sysicon" width="${size}" height="${Math.round(size * 0.75)}" viewBox="0 0 64 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SYS_ICON[id] || SYS_ICON._}</svg>`;
+// Console icons (0.26): Settings → Look → Console icons. "mono" (default) and "systematic" are
+// RetroArch's icon sets (CC BY 4.0, credits in ui/icons/CREDITS.txt); "lines" is Spine's own.
+// Consoles a set doesn't have (PC in Systematic, arcade in Monochrome) and the other tiles
+// (Movies, TV, Streaming, Favorites...) keep the line icons.
+const ICON_SETS = {
+  mono: new Set('atari2600 atarilynx dos dreamcast fds gamegear gb gba gbc gc genesis mastersystem n3ds n64 nds neogeo nes ngpc pc pcengine pcenginecd ps2 ps3 psp psvita psx saturn sega32x segacd snes switch virtualboy wii wiiu wonderswan xbox xbox360'.split(' ')),
+  systematic: new Set('arcade atari2600 atarilynx dos dreamcast fds gamegear gb gba gbc gc genesis mastersystem n3ds n64 nds neogeo nes ngpc pcengine pcenginecd ps2 ps3 psp psvita psx saturn sega32x segacd snes switch virtualboy wii wiiu wonderswan xbox xbox360'.split(' ')),
+};
+const iconSet = () => { const v = S.boot?.settings?.consoleIcons; return v === 'lines' || v === 'systematic' ? v : 'mono'; };
+const sysIcon = (id, size = 56, set = iconSet()) => {
+  if (ICON_SETS[set]?.has(id)) {
+    // Square pictures: a little taller than the 4:3 line icons so they read at the same size.
+    const h = Math.round(size * (set === 'mono' ? 0.9 : 0.95));
+    return `<span class="sysicon sysimg ${set}" style="width:${size}px;height:${h}px;--ii:url('icons/${set}/${id}.png')" aria-hidden="true"></span>`;
+  }
+  return sysLines(id, size);
+};
+const sysLines = (id, size = 56) => `<svg class="sysicon" width="${size}" height="${Math.round(size * 0.75)}" viewBox="0 0 64 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SYS_ICON[id] || SYS_ICON._}</svg>`;
 const glyph = (k) => ('ABXY'.includes(k) && k.length === 1 ? `<span class="glyph ${k.toLowerCase()}">${k}</span>` : `<span class="glyph wide">${k}</span>`);
 
 function cover(g, s, extra = '') {
@@ -735,6 +752,8 @@ function settingsPanel() {
       <button class="chip ${st.theme === 'crt' ? 'on' : ''}" data-nav data-key="th-crt" data-act="theme" data-t="crt">Retro CRT</button></div>`)
       + grp('Home style', 'How Home is laid out.', `<div class="opts">${['classic', 'wave', 'channels', 'blades', 'cube'].map((v) =>
         `<button class="chip ${style === v ? 'on' : ''}" data-nav data-key="hs-${v}" data-act="homestyle" data-s="${v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div>`)
+      + grp('Console icons', 'Monochrome and Systematic are RetroArch\'s icons (libretro, CC BY 4.0).', `<div class="opts">${[['mono', 'Monochrome'], ['systematic', 'Systematic'], ['lines', 'Lines']].map(([v, l]) =>
+        `<button class="chip ${iconSet() === v ? 'on' : ''}" data-nav data-key="ci-${v}" data-act="consoleicons" data-v="${v}">${sysIcon('ps2', 26, v)} ${l}</button>`).join('')}</div>`)
       + grp('Accent', '', `<div class="opts">${sw}</div>`)
       + grp('Interface size', 'Auto fits your screen.', `<div class="opts">${chips('sz', 'uiscale', ['auto', '1', '1.25', '1.5', '1.75', '2'].map((v) => [v, v === 'auto' ? 'Auto' : Math.round(v * 100) + '%']), String(st.ui_scale || 'auto'))}</div>`)
       + tileOrderGroup();
@@ -1735,6 +1754,7 @@ const ACT = {
   },
   homestyle(d) { S.focusKey = `hs-${d.s}`; setSetting('home_style', d.s); },
   wavecat(d) { const c = waveCats()[+d.i]; if (!c) return; S.wave.cat = c.id; waveSync(true); },
+  consoleicons(d) { S.focusKey = `ci-${d.v}`; setSetting('consoleIcons', d.v); },
   accent(d) { S.focusKey = `acc-${d.c}`; setSetting('accent', d.c); },
   async rescan() { S.panel = null; await doScan(S.boot.rom_root); },
   async addroot() {

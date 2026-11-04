@@ -75,6 +75,11 @@ packages, or AppImages in `~/Applications` (EmuDeck's layout) on Linux.
 - **Extras:** categories you can click ("every Roguelite you own"), your own
   lists, Surprise me, RetroAchievements on game pages.
 
+Console icons: the "Monochrome" and "Systematic" sets from RetroArch's
+[retroarch-assets](https://github.com/libretro/retroarch-assets) (by Kivutar, baxysquare and
+contributors), used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); see
+`spine-app/ui/icons/CREDITS.txt`.
+
 Spine never ships BIOS files, keys or games. Use dumps of hardware and games
 you own.
 

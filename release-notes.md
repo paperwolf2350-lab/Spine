@@ -1,8 +1,8 @@
 ## What's new
-- **Use your controller in the video player (mpv).** A pauses and plays (or presses Skip intro / Play now when they show), B shows the controls and a second B closes the video, Y opens Audio & subtitles (move with the D-pad, A picks), X jumps to the next episode, Start pauses. D-pad or left stick: left/right skip 10 s, up/down change the volume. LB / RB skip a minute. Once you touch the controller, the player shows which button does what. Hold Select + Start still closes it from anywhere.
+- **New console icons.** Every console now has its own icon, PS2, Vita, Xbox 360, Switch and Wii U included, from RetroArch's "Monochrome" set (white controller outlines). Prefer drawings of the consoles themselves? Settings → Look → Console icons → **Systematic**. **Lines** brings back Spine's old icons. Both sets are by the RetroArch artists (libretro), used under CC BY 4.0.
 
-From 0.24.0:
-- Get mpv from Settings → Controller & sound on Windows: Spine downloads, checks and unpacks it.
+From 0.25.0:
+- Use your controller in the video player (mpv): A/B/X/Y, D-pad, LB/RB, Audio & subtitles menu.
 
 ---
 
