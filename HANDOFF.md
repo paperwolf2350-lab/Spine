@@ -553,6 +553,19 @@ addons for the name on the Search tab: `sPersonFallback`) and `tmdb_imdb(kind, t
 TMDB key): parser tested with sample JSON, UI in Playwright with real Cinemeta meta.
 Owner confirmed 0.22.0 working (Nov 4). Next: owner picks between hiding genres (then age ratings) and
 controller in the mpv player; mpv download on Windows is still pending too.
+Owner's order (Nov 4): hide genres (0.23.0), then Spine downloads mpv on Windows, then controller in the
+mpv player (a known mpv build makes gamepad support predictable). Age ratings after that, maybe.
+
+**0.23.0** (Nov 4): Hide genres (UI only, stream.js). Setting `hideGenres` (list of genre names as shown) in
+Settings → Streaming (`hideGenresGroup`, chips `hg-<key>`, `ACT.hidegenre`). Names compared by `sGenreKey`
+(lowercase letters/digits; `S_GENRE_SAME` maps scifi→sciencefiction, realitytv→reality, talkshow→talk,
+kids→children). `sMatch` drops hidden titles; `sActive(f)` = filter chips or any hidden genre, so the
+auto-load of extra pages (max 8) also kicks in for hidden genres; `streamCatalogView` now starts that load
+itself when too few match (e.g. right after closing Settings). Genre picker leaves hidden genres out
+(`sPickOpts`). Addon search hides them too, with "N hidden by genre". Not filtered: your lists, Continue
+watching, Watched, person pages (TMDB credits only have genre ids). Titles with no genres always show.
+Tested in Playwright with a mock fed with Cinemeta's real genre lists (its catalog pages returned 403
+from the workspace on Nov 4; the manifest still loads).
 
 **Next session (owner's choice, Nov 3)**: Spine downloads and sets up mpv on Windows. Owner installed it by hand
 from shinchiro/mpv-winbuild-cmake GitHub releases: plain `mpv-x86_64-<date>-git-<hash>.7z` (not dev / v3 /

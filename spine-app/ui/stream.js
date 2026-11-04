@@ -194,6 +194,24 @@ function sGenre(c) {
 const sCacheKey = (c) => { const g = sGenre(c); return g ? `${c.ck}#${g}` : c.ck; };
 function sFilt(kind) { return S_STREAM.filt[kind] || (S_STREAM.filt[kind] = { anime: false, decade: '', rating: 0 }); }
 const sFiltOn = (f) => !!(f.anime || f.decade || f.rating);
+// ---- Hidden genres (0.23, Settings → Streaming). Addons name genres differently
+// ("Sci-Fi" / "Science Fiction", "Reality-TV" / "Reality"), so names are compared by a key.
+const S_GENRE_SAME = { scifi: 'sciencefiction', realitytv: 'reality', talkshow: 'talk', kids: 'children' };
+function sGenreKey(g) { const k = String(g || '').toLowerCase().replace(/[^a-z0-9]/g, ''); return S_GENRE_SAME[k] || k; }
+function sHidden() { const h = settings().hideGenres; return new Set(Array.isArray(h) ? h.map(sGenreKey) : []); }
+function sHiddenHit(it, hid = sHidden()) { return hid.size > 0 && (it.genres || []).some((g) => hid.has(sGenreKey(g))); }
+// Client-side filtering is on: one of the filter chips, or a hidden genre.
+const sActive = (f) => sFiltOn(f) || sHidden().size > 0;
+// Every genre your addons offer (one name per key), for the Settings list.
+function sAllGenres() {
+  const seen = new Map();
+  const add = (g) => { const k = sGenreKey(g); if (k && !/^\d+$/.test(k) && !seen.has(k)) seen.set(k, String(g)); };
+  for (const c of streamCats('movies').concat(streamCats('tv'))) if (!sYearPicker(c)) c.genres.forEach(add);
+  for (const g of Array.isArray(settings().hideGenres) ? settings().hideGenres : []) add(g);
+  return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+}
+// The genre picker leaves out genres you've hidden.
+function sPickOpts(c) { const hid = sHidden(); return (c.genreRequired ? [] : ['']).concat(c.genres.filter((g) => !hid.has(sGenreKey(g)))); }
 const sYearOf = (it) => { const m = String(it.year || '').match(/\d{4}/); return m ? +m[0] : null; };
 function sIsAnime(it) {
   if (it.type === 'anime' || /^(kitsu|mal|anilist|anidb):/.test(it.id || '')) return true;
@@ -202,6 +220,7 @@ function sIsAnime(it) {
   return g.includes('animation') && String(it.country || '').split(',')[0].trim().toLowerCase() === 'japan';
 }
 function sMatch(it, f) {
+  if (sHiddenHit(it)) return false;
   if (f.anime && !sIsAnime(it)) return false;
   if (f.decade) {
     const y = sYearOf(it);
@@ -223,7 +242,7 @@ function streamFilterBar(c) {
     ${btn('sfrating', 'sfstep', f.rating ? `★ ${f.rating}+` : 'Any rating', !!f.rating, 'data-f="rating"')}
     ${btn('sfanime', 'sfstep', `${f.anime ? ICON.check + ' ' : ''}Anime only`, f.anime, 'data-f="anime"')}
     ${sFiltOn(f) || (g && !c.genreRequired) ? btn('sfclear', 'sfclear', 'Clear filters', false, `data-ck="${esc(c.ck)}"`) : ''}
-    ${sFiltOn(f) && d ? `<span class="note">${shown} of ${d.items.length} loaded</span>` : ''}
+    ${sFiltOn(f) && d ? `<span class="note">${shown} of ${d.items.length} loaded</span>` : d && shown < d.items.length ? `<span class="note">${d.items.length - shown} hidden by genre</span>` : ''}
   </div>`;
 }
 
@@ -234,14 +253,18 @@ function streamGrid(c) {
 }
 function streamCatalogView(c) {
   const d = S_STREAM.cache[sCacheKey(c)];
-  const f = sFilt(streamKind()), on = sFiltOn(f);
+  const f = sFilt(streamKind()), on = sActive(f);
   if (!d || (d.loading && !d.items.length)) return `<div class="nofav"><div class="spinner" style="margin:0 auto 18px"></div>Loading ${esc(c.label)}…</div>`;
   if (d.error && !d.items.length) return `<div class="nofav">${esc(d.error)}<div style="margin-top:18px"><button class="btn" data-nav data-key="sretry" data-act="smore" data-ck="${esc(c.ck)}">Try again</button></div></div>`;
   if (!d.items.length) return `<div class="nofav">${sGenre(c) ? `Nothing under ${esc(sGenre(c))} in this catalog.` : 'This catalog is empty right now.'}</div>`;
   const list = d.items.map((it, i) => [it, i]).filter(([it]) => !on || sMatch(it, f));
+  // A filter or hidden genre left too few: look further (counts toward the 8 extra pages).
+  if (on && !d.loading && !d.done && !d.error && list.length < 24 && (d.auto || 0) < 8) { d.auto = (d.auto || 0) + 1; setTimeout(() => streamLoad(c.ck)); }
   if (!list.length) {
     return d.done || d.error
-      ? `<div class="nofav">${d.error ? esc(d.error) : 'Nothing in this catalog matches your filters.'}<div style="margin-top:18px"><button class="btn" data-nav data-key="sfclear2" data-act="sfclear" data-ck="${esc(c.ck)}">Clear filters</button></div></div>`
+      ? (!sFiltOn(f) && !d.error
+        ? `<div class="nofav">Everything here is in a genre you've hidden (Settings → Streaming).</div>`
+        : `<div class="nofav">${d.error ? esc(d.error) : 'Nothing in this catalog matches your filters.'}<div style="margin-top:18px"><button class="btn" data-nav data-key="sfclear2" data-act="sfclear" data-ck="${esc(c.ck)}">Clear filters</button></div></div>`)
       : `<div class="nofav"><div class="spinner" style="margin:0 auto 18px"></div>Looking for matches…</div>`;
   }
   const tiles = list.map(([it, i]) => `<button class="game" data-nav data-key="si-${esc(it.id)}" data-act="sopen" data-ck="${esc(c.ck)}" data-i="${i}">
@@ -281,9 +304,13 @@ function streamSearchView(c) {
     <button class="btn primary" data-nav data-key="sqgo" data-act="ssearch" data-s="${esc(c.sys)}">${ICON.search} Search</button></span></label></div>`;
   if (!st.q) return box + `<div class="nofav" style="padding-top:40px">Searches ${esc(streamSearchCats(c.sys).map((x) => x.addonName).filter((n, i, a) => a.indexOf(n) === i).join(', '))} only. Your own files are under ${c.sys === 'tv' ? 'Your shows' : 'Your movies'}.</div>`;
   const groups = st.groups || [];
+  const hid = sHidden();
+  const keep = (g) => g.idx.filter((i) => !sHiddenHit(st.items[i], hid));
   const body = groups.map((g) => {
-    const items = g.idx.map((i) => streamTile(st.items[i], c.ck, i)).join('');
-    return `<section class="sgroup">${groups.length > 1 ? `<h3>${esc(g.addonName)}</h3>` : ''}${g.loading ? '<div class="note">Searching…</div>' : g.error ? `<div class="note">${esc(g.error)}</div>` : !g.idx.length ? '<div class="note">Nothing found.</div>' : `<div class="tiles stiles">${items}</div>`}</section>`;
+    const idx = keep(g), gone = g.idx.length - idx.length;
+    const items = idx.map((i) => streamTile(st.items[i], c.ck, i)).join('');
+    const note = gone ? `<div class="note">${gone} hidden by genre</div>` : '';
+    return `<section class="sgroup">${groups.length > 1 ? `<h3>${esc(g.addonName)}</h3>` : ''}${g.loading ? '<div class="note">Searching…</div>' : g.error ? `<div class="note">${esc(g.error)}</div>` : !idx.length ? `<div class="note">${gone ? `Only titles in genres you've hidden (${gone}).` : 'Nothing found.'}</div>` : `<div class="tiles stiles">${items}</div>${note}`}</section>`;
   }).join('');
   const none = groups.length && groups.every((g) => !g.loading && !g.idx.length && !g.error);
   return box + (none ? `<div class="nofav" style="padding-top:40px">Nothing found for “${esc(st.q)}”.</div>` : body);
@@ -344,7 +371,7 @@ async function streamLoad(ck) {
   d.loading = false;
   // With filters on, keep loading pages (up to 8 more) until enough titles match.
   const f = sFilt(STREAM_TYPES.tv.includes(c.type) ? 'tv' : 'movies');
-  if (!d.error && !d.done && sFiltOn(f) && d.items.filter((it) => sMatch(it, f)).length < 24 && (d.auto || 0) < 8 && sCacheKey(c) === cache) {
+  if (!d.error && !d.done && sActive(f) && d.items.filter((it) => sMatch(it, f)).length < 24 && (d.auto || 0) < 8 && sCacheKey(c) === cache) {
     d.auto = (d.auto || 0) + 1;
     return streamLoad(ck);
   }
@@ -651,7 +678,7 @@ function streamGenrePanel() {
   const c = streamCats('movies').concat(streamCats('tv')).find((x) => x.ck === S_STREAM.gpick);
   if (!c) return '';
   const yp = sYearPicker(c), cur = sGenre(c);
-  const opts = (c.genreRequired ? [] : ['']).concat(c.genres);
+  const opts = sPickOpts(c);
   return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="${yp ? 'Year' : 'Genre'}">
     <h2>${yp ? 'Year' : 'Genre'}</h2><span class="note">${esc(c.label)} · from ${esc(c.addonName)}</span>
     <div class="choices sgenres">${opts.map((g, i) => `<button class="choice ${g === cur ? 'on' : ''}" data-nav data-key="sg-${i}" data-act="sgenrepick" data-g="${esc(g)}"><span class="t">${esc(g || (yp ? 'All years' : 'All genres'))}</span></button>`).join('')}</div>
@@ -675,7 +702,15 @@ function addonSettings() {
       <span class="rs">${esc(addonWhat(a))}</span>
       <span class="abtns">${i > 0 ? `<button class="btn small" data-nav data-key="aup-${a.key}" data-act="mvaddon" data-k="${a.key}" data-up="1" aria-label="Move up">↑</button>` : ''}
       <button class="btn small" data-nav data-key="arm-${a.key}" data-act="rmaddon" data-k="${a.key}">Remove</button></span></div>`).join('')}</div>` : ''}
-    <div class="opts"><button class="btn" data-nav data-key="addaddon" data-act="addaddon">${ICON.plus} Add addon</button></div></div>`;
+    <div class="opts"><button class="btn" data-nav data-key="addaddon" data-act="addaddon">${ICON.plus} Add addon</button></div></div>${hideGenresGroup()}`;
+}
+// Settings → Streaming → Hide genres: titles in these genres don't show in catalogs or search.
+function hideGenresGroup() {
+  const all = sAllGenres();
+  if (!all.length) return '';
+  const hid = sHidden();
+  return `<div class="grp"><span class="k">Hide genres</span><span class="note">Titles in these genres stay out of catalogs and search. Your own lists keep everything.</span>
+    <div class="opts">${all.map(([k, name]) => `<button class="chip ${hid.has(k) ? 'on' : ''}" data-nav data-key="hg-${esc(k)}" data-act="hidegenre" data-g="${esc(name)}" aria-pressed="${hid.has(k)}">${hid.has(k) ? `${ICON.check} ` : ''}${esc(name)}</button>`).join('')}</div></div>`;
 }
 function addonWhat(a) {
   const n = a.catalogs.filter((c) => !c.needs_input).length;
@@ -905,7 +940,7 @@ const STREAM_ACT = {
   sgenre(d) {
     S_STREAM.gpick = d.ck;
     const c = streamCats('movies').concat(streamCats('tv')).find((x) => x.ck === d.ck);
-    const opts = (c && !c.genreRequired ? [''] : []).concat(c ? c.genres : []);
+    const opts = c ? sPickOpts(c) : [''];
     S.panel = 'sgenre'; S.focusKey = `sg-${Math.max(0, opts.indexOf(c ? sGenre(c) : ''))}`; render();
   },
   sgenrepick(d) {
@@ -921,6 +956,13 @@ const STREAM_ACT = {
     if (d.f === 'decade') f.decade = S_DECADES[(S_DECADES.indexOf(f.decade) + 1) % S_DECADES.length];
     if (d.f === 'rating') f.rating = S_RATINGS[(S_RATINGS.indexOf(f.rating) + 1) % S_RATINGS.length];
     sFiltChanged(`sf${d.f}`);
+  },
+  hidegenre(d) {
+    const k = sGenreKey(d.g), cur = Array.isArray(settings().hideGenres) ? settings().hideGenres : [];
+    const next = cur.some((g) => sGenreKey(g) === k) ? cur.filter((g) => sGenreKey(g) !== k) : cur.concat(d.g);
+    S.focusKey = `hg-${k}`;
+    for (const x of Object.values(S_STREAM.cache)) if (x) x.auto = 0;
+    setSetting('hideGenres', next);
   },
   sfclear(d) {
     S_STREAM.filt[streamKind()] = { anime: false, decade: '', rating: 0 };

@@ -1,8 +1,8 @@
 ## What's new
-- **Click an actor or director.** On a Streaming details page, the cast and director are now buttons. Pick one to see who they are and everything they've been in, split into Movies and Shows, best known first. Pick a title there to open it, with sources from your addons as usual; Back retraces your steps. This uses your TMDB key (Settings → Scrapers); without one, Spine searches your addons for the name instead.
+- **Hide genres in Streaming.** Settings → Streaming → Hide genres lists every genre your addons offer. Tick the ones you never want to see (Horror, Reality-TV, Talk-Show...) and those titles stay out of the catalogs and the addon search. Spine loads extra pages so the screen still fills up, and a small note says how many were hidden. Your own lists, Continue watching and Watched keep everything.
 
-From 0.21.0:
-- Watched tab in Streaming: movies you've finished and shows you've watched episodes of.
+From 0.22.0:
+- Click an actor or director on a Streaming details page to see everything they've been in.
 
 ---
 
