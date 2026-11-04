@@ -603,6 +603,7 @@ keep-open didn't set eof-reached, so Up next never showed). Hint row (pad only) 
 their own two hints. Esc keeps its old meaning (menu / Up next / leave fullscreen). Tested in real mpv 0.37 under
 xvfb-run with a driver script sending `keypress GAMEPAD_*` and taking `screenshot-to-file ... window`
 (needs `XDG_RUNTIME_DIR` set and `--vo=x11`; gpu vo fails there). Not testable here: a physical controller.
+Owner confirmed 0.25.0 (Nov 4): controller in the player works well.
 Ideas left: hide by age rating (needs TMDB certifications).
 
 **Old note (Nov 3), done in 0.24.0**: Spine downloads and sets up mpv on Windows. Owner installed it by hand
