@@ -1,8 +1,8 @@
 ## What's new
-- **Watched tab in Streaming.** Movies you've finished and shows you've watched episodes of now have their own tab, next to Continue watching and your lists, newest first. Movies show the day you watched them; shows say how many episodes you've seen. A title joins when you finish it or tick it as watched, and leaves again if you untick everything. Things you watched before this update show up too, as long as they're still in Continue watching's history.
+- **Click an actor or director.** On a Streaming details page, the cast and director are now buttons. Pick one to see who they are and everything they've been in, split into Movies and Shows, best known first. Pick a title there to open it, with sources from your addons as usual; Back retraces your steps. This uses your TMDB key (Settings → Scrapers); without one, Spine searches your addons for the name instead.
 
-From 0.20.4:
-- Specials looked up in the show's own TMDB Specials, with a pick list in Fix match.
+From 0.21.0:
+- Watched tab in Streaming: movies you've finished and shows you've watched episodes of.
 
 ---
 

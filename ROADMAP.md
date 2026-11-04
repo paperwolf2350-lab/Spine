@@ -1,7 +1,7 @@
 # Spine — to-do list
 
 ## Next up (planned)
-Owner's ideas (Nov 4), easiest first: clickable actors/directors, controller in the video player, optional filter to hide genres and age ratings.
+Owner's ideas (Nov 4), easiest first: controller in the video player, optional filter to hide genres and age ratings.
 Spine's own video player (mpv): Spine downloads mpv on Windows.
 - New looks, one per small release (inspired by console menus, never copying their logos, fonts or sounds):
   - Retro CRT theme (done, 0.7.8).
@@ -12,6 +12,7 @@ Spine's own video player (mpv): Spine downloads mpv on Windows.
 
 ## Done
 
+- Clickable actors and directors on Streaming details pages, with their own page from TMDB (0.22.0).
 - Watched tab in Streaming (0.21.0).
 
 - Skip intro / credits / recap from AniSkip for anime without chapter marks, local and streamed (0.20.0).

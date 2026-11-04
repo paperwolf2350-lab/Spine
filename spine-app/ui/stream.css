@@ -47,3 +47,13 @@ span.cat { cursor: default; }
 .sfilters .chip svg { vertical-align: -3px; }
 .sfilters .note { margin-left: 6px; }
 .choices.sgenres { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+
+/* Cast and crew on a Streaming details page: names you can open. */
+.speople { align-items: center; row-gap: 10px; }
+.speople .pk { font-size: 13px; font-weight: 700; color: var(--muted); margin-right: 2px; }
+.speople .pgap { flex-basis: 100%; height: 0; }
+/* An actor's or director's page. */
+.sphoto .pt { font-size: 26px; }
+.sbio { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+.detail .sprow { margin-top: 28px; padding-left: 0; padding-right: 0; }
+.sprow h3 .rs { font-size: 14px; color: var(--muted); font-weight: 600; margin-left: 6px; }

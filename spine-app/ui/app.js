@@ -1139,7 +1139,7 @@ function render() {
   if (keep && !S.focusKey) S.focusKey = keep;
   const scrollers = {};
   app.querySelectorAll('.scroll').forEach((el) => { if (el.id) scrollers[el.id] = el.scrollTop; });
-  const screens = { welcome, scanning, home, games, detail, stream, sdetail, loading: () => '' };
+  const screens = { welcome, scanning, home, games, detail, stream, sdetail, sperson, loading: () => '' };
   app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + addonPanel() + sourcesPanel() + streamListsPanel() + streamGenrePanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
   silenceDetached();
   Object.entries(scrollers).forEach(([id, top]) => { const el = document.getElementById(id); if (el) el.scrollTop = top; });
@@ -1599,7 +1599,9 @@ const ACT = {
     const ds = document.getElementById('detailscroll'); if (ds) ds.scrollTop = 0; S.panel = null; S.screen = 'detail'; S.focusKey = 'play'; render(); },
   back() {
     if (S.panel) return ACT.closepanel();
+    if (S.screen === 'sdetail' && S.sitem?.fromPerson && sPersonNow()) { S.screen = 'sperson'; S.focusKey = S.sitem.backKey; return render(); }
     if (S.screen === 'sdetail') { S.screen = 'stream'; S.focusKey = S.sitem?.backKey || null; return render(); }
+    if (S.screen === 'sperson') { const p = S_STREAM.people.pop(); S.sitem = p?.from || S.sitem; S.screen = 'sdetail'; S.focusKey = p?.fromKey || 'sback'; return render(); }
     if (S.screen === 'detail') {
       const id = S.game;
       S.spun = null;

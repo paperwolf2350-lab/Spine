@@ -430,7 +430,9 @@ function sdetail() {
     it.rating ? `<span>★ ${esc(it.rating)}</span>` : null,
     eps.length ? `<span>${eps.filter((e) => e.season !== 0).length} episodes</span>` : null,
   ].filter(Boolean).join('<span class="dotsep">·</span>');
-  const people = [it.director?.length ? `Directed by ${it.director.slice(0, 2).join(', ')}` : null, it.cast?.length ? `With ${it.cast.slice(0, 4).join(', ')}` : null].filter(Boolean);
+  // Names you can open: everything that person is in (TMDB), or an addon search without a key.
+  const who = (names, director) => names.map((n) => `<button class="cat" data-nav data-key="pp-${esc(n)}" data-act="sperson" data-n="${esc(n)}" ${director ? 'data-dir="1"' : ''}>${esc(n)}</button>`).join('');
+  const people = [it.director?.length ? `<span class="pk">Directed by</span>${who(it.director.slice(0, 2), true)}` : '', it.cast?.length ? `<span class="pk">With</span>${who(it.cast.slice(0, 6), false)}` : ''].filter(Boolean);
   const day = (d) => { if (!d) return ''; const t = new Date(d + 'T12:00:00'); return isNaN(t) ? d : t.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); };
   const upcoming = (e) => e.released && new Date(e.released + 'T00:00:00') > new Date();
   // An episode row resumes where you stopped (same source), otherwise opens the source list.
@@ -486,14 +488,70 @@ function sdetail() {
       ${meta ? `<div class="metaline">${meta}</div>` : ''}
       ${it.genres?.length ? `<div class="cats" role="list" aria-label="Genres">${it.genres.slice(0, 6).map((g) => `<span class="cat" role="listitem">${esc(g)}</span>`).join('')}</div>` : ''}
       ${it.description ? `<p class="desc">${esc(it.description)}</p>` : loading ? '<p class="desc" style="opacity:.6">Getting details…</p>' : ''}
-      ${people.length ? `<p class="note">${esc(people.join(' · '))}</p>` : ''}
+      ${people.length ? `<div class="cats speople" aria-label="Cast and crew">${people.join('<span class="pgap"></span>')}</div>` : ''}
       <div class="actions">${action}</div>
-      <div class="facts"><div class="fact"><span class="k">From</span><span class="v">${esc(x.addonName || 'Addon')}</span><span class="n">Streaming addon</span></div></div>
+      <div class="facts"><div class="fact"><span class="k">From</span><span class="v">${esc(x.addonName || 'Your addons')}</span><span class="n">Streaming addon</span></div></div>
     </div>
    </div>
    ${epsHtml}
    ${loading && T !== 'movie' ? '<div class="nofav" style="padding:30px 0">Getting episodes…</div>' : ''}
   </div></main>` + hints('From a streaming addon', [['A', 'Select'], ['B', 'Back'], ['Y', 'Favorite']]);
+}
+
+// ---- An actor's or director's page (screen 'sperson'): who they are and what they're in, from TMDB.
+// S_STREAM.people is a stack, so title -> person -> title -> person and back all retrace your steps.
+// Each entry: {name, director, from: the details page you came from (S.sitem), data | loading | error}.
+const sPersonNow = () => (S_STREAM.people || []).at(-1) || null;
+function sperson() {
+  const p = sPersonNow();
+  if (!p) { S.screen = S.sitem ? 'sdetail' : 'stream'; return S.sitem ? sdetail() : stream(); }
+  const d = p.data;
+  const day = (v) => { const t = new Date(v + 'T12:00:00'); return isNaN(t) ? v : t.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); };
+  const meta = d ? [d.known_for ? `<span>${esc(d.known_for === 'Acting' ? 'Actor' : d.known_for === 'Directing' ? 'Director' : d.known_for)}</span>` : null, d.born ? `<span>Born ${esc(day(d.born))}</span>` : null, d.place ? `<span>${esc(d.place)}</span>` : null].filter(Boolean).join('<span class="dotsep">·</span>') : '';
+  const grid = (kind, label) => {
+    const list = (d?.credits || []).filter((c) => c.type === kind);
+    if (!list.length) return '';
+    return `<section class="row sprow"><h3>${label} <span class="rs">${list.length}</span></h3><div class="tiles stiles">${list.map((c) => `<button class="game" data-nav data-key="pc-${c.type}-${c.tmdb}" data-act="spcredit" data-k="${esc(c.type)}" data-id="${c.tmdb}">
+      <span class="cwimg">${streamCover(c, c.poster)}</span>
+      <span class="t">${esc(c.name)}</span>${c.role || c.year ? `<span class="s">${esc([c.year, c.role].filter(Boolean).join(' · '))}</span>` : ''}</button>`).join('')}</div></section>`;
+  };
+  const body = p.loading ? '<div class="nofav" style="padding:40px 0"><div class="spinner" style="margin:0 auto 18px"></div>Looking them up on TMDB…</div>'
+    : p.error ? `<div class="warning" style="margin-top:24px">${esc(p.error)}</div>`
+    : !d ? `<div class="nofav" style="padding:40px 0">TMDB doesn't know “${esc(p.name)}”.</div>`
+    : (grid('movie', 'Movies') + grid('series', 'Shows')) || '<div class="nofav" style="padding:40px 0">TMDB lists nothing for them yet.</div>';
+  const photo = `<div class="cover ph scover sphoto" style="background:${PAL[hash(p.name) % PAL.length]}"><span class="pt">${esc(p.name)}</span>${d?.photo ? streamImg(d.photo) : ''}</div>`;
+  return topbar() + `<main class="main"><div class="backdrop" aria-hidden="true">${d?.photo ? streamImg(d.photo) : ''}</div>
+  <div class="detail scroll" id="detailscroll">
+   <div class="detail-top">
+    <div class="left"><div class="media">${photo}</div></div>
+    <div class="right">
+      <button class="back" data-nav data-key="pback" data-act="back">${ICON.back}${esc(p.from?.item?.name || 'Back')}</button>
+      <h2>${esc(d?.name || p.name)}</h2>
+      ${meta ? `<div class="metaline">${meta}</div>` : ''}
+      ${d?.bio ? `<p class="desc sbio">${esc(d.bio)}</p>` : ''}
+    </div>
+   </div>
+   ${body}
+  </div></main>` + hints('From TMDB', [['A', 'Open'], ['B', 'Back']]);
+}
+async function sPersonLoad(p) {
+  try { p.data = await api.call('person_credits', { name: p.name, director: !!p.director }); }
+  catch (e) {
+    if (String(e) === 'no-tmdb-key') return sPersonFallback(p);
+    p.error = String(e);
+  }
+  p.loading = false;
+  if (S.screen === 'sperson' && sPersonNow() === p) render();
+}
+// No TMDB key: search the addons for the name instead (what Stremio does), on the Search tab.
+function sPersonFallback(p) {
+  S_STREAM.people.pop();
+  const kind = STREAM_TYPES.tv.includes(p.from?.item?.type) ? 'tv' : 'movies';
+  if (!streamSearchCats(kind).length) { render(); return toast(`Add a TMDB key in Settings → Scrapers to see everything ${p.name} is in.`, 5000); }
+  S_STREAM.kind = kind; S_STREAM.tab[kind] = `search:${kind}`;
+  S.panel = null; S.screen = 'stream'; S.focusKey = 'sq';
+  streamSearch(kind, p.name);
+  toast(`Searching your addons for ${p.name}. A TMDB key (Settings → Scrapers) shows exactly what they're in.`, 5000);
 }
 
 // ---- "Choose a source": what your source addons offer for a movie or episode.
@@ -556,6 +614,7 @@ function sDetailInfo() {
 }
 // Y on the Streaming screens: favorite / unfavorite (true = handled here).
 function streamY(el) {
+  if (S.screen === 'sperson') return true;
   if (S.screen !== 'stream' && S.screen !== 'sdetail') return false;
   const info = streamTitleAt(el);
   if (info) streamToggle(SL_FAV, info);
@@ -795,6 +854,36 @@ const STREAM_ACT = {
     render();
     document.getElementById('detailscroll')?.scrollTo(0, 0);
     streamMeta(it, c.addon);
+  },
+  sperson(d) {
+    if (!S.sitem) return;
+    S_STREAM.people = S_STREAM.people || [];
+    const p = { name: d.n, director: d.dir === '1', from: S.sitem, fromKey: d.key, loading: true };
+    S_STREAM.people.push(p);
+    S.panel = null; S.screen = 'sperson'; S.focusKey = 'pback';
+    render();
+    document.getElementById('detailscroll')?.scrollTo(0, 0);
+    sPersonLoad(p);
+  },
+  // A title on an actor's page: addons know titles by IMDb id, so ask TMDB for it first.
+  async spcredit(d) {
+    const p = sPersonNow();
+    const c = p?.data?.credits.find((x) => x.type === d.k && String(x.tmdb) === d.id);
+    if (!c) return;
+    S_STREAM.imdb = S_STREAM.imdb || {};
+    const ik = `${c.type}:${c.tmdb}`;
+    if (!(ik in S_STREAM.imdb)) {
+      try { S_STREAM.imdb[ik] = await api.call('tmdb_imdb', { kind: c.type, tmdb: c.tmdb }); } catch (e) { return toast(String(e), 4000); }
+    }
+    const tt = S_STREAM.imdb[ik];
+    if (!tt) return toast(`Your addons can't look up “${c.name}” (TMDB has no IMDb id for it).`, 4000);
+    if (S.screen !== 'sperson' || sPersonNow() !== p) return;
+    const it = { id: tt, type: c.type, name: c.name, poster: c.poster, year: c.year, genres: [] };
+    S.sitem = { item: it, addon: null, addonName: null, catLabel: p.data?.name || p.name, backKey: d.key, fromPerson: true };
+    S.panel = null; S.screen = 'sdetail'; S.focusKey = 'sback';
+    render();
+    document.getElementById('detailscroll')?.scrollTo(0, 0);
+    streamMeta(it, null);
   },
   sfav() { if (S.sitem) streamToggle(SL_FAV, sDetailInfo()); },
   slater() { if (S.sitem) streamToggle(SL_LATER, sDetailInfo()); },

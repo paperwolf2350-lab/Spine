@@ -1841,6 +1841,23 @@ fn stream_list_delete(name: String, app: State<App>) -> Boot {
     view(&app)
 }
 
+/// An actor or director (a name on a Streaming details page) and what they've been in, from
+/// TMDB. Err("no-tmdb-key") without a TMDB key: the interface searches the addons instead.
+#[tauri::command]
+async fn person_credits(name: String, director: bool, handle: AppHandle) -> Result<Option<spine_core::people::Person>, String> {
+    let app = handle.state::<App>();
+    let key = spine_core::config::Credentials::load(&app.dir.join("credentials.txt")).tmdb_key.filter(|k| !k.trim().is_empty()).ok_or("no-tmdb-key")?;
+    tauri::async_runtime::spawn_blocking(move || spine_core::people::fetch_person(&key, &name, director)).await.map_err(|e| e.to_string())?
+}
+
+/// The IMDb id addons know a TMDB movie or show by ("movie"/"series"). None = TMDB has none.
+#[tauri::command]
+async fn tmdb_imdb(kind: String, tmdb: u64, handle: AppHandle) -> Result<Option<String>, String> {
+    let app = handle.state::<App>();
+    let key = spine_core::config::Credentials::load(&app.dir.join("credentials.txt")).tmdb_key.filter(|k| !k.trim().is_empty()).ok_or("no-tmdb-key")?;
+    tauri::async_runtime::spawn_blocking(move || spine_core::people::imdb_id(&key, &kind, tmdb)).await.map_err(|e| e.to_string())?
+}
+
 /// Full details for a title (episodes for shows), from the addon it came from or any other.
 #[tauri::command]
 async fn addon_meta(key: Option<String>, kind: String, id: String, handle: AppHandle) -> Result<Option<addons::Meta>, String> {
@@ -2156,7 +2173,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, stream_list_set, stream_list_delete])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, stream_list_set, stream_list_delete, person_credits, tmdb_imdb])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

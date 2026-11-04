@@ -536,9 +536,21 @@ finishes (play_stream's tracker, using the play's `info`) or is ticked (`set_wat
 watched key ("stream/<item>" or "stream/<item>:..."). `backfill_watched` at startup fills it from stream_recent.
 UI: tab ck `watched` last among "your" tabs (`streamMyTabs`), lines from `sWatchedLine`; the interface mirrors
 changes locally (`sWatchedMirror`, `sWatchedAfterPlay` from game-exited). Local Movies/TV: not included (owner's call).
-Feature list from Nov 4, easiest first: Watched tab (done), clickable actors/directors (TMDB person search; addons
-send cast/director names), controller in the mpv player, optional filter to hide genres and age ratings (owner reworded it
+Feature list from Nov 4, easiest first: Watched tab (done), clickable actors/directors (done, 0.22.0), controller in the mpv player, optional filter to hide genres and age ratings (owner reworded it
 Nov 4; genres are easy since addons send them; age ratings need TMDB certifications, addons don't send them).
+
+Owner confirmed 0.21.0 (Nov 4): already-watched shows appeared in Watched.
+
+**0.22.0** (Nov 4): clickable cast & director on Streaming details pages (`.speople` chips, act `sperson`). Screen
+`sperson` in stream.js; `S_STREAM.people` is a stack {name, director, from: S.sitem, fromKey, data|loading|error} so
+title -> person -> title -> person and Back retrace. `spine-core/src/people.rs`: `fetch_person` (/search/person,
+`pick_person` = same name, then known_for_department, then popularity; /person/{id}?append_to_response=combined_credits;
+`parse_person` drops talk/news/reality and "Self"/"Himself" appearances, merges duplicate titles, sorts by vote_count),
+`imdb_id` (/movie|tv/{id}/external_ids). Commands `person_credits(name, director)` (Err "no-tmdb-key" -> UI searches
+addons for the name on the Search tab: `sPersonFallback`) and `tmdb_imdb(kind, tmdb)` (resolved on click, cached in
+`S_STREAM.imdb`). A title opened from a person has addon null (`addon_meta` falls back to any meta addon/Cinemeta),
+`fromPerson: true`; details "From" fact says "Your addons". Not testable live from the workspace (needs the owner's
+TMDB key): parser tested with sample JSON, UI in Playwright with real Cinemeta meta.
 
 **Next session (owner's choice, Nov 3)**: Spine downloads and sets up mpv on Windows. Owner installed it by hand
 from shinchiro/mpv-winbuild-cmake GitHub releases: plain `mpv-x86_64-<date>-git-<hash>.7z` (not dev / v3 /
