@@ -1,9 +1,8 @@
 ## What's new
-- **Specials from the show's own list on TMDB.** OVAs, OADs and extras in a show's folder are now also looked up in the show's "Specials" on TMDB (season 0), not only among movies. When a file's name matches one, it gets that special's name, summary, year and picture. Files that weren't found before are tried again by themselves.
-- **Pick a special from a list.** Fix match (the pencil beside a file on "Movies & specials") now lists every special TMDB has for the show, so you can just pick the right one. Handy when the file only says "OAD 01", or for ones you set to "Not on TMDB" earlier.
+- **Watched tab in Streaming.** Movies you've finished and shows you've watched episodes of now have their own tab, next to Continue watching and your lists, newest first. Movies show the day you watched them; shows say how many episodes you've seen. A title joins when you finish it or tick it as watched, and leaves again if you untick everything. Things you watched before this update show up too, as long as they're still in Continue watching's history.
 
-From 0.20.3:
-- Fix match for each movie or special in a show, with a "Not on TMDB" choice.
+From 0.20.4:
+- Specials looked up in the show's own TMDB Specials, with a pick list in Fix match.
 
 ---
 

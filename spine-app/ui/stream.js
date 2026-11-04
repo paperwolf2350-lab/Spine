@@ -69,7 +69,45 @@ function streamMyTabs(kind) {
     const items = (sLists()[n] || []).filter((r) => types.includes(r.type));
     if (items.length) out.push({ ck: `list:${n}`, mine: true, list: n, own: n !== SL_FAV && n !== SL_LATER, items, label: n, addonName: n === SL_FAV ? 'Your favorites' : n === SL_LATER ? 'Saved for later' : 'Your list' });
   }
+  const seen = sWatchedItems(kind);
+  if (seen.length) out.push({ ck: 'watched', mine: true, items: seen, label: 'Watched', addonName: 'Movies and shows you’ve watched' });
   return out;
+}
+// ---- Watched: streamed movies you finished and shows with a watched episode, newest first.
+// Kept in spine-state.json `stream_watched` (item -> list-style entry); the app adds a title when
+// a movie or episode is finished or ticked, and drops it once nothing of it is ticked any more.
+const sWatchedItems = (kind) => Object.values(S.boot?.stream_watched || {}).filter((r) => STREAM_TYPES[kind].includes(r.type)).sort((a, b) => (b.at || 0) - (a.at || 0));
+// Watched episodes of a show ("<type>:<id>"): progress keys "stream/<item>:<season>:<episode>".
+const sWatchedEps = (item) => Object.entries(S.boot.progress || {}).filter(([k, p]) => p.watched && k.startsWith(`stream/${item}:`)).length;
+const sStillWatched = (item) => !!S.boot.progress?.[`stream/${item}`]?.watched || sWatchedEps(item) > 0;
+function sWatchedLine(r) {
+  if (r.type === 'movie') {
+    const d = r.at ? new Date(r.at * 1000) : null;
+    return d && !isNaN(d) ? `Watched ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}) })}` : 'Watched';
+  }
+  const n = sWatchedEps(r.item);
+  return n ? `${n} episode${n === 1 ? '' : 's'} watched` : 'Watched';
+}
+// Ticking "watched" on the details page: what Watched keeps of the title (sent to set_watched),
+// and the same change made here so the tab is right without asking the app for everything again.
+function sWatchedInfo(key) {
+  const x = S.sitem;
+  if (!x || !String(key).startsWith(`stream/${x.item.type}:${x.item.id}`)) return null;
+  const m = S_STREAM.meta[`${x.item.type}:${x.item.id}`];
+  return sListInfo({ ...x.item, ...(m && m !== 'loading' ? { name: m.name || x.item.name, poster: m.poster || x.item.poster, year: m.year || x.item.year } : {}) }, x.addon, x.addonName);
+}
+function sWatchedMirror(info, on) {
+  if (!info) return;
+  const w = { ...(S.boot.stream_watched || {}) };
+  if (on) w[info.item] = { ...info, at: Math.floor(Date.now() / 1000) };
+  else if (!sStillWatched(info.item)) delete w[info.item];
+  S.boot.stream_watched = w;
+}
+// A streamed movie or episode played to the end: Continue watching's record names the title.
+function sWatchedAfterPlay(key, prog) {
+  if (!prog?.watched || !String(key).startsWith('stream/')) return;
+  const r = Object.values(S.boot.stream_recent || {}).find((x) => `stream/${x.key}` === key);
+  if (r) sWatchedMirror(sListInfo(r, r.addon, r.addonName), true);
 }
 // Tabs for a kind: Search first (when an addon can search), your lists, then every catalog.
 function streamTabList(kind) {
@@ -92,7 +130,7 @@ const bigPoster = (u) => (u || '').replace('/poster/small/', '/poster/medium/');
 function streamTabs(kind) {
   const cur = streamCur(kind);
   return `<div class="streamtabs" role="tablist" aria-label="Catalogs">
-    ${streamTabList(kind).map((c, i, all) => `${i && all[i - 1].mine && !c.mine ? '<span class="tabsep" aria-hidden="true"></span>' : ''}<button class="chip ${cur?.ck === c.ck ? 'on' : ''} ${c.mine ? 'mine' : ''}" role="tab" aria-selected="${cur?.ck === c.ck}" data-nav data-key="st-${esc(c.ck)}" data-act="stab" data-s="${esc(kind)}" data-ck="${esc(c.ck)}" title="${esc(c.addonName)}">${c.search ? ICON.search + ' ' : c.list === SL_FAV ? ICON.heartA + ' ' : ''}${esc(c.label)}</button>`).join('')}
+    ${streamTabList(kind).map((c, i, all) => `${i && all[i - 1].mine && !c.mine ? '<span class="tabsep" aria-hidden="true"></span>' : ''}<button class="chip ${cur?.ck === c.ck ? 'on' : ''} ${c.mine ? 'mine' : ''}" role="tab" aria-selected="${cur?.ck === c.ck}" data-nav data-key="st-${esc(c.ck)}" data-act="stab" data-s="${esc(kind)}" data-ck="${esc(c.ck)}" title="${esc(c.addonName)}">${c.search ? ICON.search + ' ' : c.list === SL_FAV ? ICON.heartA + ' ' : c.ck === 'watched' ? ICON.check + ' ' : ''}${esc(c.label)}</button>`).join('')}
   </div>`;
 }
 
@@ -222,9 +260,10 @@ function streamListView(c) {
       <span class="cwimg">${streamCover({ name: r.name, year: r.year }, bigPoster(r.poster))}${sFavDot(r.item)}${pct ? `<span class="pbar"><i style="width:${pct}%"></i></span>` : ''}</span>
       <span class="t">${esc(r.name)}</span><span class="s">${esc(line)}</span></button>`).join('')}</div>`;
   }
+  const sub = (r) => (c.ck === 'watched' ? sWatchedLine(r) : `${r.year || ''}${r.year && r.addonName ? ' · ' : ''}${r.addonName || ''}`);
   const tiles = c.items.map((r, i) => `<button class="game" data-nav data-key="si-${esc(r.id)}" data-act="sopen" data-ck="${esc(c.ck)}" data-i="${i}">
       <span class="cwimg">${streamCover(r, r.poster)}${c.list !== SL_FAV ? sFavDot(r.item) : ''}</span>
-      <span class="t">${esc(r.name)}</span>${r.year || r.addonName ? `<span class="s">${esc(r.year || '')}${r.year && r.addonName ? ' · ' : ''}${esc(r.addonName || '')}</span>` : ''}</button>`).join('');
+      <span class="t">${esc(r.name)}</span>${sub(r) ? `<span class="s">${esc(sub(r))}</span>` : ''}</button>`).join('');
   const del = c.own ? `<div class="smore"><button class="btn" data-nav data-key="sldel" data-act="sldelete" data-n="${esc(c.list)}">Delete the list “${esc(c.list)}”</button></div>` : '';
   return `<div class="tiles stiles">${tiles}</div>${del}`;
 }
@@ -537,7 +576,7 @@ function streamFind(ck, i) {
     const it = S_STREAM.search[ck.slice(7)]?.items[+i];
     return it && { it, c: { addon: it._addon, addonName: it._addonName, label: 'Search' } };
   }
-  if (ck.startsWith('list:')) {
+  if (ck.startsWith('list:') || ck === 'watched') {
     const tab = streamMyTabs(streamKind()).find((t) => t.ck === ck);
     const r = tab?.items[+i];
     return r && { it: { id: r.id, type: r.type, name: r.name, poster: r.poster, year: r.year, genres: [] }, c: { addon: r.addon, addonName: r.addonName, label: tab.label } };

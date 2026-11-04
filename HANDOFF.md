@@ -86,6 +86,7 @@ Gotchas learned the hard way:
   via `option_env!` at build time). Users only add their own optional account.
 
 Ideas already discussed (not started):
+- Chromecast / casting and Trakt: dropped by the owner (Nov 4). Don't suggest them again.
 - Flathub: dropped (Nov 1). Its policy (May 2026) rejects AI-written apps and AI-made
   manifests/submissions, and Spine needs to start host programs. Don't suggest it again.
 - YouTube showcase video: DONE (Nov 1), ready for the owner to upload. 3:32 cut with a
@@ -527,6 +528,17 @@ TMDB's episode name; ties = no match), else the movie search as before. `Special
 (season 0 number, note says "Special · year") and `v` (1 = checked with season 0; old not-found entries
 with v 0 are retried). GameView `specials` (SpecialChoice: number, name, year) feeds a pick list in
 `specialPanel`. If season 0 isn't enough, next idea agreed with the owner: AniList as a backup for anime.
+
+**0.21.0** (Nov 4): Streaming "Watched" tab. spine-state.json `stream_watched` (item "<type>:<id>" -> list-style
+entry via `list_entry`, same fields as stream_lists, newest 2000). Added by `watched_note` when a streamed movie/episode
+finishes (play_stream's tracker, using the play's `info`) or is ticked (`set_watched` now takes optional `info`;
+`sWatchedInfo` in stream.js builds it from S.sitem). Unticking removes the title once `still_watched` finds no
+watched key ("stream/<item>" or "stream/<item>:..."). `backfill_watched` at startup fills it from stream_recent.
+UI: tab ck `watched` last among "your" tabs (`streamMyTabs`), lines from `sWatchedLine`; the interface mirrors
+changes locally (`sWatchedMirror`, `sWatchedAfterPlay` from game-exited). Local Movies/TV: not included (owner's call).
+Feature list from Nov 4, easiest first: Watched tab (done), clickable actors/directors (TMDB person search; addons
+send cast/director names), controller in the mpv player, hiding adult content (TMDB adult flag/certifications;
+addons have no flag, so not airtight).
 
 **Next session (owner's choice, Nov 3)**: Spine downloads and sets up mpv on Windows. Owner installed it by hand
 from shinchiro/mpv-winbuild-cmake GitHub releases: plain `mpv-x86_64-<date>-git-<hash>.7z` (not dev / v3 /

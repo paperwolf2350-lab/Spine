@@ -1741,10 +1741,12 @@ const ACT = {
   },
   async watched(d) {
     const on = d.on !== '1';
-    const p = await api.call('set_watched', { key: d.k, watched: on });
+    const info = typeof sWatchedInfo === 'function' ? sWatchedInfo(d.k) : null;
+    const p = await api.call('set_watched', { key: d.k, watched: on, info });
     const all = { ...(S.boot.progress || {}) };
     if (p) all[d.k] = p; else delete all[d.k];
     S.boot.progress = all;
+    if (info) sWatchedMirror(info, on);
     SFX.play(on ? 'favOn' : 'favOff');
     S.focusKey = d.key;
     render();
@@ -2088,6 +2090,7 @@ api.on('game-exited', (p) => {
   if (S.ach) delete S.ach[p.id]; // pick up anything earned while playing
   padMute = true; // buttons still held from the exit combo shouldn't press anything here
   if (p.progress) S.boot.progress = { ...(S.boot.progress || {}), [p.key]: p.progress };
+  if (p.progress && typeof sWatchedAfterPlay === 'function') sWatchedAfterPlay(p.key, p.progress);
   S.boot.playtime = { ...(S.boot.playtime || {}), [p.id]: ((S.boot.playtime || {})[p.id] || 0) + (S.playing?.emulator === 'system' ? 0 : p.seconds) };
   S.playing = null;
   if (upNext) return upNext.stream ? ACT.snext(upNext) : ACT.play({ id: upNext.id, ep: upNext.ep });

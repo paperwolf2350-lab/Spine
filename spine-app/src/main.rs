@@ -86,6 +86,10 @@ struct Saved {
     /// name, poster, addon key...). No links in here.
     #[serde(default)]
     stream_lists: BTreeMap<String, Vec<serde_json::Value>>,
+    /// Streaming "Watched": "<type>:<id>" of a movie or show you've finished (a show: at least
+    /// one episode) -> what the interface needs to show it, like a list entry. No links.
+    #[serde(default)]
+    stream_watched: BTreeMap<String, serde_json::Value>,
 }
 
 impl Saved {
@@ -358,6 +362,7 @@ struct Boot {
     addons: Vec<AddonView>,
     stream_recent: BTreeMap<String, serde_json::Value>,
     stream_lists: BTreeMap<String, Vec<serde_json::Value>>,
+    stream_watched: BTreeMap<String, serde_json::Value>,
     /// Streamed movies/episodes with a remembered source (Resume can reopen it).
     stream_links: Vec<String>,
 }
@@ -478,6 +483,7 @@ fn view(app: &App) -> Boot {
         addons: addon_views(app),
         stream_recent: saved.stream_recent.clone(),
         stream_lists: saved.stream_lists.clone(),
+        stream_watched: saved.stream_watched.clone(),
         stream_links: app.links.lock().unwrap().keys().cloned().collect(),
     }
 }
@@ -1059,17 +1065,28 @@ impl Tracker {
 
 /// Tick or untick "watched" on a movie or episode ("<show id>|<file name>").
 #[tauri::command]
-fn set_watched(key: String, watched: bool, app: State<App>) -> Option<spine_core::player::Progress> {
+fn set_watched(key: String, watched: bool, info: Option<serde_json::Value>, app: State<App>) -> Option<spine_core::player::Progress> {
     let p = {
         let mut s = app.saved.lock().unwrap();
-        if watched {
-            let p = s.progress.entry(key).or_default();
+        let p = if watched {
+            let p = s.progress.entry(key.clone()).or_default();
             *p = spine_core::player::Progress { pos: 0, watched: true, at: now(), ..*p };
             Some(*p)
         } else {
             s.progress.remove(&key);
             None
+        };
+        // Streamed titles: keep Watched in step (a show stays while any episode is ticked).
+        if let Some(i) = info.filter(|_| key.starts_with("stream/")) {
+            if let Some(item) = i.get("item").and_then(|v| v.as_str()).map(String::from) {
+                if watched {
+                    watched_note(&mut s, &i, now());
+                } else if !still_watched(&s.progress, &item) {
+                    s.stream_watched.remove(&item);
+                }
+            }
         }
+        p
     };
     app.save();
     p
@@ -1651,6 +1668,7 @@ fn play_stream(token: Option<String>, key: String, title: String, info: Option<s
     // Remember this source for Resume, and the title for Continue watching.
     app.links.lock().unwrap().insert(pkey.clone(), (now(), src.clone()));
     app.save_links();
+    let winfo = info.clone();
     if let Some(serde_json::Value::Object(mut m)) = info {
         if let Some(item) = m.get("item").and_then(|v| v.as_str()).map(String::from) {
             m.insert("at".into(), serde_json::json!(now()));
@@ -1712,6 +1730,11 @@ fn play_stream(token: Option<String>, key: String, title: String, info: Option<s
             let mut s = app.saved.lock().unwrap();
             let p = spine_core::player::after_session(s.progress.get(&pkey).copied(), pos, len, now());
             s.progress.insert(pkey.clone(), p);
+            if p.watched {
+                if let Some(i) = &winfo {
+                    watched_note(&mut s, i, now());
+                }
+            }
             p
         });
         if progress.is_some() {
@@ -1738,14 +1761,10 @@ fn stream_forget(item: String, app: State<App>) -> Boot {
 /// The built-in streaming lists: they disappear when emptied (your own lists stay).
 const STREAM_BUILTIN: [&str; 2] = ["Favorites", "Watch later"];
 
-/// Put a streamed movie or show in a streaming list, or take it out.
-fn stream_list_apply(lists: &mut BTreeMap<String, Vec<serde_json::Value>>, name: &str, info: &serde_json::Value, member: bool, at: u64) -> Result<(), String> {
-    let name = name.trim();
-    if name.is_empty() || name.chars().count() > 40 {
-        return Err("List names can be 1 to 40 characters.".into());
-    }
-    let item = info.get("item").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).ok_or("Nothing to add.")?.to_string();
-    // Keep only what the interface shows; never anything else an addon sent along.
+/// What a streaming list (or Watched) keeps of a title: only what the interface shows,
+/// never anything else an addon sent along. None without an item "<type>:<id>".
+fn list_entry(info: &serde_json::Value, at: u64) -> Option<(String, serde_json::Value)> {
+    let item = info.get("item").and_then(|v| v.as_str()).filter(|s| !s.is_empty())?.to_string();
     let mut m = serde_json::Map::new();
     for k in ["item", "type", "id", "name", "poster", "year", "addon", "addonName"] {
         if let Some(v) = info.get(k).filter(|v| !v.is_null()) {
@@ -1753,10 +1772,52 @@ fn stream_list_apply(lists: &mut BTreeMap<String, Vec<serde_json::Value>>, name:
         }
     }
     m.insert("at".into(), serde_json::json!(at));
+    Some((item, serde_json::Value::Object(m)))
+}
+
+/// Is anything of this title ("<type>:<id>") marked watched: the movie, or any episode?
+/// Episode keys are "stream/<type>:<show id>:<season>:<episode>".
+fn still_watched(progress: &BTreeMap<String, spine_core::player::Progress>, item: &str) -> bool {
+    let key = format!("stream/{item}");
+    let eps = format!("{key}:");
+    progress.iter().any(|(k, p)| p.watched && (k == &key || k.starts_with(&eps)))
+}
+
+/// Put a title in Watched (or bring it to the top), newest 2000 kept.
+fn watched_note(s: &mut Saved, info: &serde_json::Value, at: u64) {
+    let Some((item, entry)) = list_entry(info, at) else { return };
+    s.stream_watched.insert(item, entry);
+    while s.stream_watched.len() > 2000 {
+        let Some(old) = s.stream_watched.iter().min_by_key(|(_, v)| v.get("at").and_then(|a| a.as_u64()).unwrap_or(0)).map(|(k, _)| k.clone()) else { break };
+        s.stream_watched.remove(&old);
+    }
+}
+
+/// Titles watched before Watched existed: take them from Continue watching's records.
+fn backfill_watched(s: &mut Saved) {
+    let found: Vec<serde_json::Value> = s
+        .stream_recent
+        .iter()
+        .filter(|(item, _)| !s.stream_watched.contains_key(*item) && still_watched(&s.progress, item))
+        .map(|(_, v)| v.clone())
+        .collect();
+    for v in found {
+        let at = v.get("at").and_then(|a| a.as_u64()).unwrap_or(0);
+        watched_note(s, &v, at);
+    }
+}
+
+/// Put a streamed movie or show in a streaming list, or take it out.
+fn stream_list_apply(lists: &mut BTreeMap<String, Vec<serde_json::Value>>, name: &str, info: &serde_json::Value, member: bool, at: u64) -> Result<(), String> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 40 {
+        return Err("List names can be 1 to 40 characters.".into());
+    }
+    let (item, m) = list_entry(info, at).ok_or("Nothing to add.")?;
     let list = lists.entry(name.to_string()).or_default();
     list.retain(|v| v.get("item").and_then(|x| x.as_str()) != Some(item.as_str()));
     if member {
-        list.insert(0, serde_json::Value::Object(m));
+        list.insert(0, m);
         list.truncate(1000);
     }
     if list.is_empty() && STREAM_BUILTIN.contains(&name) {
@@ -2053,7 +2114,8 @@ fn main() {
     }
     #[cfg(target_os = "linux")]
     linux::ensure_menu_entry();
-    let saved: Saved = fs::read_to_string(dir.join("spine-state.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    let mut saved: Saved = fs::read_to_string(dir.join("spine-state.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    backfill_watched(&mut saved);
     let media = dir.join("media");
     let dir2 = dir.clone();
     let mut saved = saved;
@@ -2145,5 +2207,26 @@ mod tests {
         assert_eq!(r.body(), b"89");
         let r = serve_media(&d, "/video/gba/x", None, &|_| Some(d.join("v.mp4")));
         assert_eq!(r.headers()["content-type"], "video/mp4");
+    }
+
+    #[test]
+    fn watched_follows_progress() {
+        use spine_core::player::Progress;
+        let mut s = Saved::default();
+        let w = |pos: u64| Progress { pos, len: 100, watched: pos == 0, at: 1 };
+        s.progress.insert("stream/series:kitsu:7:1:2".into(), w(0));
+        s.progress.insert("stream/series:kitsu:70:1:1".into(), w(0));
+        s.progress.insert("stream/movie:tt1".into(), w(40));
+        assert!(still_watched(&s.progress, "series:kitsu:7"));
+        assert!(!still_watched(&s.progress, "series:kitsu:700"));
+        assert!(!still_watched(&s.progress, "movie:tt1"), "half-watched isn't watched");
+        // Old Continue watching records fill Watched once.
+        s.stream_recent.insert("series:kitsu:7".into(), serde_json::json!({"item": "series:kitsu:7", "type": "series", "id": "kitsu:7", "name": "Show", "at": 5, "key": "x", "episode": {"id": "e"}}));
+        s.stream_recent.insert("movie:tt1".into(), serde_json::json!({"item": "movie:tt1", "type": "movie", "id": "tt1", "name": "Film", "at": 6}));
+        backfill_watched(&mut s);
+        assert_eq!(s.stream_watched.len(), 1);
+        let e = &s.stream_watched["series:kitsu:7"];
+        assert_eq!(e["at"], 5);
+        assert!(e.get("key").is_none() && e.get("episode").is_none(), "only list fields are kept");
     }
 }
