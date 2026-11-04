@@ -1,4 +1,7 @@
 ## What's new
+- **TV mode: left and right work everywhere with a controller.** On the Watch tiles (Movies, TV, Streaming, Search), the banner's buttons and the top bar, left and right now go to the next button in line. Before, Spine looked for "the nearest button on screen", which on some Windows setups found nothing, so you couldn't get from Movies to TV, Streaming or Search.
+
+From 0.29.2:
 - **TV mode fits your screen.** With Windows display scaling, a window with a title bar, or a show with a big logo and a long episode name, the banner at the top could spill over the top bar and the tiles, leaving the controller on buttons hidden under other buttons. Spine now measures the room it has and shrinks the logo and title (and drops the small label line if needed) so nothing overlaps.
 
 From 0.29.1:

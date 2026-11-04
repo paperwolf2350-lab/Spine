@@ -695,6 +695,15 @@ its size is known before it loads); progress/meta text is one line with an ellip
 Playwright at 1536x807@1.25, 1920x1009, 1920x1080, 1280x720, 1366x768, 3840x2160, 1920x1080@1.5 (Play and Watch).
 Test at real-world window sizes with device_scale_factor, not just full-screen 1080p.
 
+**0.29.3** (Nov 4): owner's screen recording (Windows): on the Watch tiles, right from Movies did nothing; up/down (already
+fixed places since 0.29.1) worked. So `move()` (spatial, getBoundingClientRect) fails in TV mode on his WebView2 setup;
+cause not found (works in Chrome/WebKitGTK here). TV mode no longer uses `move()` at all: `tvLinear` = left/right by DOM
+order inside `.tv-top`, `.tv-acts` (banner buttons) and `.tv-wtiles`; Play banner up → `tvs-play`, top bar up = edge.
+`tvCur()` = activeElement if it's a data-nav in #tvm, else the `.focused` one (re-focused); with no highlight at all a
+direction calls restoreFocus. Test that proves it: the gamepad harness with `Element.prototype.getBoundingClientRect`
+stubbed to return zeros: every move in Play and Watch still lands. If other screens (game pages, Settings) show the same
+"can't move" on his PC, `move()` itself needs a look on WebView2 (zoom + rects).
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).

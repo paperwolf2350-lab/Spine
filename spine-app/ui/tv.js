@@ -290,7 +290,7 @@ function tvWatchStep(row, d) {
 // B in a Continue row backs out to the tiles.
 function tvWatchNav(btn) {
   if (!['up', 'down', 'B'].includes(btn)) return false;
-  const cur = document.activeElement;
+  const cur = tvCur();
   const rows = ['l', 's'].filter((r) => document.getElementById(`tvcwt-${r}`));
   const cardOf = (r) => document.querySelectorAll(`#tvcwt-${r} .tv-cwc`)[S.tv.w[r]] || document.querySelector(`#tvcwt-${r} .tv-cwc`);
   const tiles = [...document.querySelectorAll('#tvm .tv-wt')];
@@ -307,7 +307,7 @@ function tvWatchNav(btn) {
   if (btn === 'B') return false;
   if (cur?.closest?.('.tv-wt')) return go(btn === 'down' ? (rows.length ? cardOf(rows.includes(S.tv.w.row) ? S.tv.w.row : rows[0]) : null) : heroBtn() || document.querySelector('[data-key="tvs-watch"]'));
   if (cur?.closest?.('#tvwhero')) return go(btn === 'down' ? tile() || (rows.length ? cardOf(rows[0]) : null) : document.querySelector('[data-key="tvs-watch"]'));
-  if (cur?.closest?.('.tv-top') && btn === 'down') return go(heroBtn() || tile() || (rows.length ? cardOf(rows[0]) : null));
+  if (cur?.closest?.('.tv-top')) return btn === 'down' ? go(heroBtn() || tile() || (rows.length ? cardOf(rows[0]) : null)) : go(null);
   return false;
 }
 
@@ -384,14 +384,37 @@ function tvSec(sec) {
   render();
 }
 
+// What has the highlight: the focused element, or (if the window lost DOM focus) the one drawn as focused.
+function tvCur() {
+  const a = document.activeElement;
+  if (a && a.hasAttribute?.('data-nav') && a.closest?.('#tvm')) return a;
+  return document.querySelector('#tvm [data-nav].focused');
+}
+// Left / right inside a row of buttons (top bar, banner buttons, Watch tiles) by order, not by screen position:
+// on some Windows setups positions on screen came back wrong and "nearest to the right" found nothing (0.29.3).
+function tvLinear(btn, cur) {
+  if (btn !== 'left' && btn !== 'right') return false;
+  const group = cur.closest('.tv-top, .tv-acts, .tv-wtiles');
+  if (!group) return false;
+  const list = [...group.querySelectorAll('[data-nav]')];
+  const el = list[list.indexOf(cur) + (btn === 'right' ? 1 : -1)];
+  if (el) { focusEl(el, false, false); SFX.play('move'); } else SFX.play('edge');
+  return true;
+}
+
 // Controller / keyboard on the TV home. Returns true when it handled the press.
 function tvKey(btn) {
   tvState();
   if (btn === 'LT' || btn === 'RT') { tvSec(S.tv.sec === 'play' ? 'watch' : 'play'); return true; }
+  const here = tvCur();
+  // Nothing has the highlight: put it back where it belongs instead of guessing.
+  if (!here && ['up', 'down', 'left', 'right'].includes(btn)) { restoreFocus(); return true; }
+  if (here && document.activeElement !== here) here.focus({ preventScroll: true });
+  if (here && tvLinear(btn, here)) return true;
   if (S.tv.sec === 'watch') {
     if (btn === 'LB' || btn === 'RB') return true;
     if (tvWatchNav(btn)) return true;
-    const c = document.activeElement?.closest?.('.tv-cwc');
+    const c = tvCur()?.closest?.('.tv-cwc');
     if (!c) { if (btn === 'B') { tvSec('play'); return true; } return false; }
     const r = c.dataset.row;
     if (btn === 'left' || btn === 'right') { tvWatchStep(r, btn === 'right' ? 1 : -1); return true; }
@@ -399,7 +422,7 @@ function tvKey(btn) {
     if (btn === 'Y') { TV_ACT.tvforget({ row: r, k: c.dataset.k }); return true; }
     return false;
   }
-  const cur = document.activeElement;
+  const cur = tvCur();
   const zone = cur?.closest?.('#tvgames') ? 'games' : cur?.closest?.('#tvcons') ? 'cons' : 'other';
   if (btn === 'LB' || btn === 'RB') { tvConGo(btn === 'RB' ? 1 : -1, zone === 'cons' ? 'cons' : 'games'); return true; }
   const focusKey = (k) => { const el = navEls().find((e) => e.dataset.key === k); if (el) { focusEl(el, false, false); SFX.play('move'); } };
@@ -421,8 +444,10 @@ function tvKey(btn) {
   }
   // Top bar: down goes to the banner's Play button.
   if (btn === 'down' && cur?.closest?.('.tv-top')) { focusKey('tvplay'); return true; }
-  // Banner buttons: down goes to the games (the row you were on), not the nearest tile.
+  // Banner buttons: down goes to the consoles row, up to the top bar.
   if (btn === 'down' && cur?.closest?.('#tvhero')) { focusKey(`con-${con.id}`); return true; }
+  if (btn === 'up' && cur?.closest?.('#tvhero')) { focusKey('tvs-play'); return true; }
+  if (btn === 'up' && cur?.closest?.('.tv-top')) { SFX.play('edge'); return true; }
   return false;
 }
 
