@@ -298,6 +298,8 @@ struct EpisodeView {
     note: Option<String>,
     /// Movies & specials: what Spine searched TMDB for (to fix a wrong match).
     query: Option<String>,
+    /// Movies & specials: the user said it isn't on TMDB (no lookup, file name shown).
+    off: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -485,7 +487,9 @@ fn episode_views(g: &spine_core::Game, media: &Path, rel: &dyn Fn(&Path) -> Opti
             if e.number.is_none() {
                 let sp = tmdb.as_ref().and_then(|t| t.specials.get(&file));
                 let found = sp.filter(|x| x.tmdb != 0);
+                let off = sp.is_some_and(|x| x.query.as_deref() == Some(spine_core::tv::NO_MATCH));
                 let note = match (sp, found) {
+                    _ if off => None,
                     (_, Some(x)) => {
                         let mut parts = vec!["Movie".to_string()];
                         parts.extend(x.year.clone());
@@ -506,7 +510,8 @@ fn episode_views(g: &spine_core::Game, media: &Path, rel: &dyn Fn(&Path) -> Opti
                     overview: found.and_then(|x| x.overview.clone()),
                     still,
                     note,
-                    query: sp.and_then(|x| x.query.clone()).or_else(|| spine_core::tv::special_queries(e).into_iter().next()),
+                    query: if off { None } else { sp.and_then(|x| x.query.clone()).or_else(|| spine_core::tv::special_queries(e).into_iter().next()) },
+                    off,
                     file,
                 };
             }
@@ -520,6 +525,7 @@ fn episode_views(g: &spine_core::Game, media: &Path, rel: &dyn Fn(&Path) -> Opti
                 file,
                 note: None,
                 query: None,
+                off: false,
             }
         })
         .collect()

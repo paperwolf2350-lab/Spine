@@ -512,6 +512,12 @@ Spine.old2.exe ... Spine.old19.exe and retries the rename a few times; `cleanup`
 AniSkip confirmed on the owner's PC (Nov 2): Demon Slayer and Edgerunners S1E2 (after 0.20.1) skip at the right time.
 (The 0.20.0 -> 0.20.1 "Access is denied" was two Spine windows open; 0.20.2 handles it anyway.)
 
+**0.20.3** (Nov 4): Fix match per special. Each "Movies & specials" row has a pencil (`.epfix`, key
+`spfix-<i>`, next to the watched check; `.eprow.sp` has 3 columns); `specialPanel` shows only that file
+(`S.spFix` = {id, ep}). "Not on TMDB" stores `tv::NO_MATCH` ("-") as the special query: `fetch_details`
+skips the lookup and records it, EpisodeView gets `off: true` (no note, file's own title). Empty box =
+Spine's own guess again. Owner found it with Attack on Titan (OADs matched a UFC event and Girls und Panzer).
+
 **Next session (owner's choice, Nov 3)**: Spine downloads and sets up mpv on Windows. Owner installed it by hand
 from shinchiro/mpv-winbuild-cmake GitHub releases: plain `mpv-x86_64-<date>-git-<hash>.7z` (not dev / v3 /
 aarch64 / i686 / ffmpeg). Assets are .7z only, so this needs a 7z reader (e.g. the `sevenz-rust` crate) or

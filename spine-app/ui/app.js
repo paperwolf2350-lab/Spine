@@ -636,11 +636,11 @@ function detail() {
     ${groups.length > 1 ? `<div class="seasons" role="tablist">${groups.map((gr) => `<button class="chip ${gr === group ? 'on' : ''}" role="tab" aria-selected="${gr === group}" data-nav data-key="grp-${esc(gr)}" data-act="epgroup" data-id="${esc(g.id)}" data-g="${esc(gr)}">${esc(gr)}</button>`).join('')}</div>` : ''}
     ${isArc(g, group) ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span class="note">${g.arcs?.[group] ? `Matched to ${esc(arcLabel(g, g.arcs[group], shown.length))} on TMDB.` : 'TMDB names its seasons differently, so this arc has no episode details yet.'}</span>
       <button class="btn small" data-nav data-key="arcpick" data-act="arcpick" data-id="${esc(g.id)}" data-g="${esc(group)}">${g.arcs?.[group] ? 'Change season' : 'Which season is this?'}</button></div>` : ''}
-    <div class="eplist">${shown.map(({ e, i }) => { const p = progOf(g, i); return `<div class="eprow"><button class="ep" data-nav data-key="ep-${i}" data-act="play" data-id="${esc(g.id)}" data-ep="${i}" title="${esc(e.file)}${canResume(p) ? ` · resumes at ${clock(p.pos)}` : ''}">
+    <div class="eplist">${shown.map(({ e, i }) => { const p = progOf(g, i); return `<div class="eprow${e.number == null ? ' sp' : ''}"><button class="ep" data-nav data-key="ep-${i}" data-act="play" data-id="${esc(g.id)}" data-ep="${i}" title="${esc(e.file)}${canResume(p) ? ` · resumes at ${clock(p.pos)}` : ''}">
       <span class="thumb">${e.still ? `<img src="${mediaUrl(e.still)}" alt="" loading="lazy">` : `${thumbFallback}<span style="position:relative">${e.number ?? ICON.film}</span>`}${p?.watched ? `<span class="seen" aria-label="Watched">${ICON.check}</span>` : ''}${canResume(p) ? `<span class="pbar" aria-label="Stopped at ${clock(p.pos)}"><i style="width:${Math.round((100 * p.pos) / p.len)}%"></i></span>` : ''}</span>
       <span><span class="et">${epCode(e) ? `<span class="n">${esc(epCode(e))}</span>` : ''}${esc(e.title || (e.number != null ? 'Episode ' + e.number : e.file))}</span>${e.note ? `<span class="eo" style="font-weight:600">${esc(e.note)}</span>` : ''}${e.overview ? `<span class="eo">${esc(e.overview)}</span>` : ''}</span></button>
-      <button class="epcheck ${p?.watched ? 'on' : ''}" data-nav data-key="w-${i}" data-act="watched" data-k="${esc(progKey(g, i))}" data-on="${p?.watched ? 1 : 0}" title="${p?.watched ? 'Watched · click to unmark' : 'Mark as watched'}" aria-pressed="${!!p?.watched}" aria-label="Watched">${ICON.check}</button></div>`; }).join('')}</div>
-    ${group === 'Movies & specials' ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span class="note">Wrong movie, or no details?</span><button class="btn small" data-nav data-key="spfix" data-act="spfix" data-id="${esc(g.id)}">Fix match</button></div>` : ''}</section>`;
+      <button class="epcheck ${p?.watched ? 'on' : ''}" data-nav data-key="w-${i}" data-act="watched" data-k="${esc(progKey(g, i))}" data-on="${p?.watched ? 1 : 0}" title="${p?.watched ? 'Watched · click to unmark' : 'Mark as watched'}" aria-pressed="${!!p?.watched}" aria-label="Watched">${ICON.check}</button>${e.number == null ? `<button class="epcheck epfix" data-nav data-key="spfix-${i}" data-act="spfix" data-id="${esc(g.id)}" data-ep="${i}" title="Fix match: wrong movie, or no details?" aria-label="Fix match for ${esc(e.title || e.file)}">${ICON.pencil}</button>` : ''}</div>`; }).join('')}</div>
+    ${group === 'Movies & specials' ? `<span class="note">Wrong movie or no details? Use the pencil beside it.</span>` : ''}</section>`;
   const metaLine = [
     year ? `<span>${esc(year)}</span>` : null,
     i.runtime ? `<span>${esc(fmtRuntime(i.runtime))}</span>` : null,
@@ -858,16 +858,18 @@ function arcPanel() {
 
 function specialPanel() {
   if (S.panel !== 'special' || !S.spFix) return '';
-  const found = findGame(S.spFix);
-  if (!found) return '';
-  const sps = (found.g.episodes || []).filter((e) => e.number == null);
+  const found = findGame(S.spFix.id);
+  const e = found?.g.episodes?.[S.spFix.ep];
+  if (!e) return '';
+  const now = e.off ? 'Not on TMDB (shows the file name)' : e.note?.startsWith('Movie') ? `${e.title || ''} · ${e.note}` : 'Nothing found yet';
   return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="Fix match">
     <h2>Fix match</h2>
-    <span class="note">Spine looks these up among TMDB's movies. If one is wrong or missing, type its English title (for example "Demon Slayer Mugen Train") and search again.</span>
-    ${sps.map((e, i) => `<div class="grp"><span class="k">${esc(e.file)}</span>
-      ${e.note ? `<span class="note">Now: ${esc(e.title || '')}${e.note.startsWith('Movie') ? ' · ' + esc(e.note) : ''}</span>` : ''}
-      <label class="field"><span>Search TMDB for</span><input type="text" id="sq-${i}" data-nav data-key="sq-${i}" value="${esc(e.query || e.title || '')}" autocomplete="off" spellcheck="false"></label>
-      <div class="opts"><button class="btn primary" data-nav data-key="sqgo-${i}" data-act="setspecial" data-i="${i}">Search again</button></div></div>`).join('')}
+    <span class="note">Spine looks this up among TMDB's movies. If it's wrong, type its English title as TMDB lists it (for example "Attack on Titan: Crimson Bow and Arrow") and search again. Leave the box empty to go back to Spine's own guess. If it isn't on TMDB at all (many OVAs and extras aren't), choose "Not on TMDB".</span>
+    <div class="grp"><span class="k">${esc(e.file)}</span>
+      <span class="note">Now: ${esc(now)}</span>
+      <label class="field"><span>Search TMDB for</span><input type="text" id="spq" data-nav data-key="spq" data-enter="setspecial" value="${esc(e.off ? '' : e.query || e.title || '')}" autocomplete="off" spellcheck="false"></label>
+      <div class="opts"><button class="btn primary" data-nav data-key="sqgo" data-act="setspecial">Search again</button>
+      ${e.off ? '' : `<button class="btn" data-nav data-key="sqoff" data-act="setspecial" data-off="1">Not on TMDB</button>`}</div></div>
   </aside></div>`;
 }
 
@@ -1389,16 +1391,16 @@ const ACT = {
     S.panel = 'emulator'; S.focusKey = null;
     render();
   },
-  spfix(d) { S.spFix = d.id; S.panel = 'special'; S.focusKey = 'sq-0'; render(); },
+  spfix(d) { S.spFix = { id: d.id, ep: Number(d.ep) }; S.panel = 'special'; S.focusKey = 'spq'; render(); },
   async setspecial(d) {
-    const found = findGame(S.spFix);
-    const e = (found?.g.episodes || []).filter((x) => x.number == null)[Number(d.i)];
+    const sp = S.spFix;
+    const e = findGame(sp?.id)?.g.episodes?.[sp.ep];
     if (!e) return;
-    const q = document.getElementById('sq-' + d.i)?.value || '';
-    S.boot = await api.call('set_special_query', { id: S.spFix, file: e.file, query: q });
-    S.panel = null; S.focusKey = 'spfix';
+    const q = d.off ? '-' : document.getElementById('spq')?.value || '';
+    S.boot = await api.call('set_special_query', { id: sp.id, file: e.file, query: q });
+    S.panel = null; S.focusKey = 'spfix-' + sp.ep;
     render();
-    toast('Searching TMDB…', 4000);
+    toast(d.off ? 'Showing the file name' : 'Searching TMDB…', 4000);
     api.call('fetch_media');
   },
   showfix(d) { S.showFix = d.id; S.panel = 'showfix'; S.focusKey = 'showq'; render(); },

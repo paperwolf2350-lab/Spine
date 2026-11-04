@@ -373,6 +373,7 @@ body.kb .cat.focused, body.kb .cat:focus-visible { box-shadow: 0 0 0 3px var(--b
 .eps .seasons { display: flex; flex-wrap: wrap; gap: 8px; }
 .eplist { display: flex; flex-direction: column; gap: 8px; }
 .eprow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.eprow.sp { grid-template-columns: minmax(0, 1fr) auto auto; }
 .epcheck { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface); color: var(--muted); opacity: .7; }
 .epcheck:hover { background: var(--surface2); opacity: 1; }
 .epcheck.on { background: var(--accent); color: var(--accent-ink); opacity: 1; }

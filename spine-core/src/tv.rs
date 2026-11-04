@@ -28,6 +28,8 @@ use std::sync::OnceLock;
 
 pub const SYSTEM_ID: &str = "tv";
 pub const SPECIALS: &str = "Movies & specials";
+/// A special's typed name meaning "don't look this one up on TMDB".
+pub const NO_MATCH: &str = "-";
 
 /// One episode (or movie / special) of a show.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -687,6 +689,12 @@ pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, 
                 continue;
             }
             let queries = match special_query(&g.id, &file) {
+                // "Not on TMDB" picked in Fix match: no lookup, the file's own name is shown.
+                Some(q) if q == NO_MATCH => {
+                    seasons.specials.insert(file, Special { query: Some(NO_MATCH.into()), ..Default::default() });
+                    changed = true;
+                    continue;
+                }
                 Some(q) => vec![q],
                 None => special_queries(e),
             };
