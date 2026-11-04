@@ -367,6 +367,34 @@ pub fn builtin_get(url: &str, fail_on_http_error: bool, headers: &[String]) -> R
     Ok(buf)
 }
 
+/// A big download straight to a file (mpv, 0.24), allowed up to `max_secs`.
+pub fn curl_to_file(url: &str, dest: &Path, max_secs: u64) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        let _ = max_secs;
+        let b = builtin_get(url, true, &[])?;
+        return fs::write(dest, b).map_err(|e| e.to_string());
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let mut cmd = crate::hostenv::command("curl");
+        cmd.args(["-sSL", "--fail", "--connect-timeout", "15", "--retry", "2", "-A", "Spine/0.1 (game library frontend)", "--max-time"]);
+        cmd.arg(max_secs.to_string()).arg("-o").arg(dest).arg(url);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        }
+        let out = cmd.output().map_err(|e| format!("couldn't run curl: {e}"))?;
+        if out.status.success() {
+            Ok(())
+        } else {
+            let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+            Err(if err.is_empty() { format!("curl exit {}", out.status) } else { err })
+        }
+    }
+}
+
 pub(crate) fn get_bytes(_agent: &Agent, url: &str) -> Result<Vec<u8>, String> {
     curl(url, true, &[])
 }

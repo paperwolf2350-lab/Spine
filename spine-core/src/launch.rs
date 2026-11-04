@@ -282,7 +282,7 @@ fn plan_with(l: &Launcher, game: &Game, installed: &Installed) -> LaunchPlan {
             let (exe, prefix) = match (installed.path(id), installed.flatpak.get(*id)) {
                 (Some(exe), _) => (exe.clone(), vec![]),
                 (None, Some(fp)) => (PathBuf::from("flatpak"), flatpak_run(fp, game)),
-                (None, None) => return LaunchPlan { emulator: def.name.into(), program: PathBuf::from(def.exes[0]), args: vec![], blocked: Some(format!("Install {}.", def.name)) },
+                (None, None) => return LaunchPlan { emulator: def.name.into(), program: PathBuf::from(def.exes[0]), args: vec![], blocked: Some(install_hint(def)) },
             };
             let needs_id = def.args.iter().any(|a| a.contains("{title_id}"));
             let blocked = (needs_id && game.title_id.is_none()).then(|| format!("{} needs this game's title id first.", def.name));
@@ -291,6 +291,11 @@ fn plan_with(l: &Launcher, game: &Game, installed: &Installed) -> LaunchPlan {
             LaunchPlan { emulator: def.name.into(), program: exe, args, blocked }
         }
     }
+}
+
+/// What to tell someone who lacks a program. On Windows, Spine can fetch mpv itself.
+fn install_hint(def: &EmulatorDef) -> String {
+    if def.id == "mpv" && cfg!(windows) { "Get mpv in Settings → Controller & sound.".into() } else { format!("Install {}.", def.name) }
 }
 
 /// Play a web link (a streaming addon's source) in mpv, else VLC. `title` shows in the
@@ -323,7 +328,7 @@ pub fn plan_stream(installed: &Installed, url: &str, title: &str, headers: &[(St
         args.push(url.to_string());
         return LaunchPlan { emulator: def.name.into(), program, args, blocked: None };
     }
-    LaunchPlan { emulator: "VLC".into(), program: PathBuf::from("vlc"), args: vec![], blocked: Some("Install VLC (or mpv) to watch streams.".into()) }
+    LaunchPlan { emulator: "VLC".into(), program: PathBuf::from("vlc"), args: vec![], blocked: Some(if cfg!(windows) { "Get mpv in Settings → Controller & sound (or install VLC) to watch streams.".into() } else { "Install mpv (or VLC) to watch streams.".into() }) }
 }
 
 /// Start the game. Returns the child process so the app can track playtime.

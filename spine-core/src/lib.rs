@@ -14,6 +14,7 @@ pub mod hostenv;
 pub mod launch;
 pub mod meta;
 pub mod movies;
+pub mod mpvget;
 pub mod people;
 pub mod player;
 pub mod scan;

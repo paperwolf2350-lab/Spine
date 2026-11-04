@@ -470,6 +470,7 @@ function home() {
       <div class="hero-top">
         <div class="hero-text"><h2 style="display:flex;align-items:center;gap:16px"><span class="heroicon" style="background:${t.color}">${sysIcon(tileIcon(t), 52)}</span>${esc(t.name)}</h2><p>${status}</p>
           <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" data-nav data-key="openlib" data-act="tile" data-i="${sel}">${glyph('A')}${cta}</button>
+          ${t.kind === 'sys' && needsMpv(t.sys.blocked) ? `<button class="btn primary" data-nav data-key="getemu" data-act="getmpv" ${S.mpvBusy ? 'disabled' : ''}>${ICON.download} ${S.mpvBusy ? esc(S.mpvBusy) : 'Get mpv'}</button>` : ''}
           ${t.kind === 'sys' && t.sys.blocked && t.sys.download ? `<button class="btn" data-nav data-key="getemu" data-act="openurl" data-u="${esc(t.sys.download)}">${ICON.download} Get ${esc(t.sys.blocked.replace(/^Install |\.$/g, ''))}</button>` : ''}
           ${t.kind === 'sys' && t.sys.bios && !t.sys.blocked ? `<button class="btn" data-nav data-key="biosdir" data-act="biosdir" data-s="${esc(t.id)}" title="${esc(t.sys.bios.message)}">Open BIOS folder</button>` : ''}</div></div>
         <div class="fan" aria-hidden="true">${fan.map((x) => cover(x.g, x.s, 'nofav')).join('')}</div>
@@ -681,7 +682,7 @@ function detail() {
         <button class="btn" data-nav data-key="addlist" data-act="lists" data-id="${esc(g.id)}">${ICON.list} ${Object.values(S.boot.collections || {}).some((l) => l.includes(g.id)) ? 'In your lists' : 'Add to list'}</button>
         ${S.spun === g.id ? `<button class="btn" data-nav data-key="spin" data-act="random" data-scope="${esc(S.spinScope || 'all')}">${ICON.dice} Spin again</button>` : ''}
       </div>
-      ${s.blocked && !g.launcher ? `<div class="warning"><b>Can't play yet:</b> ${esc(s.blocked)} ${s.download ? `<button class="link" data-nav data-key="getemu" data-act="openurl" data-u="${esc(s.download)}">${s.download.includes('flathub.org') ? 'Get it from Flathub' : 'Open the download page'}</button> <span class="note">${s.download.includes('flathub.org') ? 'Install it from your software center (Discover, GNOME Software) or Flathub, then reopen Spine.' : movie ? 'Install it the normal way, then reopen Spine.' : 'Put it in your Emulators folder, and Spine finds it next time it starts.'}</span>` : ''}</div>` : ''}
+      ${s.blocked && !g.launcher ? `<div class="warning"><b>Can't play yet:</b> ${esc(s.blocked)} ${needsMpv(s.blocked) ? `<button class="link" data-nav data-key="getemu" data-act="getmpv" ${S.mpvBusy ? 'disabled' : ''}>${S.mpvBusy ? esc(S.mpvBusy) : 'Get mpv now'}</button>` : ''}${s.download ? `<button class="link" data-nav data-key="getemu" data-act="openurl" data-u="${esc(s.download)}">${s.download.includes('flathub.org') ? 'Get it from Flathub' : 'Open the download page'}</button> <span class="note">${s.download.includes('flathub.org') ? 'Install it from your software center (Discover, GNOME Software) or Flathub, then reopen Spine.' : movie ? 'Install it the normal way, then reopen Spine.' : 'Put it in your Emulators folder, and Spine finds it next time it starts.'}</span>` : ''}</div>` : ''}
       ${g.offline ? `<div class="warning"><b>Drive not connected.</b> Plug in the drive this ${movie ? 'movie' : 'game'} is on to ${movie ? 'watch' : 'play'} it.</div>` : ''}
       ${s.bios && !s.blocked && !g.launcher ? `<div class="warning"><b>Missing file:</b> ${esc(s.bios.message)} <span class="path">${esc(s.bios.folder)}</span> <button class="link" data-nav data-key="biosdir" data-act="biosdir" data-s="${esc(s.id)}">Open that folder</button></div>` : ''}
       <div class="facts">
@@ -767,6 +768,7 @@ function settingsPanel() {
       + grp('Audio language', 'Movies, shows and streams start in this language when the file has it.', `<div class="opts">${chips('al', 'audiolang', [['', 'File\'s choice'], ...[['en', 'English'], ['ja', 'Japanese'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['pt', 'Portuguese'], ['it', 'Italian'], ['ko', 'Korean']]], st.audioLang || '')}</div>`)
       + grp('Subtitles', 'Shown in this language when the file has them.', `<div class="opts">${chips('sl', 'sublang', [['', 'File\'s choice'], ['off', 'Off'], ...[['en', 'English'], ['ja', 'Japanese'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['pt', 'Portuguese'], ['it', 'Italian'], ['ko', 'Korean']]], st.subLang || '')}</div>`)
       + grp('Skip intro', 'Uses the chapters inside the file (Opening, Ending...).', `<div class="opts">${chips('ski', 'skipintro', [['button', 'Show a button'], ['auto', 'Skip by itself'], ['off', 'Off']], st.skipIntro || 'button')}</div>`)
+      + mpvGroup(grp)
       + grp('Streams play in', 'mpv has Resume and Up next. VLC only has Resume.', `<div class="opts">${chips('vp', 'vplayer', [['mpv', 'mpv'], ['vlc', 'VLC']], st.streamPlayer === 'vlc' ? 'vlc' : 'mpv')}</div>`)
       + grp('Sounds', 'Clicks and chimes as you move around.', `<div class="opts">${chips('sfx', 'uisounds', [['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']], st.uiSounds || 'soft')}</div>`)
       + grp('Home music', 'On the Wave and Channels homes.', `<div class="opts">${chips('bgm', 'homemusic', [['off', 'Off'], ['soft', 'Soft'], ['normal', 'Normal']], st.homeMusic || 'soft')}</div>`);
@@ -785,6 +787,23 @@ function settingsPanel() {
     ${body}
   </aside></div>`;
 }
+// A missing-mpv message Spine can fix itself (Windows: "Get mpv in Settings → …").
+const needsMpv = (why) => OS_NAME === 'Windows' && /^Get mpv in Settings/.test(why || '');
+// Settings → Controller & sound → mpv (Windows): Spine downloads mpv itself (0.24).
+function mpvGroup(grp) {
+  if (OS_NAME !== 'Windows') return '';
+  const m = S.mpv;
+  if (!m) { if (!S.mpvAsked) { S.mpvAsked = true; api.call('mpv_status').then((x) => { S.mpv = x; render(); }).catch(() => {}); } return ''; }
+  if (!m.windows) return '';
+  const busy = S.mpvBusy;
+  const note = busy ? busy
+    : !m.path ? 'Spine\'s video player for movies, shows and streams. Not installed yet.'
+    : m.ours ? `Installed by Spine${m.tag ? ` (build ${m.tag})` : ''}.`
+    : `Found here: ${m.path}`;
+  const label = busy ? 'Working…' : !m.path ? `${ICON.download} Get mpv (about 35 MB)` : m.ours ? `${ICON.download} Update mpv` : `${ICON.download} Get Spine's own copy`;
+  return grp('mpv', esc(note), `<div class="opts"><button class="btn ${!m.path && !busy ? 'primary' : ''}" data-nav data-key="mpv-get" data-act="getmpv" ${busy ? 'disabled' : ''}>${label}</button></div>`);
+}
+
 // Settings → Look → Home tiles: move consoles and tiles up or down (used by every Home style).
 function tileOrderGroup() {
   const T = tiles();
@@ -1340,6 +1359,20 @@ const ACT = {
   home() { S.panel = null; S.screen = 'home'; S.focusKey = null; render(); },
   search(d) { if (!d || !d.keep) S.query = ''; S.panel = 'search'; S.focusKey = 'q'; render(); },
   settings() { const was = S.panel; S.panel = S.panel === 'settings' ? null : 'settings'; S.focusKey = S.panel ? (was === 'addon' ? 'addaddon' : S.accounts && S.focusKey?.startsWith('acc') ? 'scrapers' : null) : 'gear'; render(); },
+  async getmpv() {
+    if (S.mpvBusy) return;
+    S.mpvBusy = 'Starting…'; if (S.panel === 'settings') S.focusKey = 'mpv-get'; render();
+    try {
+      S.mpv = await api.call('get_mpv');
+      S.mpvBusy = null;
+      S.boot = await api.call('boot'); // movies and shows aren't "blocked" any more
+      render();
+      toast('mpv is ready', 3000);
+    } catch (e) {
+      S.mpvBusy = null; render();
+      toast(String(e || 'Something went wrong.'), 6000);
+    }
+  },
   settab(d) { S.setTab = d.t; S.focusKey = `stab-${d.t}`; render(); document.querySelector('.panel .sheet')?.scrollTo(0, 0); },
   tilemove(d) {
     const T = tiles(), i = T.findIndex((t) => t.id === d.id), j = i + Number(d.d);
@@ -2059,6 +2092,7 @@ setInterval(() => { const c = document.getElementById('clock'); if (c) c.textCon
 
 api.on('fetch-progress', (p) => { S.fetch = p; renderToast(); });
 api.on('fetch-error', (msg) => toast(String(msg), 6000));
+api.on('mpv-progress', (msg) => { if (S.mpvBusy) { S.mpvBusy = String(msg); render(); } });
 api.on('library-updated', (boot) => {
   const before = (S.boot?.systems || []).reduce((n, s) => n + s.games.filter((g) => g.cover).length, 0);
   S.boot = boot; S.fetch = null;

@@ -1,8 +1,8 @@
 ## What's new
-- **Hide genres in Streaming.** Settings → Streaming → Hide genres lists every genre your addons offer. Tick the ones you never want to see (Horror, Reality-TV, Talk-Show...) and those titles stay out of the catalogs and the addon search. Spine loads extra pages so the screen still fills up, and a small note says how many were hidden. Your own lists, Continue watching and Watched keep everything.
+- **Spine gets mpv for you (Windows).** mpv is Spine's video player for movies, shows and streams (Resume, Up next, Skip intro). Settings → Controller & sound → mpv now has a **Get mpv** button: Spine downloads the latest 64-bit build (about 35 MB), checks it against the fingerprint GitHub shows for it, and unpacks it into a `tools` folder next to Spine. The Movies tile shows the same button when mpv is missing. Press it again later to update. Already installed mpv yourself? Spine still finds and uses it.
 
-From 0.22.0:
-- Click an actor or director on a Streaming details page to see everything they've been in.
+From 0.23.0:
+- Hide genres you never want to see in Streaming catalogs and search (Settings → Streaming).
 
 ---
 

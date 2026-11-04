@@ -567,7 +567,26 @@ watching, Watched, person pages (TMDB credits only have genre ids). Titles with 
 Tested in Playwright with a mock fed with Cinemeta's real genre lists (its catalog pages returned 403
 from the workspace on Nov 4; the manifest still loads).
 
-**Next session (owner's choice, Nov 3)**: Spine downloads and sets up mpv on Windows. Owner installed it by hand
+**0.24.0** (Nov 4): Spine downloads mpv on Windows. `spine-core/src/mpvget.rs`: GitHub API
+`repos/shinchiro/mpv-winbuild-cmake/releases/latest`, `is_plain_build` picks `mpv-x86_64-<8 digits>-git-<hex>.7z`
+(not dev / v3 / aarch64 / i686), `parse_release` needs the asset's `digest` ("sha256:<hex>") or refuses;
+`covers::curl_to_file` (curl -o, 30 min max on Windows) -> `tools/mpv-download.7z`, size + sha256 checked,
+`unpack` with **sevenz-rust2** (default-features off, `util` only: LZMA2 + BCJ2, checks each file's CRC; py7zr
+can't do BCJ2) into `tools/mpv.new`, then swapped for `tools/mpv` (old one moved aside; locked = "mpv is still
+open"); `spine-mpv.json` holds the tag. `build_library` now always searches `<data>/tools` first, plus
+`default_search_paths(data dir)` so Program Files etc. are searched even with no ROM/movie folders.
+App: `mpv_status` {windows, path, ours, tag}, `get_mpv` (Windows only, one at a time, emits `mpv-progress`
+lines, then puts the exe into `installed.found`). launch.rs: missing mpv on Windows says
+"Get mpv in Settings → Controller & sound." (`install_hint`); streams too. UI: `mpvGroup` in Settings → Controller
+& sound (Windows only), `needsMpv(blocked)` adds a Get mpv button on the Movies/TV tile and the detail warning;
+after the download the UI reloads `boot` so the warning goes. Tested: real 20261021 archive (34 MB) unpacked
+twice by the ignored test (`SPINE_MPV_7Z=<path> cargo test -- --ignored unpacks_a_real_build`), UI in
+Playwright with a Windows user agent. Not testable here: the real download on Windows (owner to check).
+Workspace note: release pages of other repos: WebFetch `github.com/<o>/<r>/releases/expanded_assets/<tag>`
+(the API is blocked for unattached repos); release downloads themselves work with curl.
+Next: controller in the mpv player (the shinchiro build includes SDL, check `--input-gamepad`).
+
+**Old note (Nov 3), done in 0.24.0**: Spine downloads and sets up mpv on Windows. Owner installed it by hand
 from shinchiro/mpv-winbuild-cmake GitHub releases: plain `mpv-x86_64-<date>-git-<hash>.7z` (not dev / v3 /
 aarch64 / i686 / ffmpeg). Assets are .7z only, so this needs a 7z reader (e.g. the `sevenz-rust` crate) or
 another source; check the release's sha256 shown on GitHub, unpack into an `mpv` folder Spine searches.

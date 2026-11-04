@@ -813,6 +813,50 @@ fn set_setting(key: String, value: serde_json::Value, app: State<App>) {
     app.save();
 }
 
+/// mpv as Spine sees it (Settings → Controller & sound). Windows only offers "Get mpv".
+#[derive(Serialize)]
+struct MpvStatus {
+    windows: bool,
+    /// Where mpv.exe was found (None: not found).
+    path: Option<String>,
+    /// It's the copy Spine downloaded (tools/mpv), with its release tag.
+    ours: bool,
+    tag: Option<String>,
+}
+
+fn mpv_status_of(app: &App) -> MpvStatus {
+    let found = app.installed.lock().unwrap().path("mpv").cloned();
+    let ours = found.as_ref().is_some_and(|p| p.starts_with(spine_core::mpvget::folder(&app.dir)));
+    MpvStatus { windows: cfg!(windows), path: found.map(|p| p.to_string_lossy().to_string()), ours, tag: if ours { spine_core::mpvget::installed_tag(&app.dir) } else { None } }
+}
+
+#[tauri::command]
+fn mpv_status(app: State<App>) -> MpvStatus {
+    mpv_status_of(&app)
+}
+
+static MPV_BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Download mpv into the data folder (Windows). Emits "mpv-progress" with short status lines.
+#[tauri::command]
+async fn get_mpv(handle: AppHandle) -> Result<MpvStatus, String> {
+    use std::sync::atomic::Ordering;
+    if !cfg!(windows) {
+        return Err("Spine downloads mpv on Windows only. On Linux, install mpv from your software manager or Flathub.".into());
+    }
+    if MPV_BUSY.swap(true, Ordering::SeqCst) {
+        return Err("mpv is already downloading.".into());
+    }
+    let dir = handle.state::<App>().dir.clone();
+    let h = handle.clone();
+    let r = tauri::async_runtime::spawn_blocking(move || spine_core::mpvget::install(&dir, &|msg: &str| { let _ = h.emit("mpv-progress", msg); })).await;
+    MPV_BUSY.store(false, Ordering::SeqCst);
+    let (exe, _tag) = r.map_err(|e| e.to_string())??;
+    let app = handle.state::<App>();
+    app.installed.lock().unwrap().found.insert("mpv".into(), exe);
+    Ok(mpv_status_of(&app))
+}
+
 /// Start a game. Emits "game-exited" {id, seconds} when the emulator closes.
 #[tauri::command]
 fn play(id: String, episode: Option<usize>, from_start: Option<bool>, next: Option<String>, look: Option<serde_json::Value>, handle: AppHandle) -> Result<String, String> {
@@ -2009,12 +2053,18 @@ fn build_library(dir: &Path, saved: &Saved) -> (Library, Vec<PathBuf>, Installed
         offline.extend(tv_offline);
     }
     reattach(&mut lib, &dir.join("media"), saved);
-    let mut search: Vec<PathBuf> = vec![];
+    // Programs Spine downloaded itself (mpv) come first; Program Files etc. even without folders.
+    let mut search: Vec<PathBuf> = vec![dir.join("tools")];
     for r in roots.iter().chain(movie_roots.iter()).chain(tv_roots.iter()) {
         for p in launch::default_search_paths(r) {
             if !search.contains(&p) {
                 search.push(p);
             }
+        }
+    }
+    for p in launch::default_search_paths(dir) {
+        if !search.contains(&p) {
+            search.push(p);
         }
     }
     (lib, offline, Installed::detect(&search))
@@ -2173,7 +2223,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, stream_list_set, stream_list_delete, person_credits, tmdb_imdb])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }
