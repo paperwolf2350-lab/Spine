@@ -748,6 +748,7 @@ function settingsPanel() {
       `<button class="swatch ${c === accent ? 'on' : ''}" style="background:${c}" data-nav data-key="acc-${c}" data-act="accent" data-c="${c}" aria-label="Accent ${c}"></button>`).join('');
     const style = waveOn() ? 'wave' : channelsOn() ? 'channels' : bladesOn() ? 'blades' : cubeOn() ? 'cube' : 'classic';
     body = grp('TV mode', 'Spine as your living-room console: Play and Watch, big text for the couch.', `<div class="opts">${chips('tvm', 'tvmode', [['off', 'Off'], ['on', 'On']], tvOn() ? 'on' : 'off')}</div>`)
+      + (tvOn() ? grp('Open TV mode full-screen', 'Spine opens full-screen while TV mode is on. With Start with your PC (Updates &amp; window), your PC starts up like a console.', `<div class="opts">${chips('tvfs', 'tvfs', [['off', 'Off'], ['on', 'On']], st.tvFullscreen ? 'on' : 'off')}</div>`) : '')
       + grp('Theme', tvOn() ? 'Used when TV mode is off. TV mode has its own dark look.' : '', `<div class="opts">
       <button class="chip ${(st.theme || 'cream') === 'cream' ? 'on' : ''}" data-nav data-key="th-cream" data-act="theme" data-t="cream">Cream</button>
       <button class="chip ${st.theme === 'midnight' ? 'on' : ''}" data-nav data-key="th-midnight" data-act="theme" data-t="midnight">Midnight</button>
@@ -2183,7 +2184,8 @@ api.on('game-exited', (p) => {
   if (!hasLibrary) S.screen = 'welcome';
   else { S.screen = 'home'; S.sel = Math.max(0, tiles().findIndex((t) => t.kind === 'sys')); }
   render();
-  if (settings().fullscreen) api.call('set_fullscreen', { on: true });
+  // TV mode can open full-screen on its own (Settings → Look → Open TV mode full-screen).
+  if (settings().fullscreen || (tvOn() && settings().tvFullscreen)) { api.call('set_fullscreen', { on: true }); S.boot.settings.fullscreen = true; }
   if (hasLibrary) api.call('fetch_media');
   api.call('app_version').then((v) => { S.version = v; }).catch(() => {});
   if (settings().autoUpdate !== false) setTimeout(() => checkUpdate(true), 4000);

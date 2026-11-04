@@ -4,7 +4,7 @@
 - **TV mode** (agreed Nov 4): Spine as a living-room console, Play and Watch sections. Three small releases:
   1. TV mode shell: setting, Play screen (consoles row with Recent first, games carousel), Play/Watch switch, big text, safe edges (done, 0.28.0).
   2. Watch screen: Your library (Continue, Movies, TV) and From your addons (Streaming, Search); two Continue rows (your files / streaming) (done, 0.29.0).
-  3. TV-sized game and movie pages, soft sounds, start in TV mode full-screen.
+  3. TV-sized game and movie pages, start in TV mode full-screen (done, 0.30.0; soft sounds dropped, owner likes the current ones).
 - On hold (owner, Nov 4): hide by age rating, only if people ask for it (needs TMDB lookups per title, cached).
 - Later look ideas: matching sounds per style.
 
@@ -12,6 +12,9 @@
 - Nothing planned. (macOS skipped Nov 1: no Mac to test on.)
 
 ## Done
+
+- TV mode: couch-sized game, movie and show pages; option to open TV mode full-screen (0.30.0).
+- TV mode controller navigation fixed for Windows scaling (0.29.1–0.29.3).
 
 - TV mode Watch screen: Continue watching for your files and for streaming, kept apart; Movies, TV, Streaming and Search tiles (0.29.0).
 - TV mode's dark look on every screen (0.28.1).

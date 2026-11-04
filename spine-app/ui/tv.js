@@ -523,6 +523,13 @@ const TV_ACT = {
     render();
   },
   tvmode(d) { S.tv = null; S.focusKey = `tvm-${d.v}`; setSetting('tvMode', d.v === 'on'); },
+  // Open TV mode full-screen: also goes full-screen right away when switched on.
+  tvfs(d) {
+    const on = d.v === 'on';
+    S.focusKey = `tvfs-${d.v}`;
+    if (on && !settings().fullscreen) { api.call('set_fullscreen', { on: true }); S.boot.settings.fullscreen = true; }
+    setSetting('tvFullscreen', on);
+  },
   // Click on a cover: the first click picks it, a click on the picked one plays it (A plays).
   tvgame(d) {
     const { con, at } = tvState();

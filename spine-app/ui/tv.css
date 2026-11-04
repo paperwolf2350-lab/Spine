@@ -15,6 +15,39 @@
 }
 :root[data-theme="tv"] h1, :root[data-theme="tv"] h2, :root[data-theme="tv"] h3 { letter-spacing: 0; }
 
+/* TV-sized pages (0.30): while TV mode is on, game / movie / show pages, Streaming title pages and the person pages
+   get couch-sized text, covers, buttons and episode rows, and wider safe edges. Only sizes change: same markup. */
+:root[data-theme="tv"] .topbar { height: 80px; padding: 0 72px; }
+:root[data-theme="tv"] .hints { height: 60px; padding: 0 72px; font-size: 16px; }
+:root[data-theme="tv"] .hints .glyph { width: 26px; height: 26px; font-size: 12px; }
+:root[data-theme="tv"] .detail { padding: 36px 72px 48px; gap: 12px; }
+:root[data-theme="tv"] .detail-top { gap: 60px; }
+:root[data-theme="tv"] .detail .left { width: 360px; }
+:root[data-theme="tv"] .detail .left.playing { width: 500px; }
+:root[data-theme="tv"] .detail .right { gap: 22px; }
+:root[data-theme="tv"] .detail h2 { font-size: 60px; letter-spacing: 0; }
+:root[data-theme="tv"] .detail .back { font-size: 18px; }
+:root[data-theme="tv"] .detail .metaline { font-size: 20px; }
+:root[data-theme="tv"] .detail .metaline .cat { font-size: 19px; }
+:root[data-theme="tv"] .detail .desc { font-size: 20px; line-height: 1.55; max-width: 900px; }
+:root[data-theme="tv"] .detail .btn { font-size: 19px; padding: 16px 26px; border-radius: 999px; }
+:root[data-theme="tv"] .detail .btn.small { font-size: 16px; padding: 11px 18px; min-height: 46px; }
+:root[data-theme="tv"] .detail .actions .btn.primary { font-size: 22px; padding: 20px 40px; }
+:root[data-theme="tv"] .detail .actions .btn .glyph { width: 30px; height: 30px; font-size: 13px; }
+:root[data-theme="tv"] .detail .facts { max-width: 960px; gap: 16px; }
+:root[data-theme="tv"] .detail .fact { padding: 20px; border-radius: 18px; }
+:root[data-theme="tv"] .detail .fact .k { font-size: 14px; }
+:root[data-theme="tv"] .detail .fact .v { font-size: 19px; }
+:root[data-theme="tv"] .detail .fact .n { font-size: 16px; }
+:root[data-theme="tv"] .detail .cat { font-size: 17px; padding: 11px 18px; }
+:root[data-theme="tv"] .detail .chip { font-size: 17px; padding: 11px 20px; min-height: 48px; border-radius: 999px; }
+:root[data-theme="tv"] .detail h3 { font-size: 24px; }
+:root[data-theme="tv"] .detail .eplist { gap: 10px; }
+:root[data-theme="tv"] .detail .ep { grid-template-columns: 240px minmax(0, 1fr); gap: 22px; padding: 12px; border-radius: 18px; }
+:root[data-theme="tv"] .detail .ep .thumb { width: 240px; border-radius: 12px; }
+:root[data-theme="tv"] .detail .ep .et { font-size: 21px; }
+:root[data-theme="tv"] .detail .ep .eo { font-size: 17px; }
+
 .tvm { --tbg: #101218; --tsurf: #1a1d26; --tsurf2: #262b38; --ttext: #f2efe8; --tmuted: #b4b9c5;
   position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; display: flex; flex-direction: column; padding-top: 30px;
   background: var(--tbg); color: var(--ttext); font-family: 'Lexend', 'Segoe UI', system-ui, sans-serif; }

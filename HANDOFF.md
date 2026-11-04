@@ -706,6 +706,15 @@ stubbed to return zeros: every move in Play and Watch still lands. If other scre
 
 Owner confirmed 0.29.3 (Nov 4): controller navigation in TV mode works as it should (Play and Watch, at his Windows scaling).
 
+**0.30.0** (Nov 4): TV mode release 3 (owner: skip the new sounds, current ones are fine; rest in one update). TV-sized
+pages: `:root[data-theme="tv"]` overrides at the top of tv.css for .topbar, .hints, .detail (padding 72px, cover 360px,
+h2 60px, desc 20px, buttons/chips/facts/cats bigger, episode rows with 240px thumbs). Sizes only, same markup, so it
+covers detail (games, movies, shows) and Streaming's sdetail/sperson (both use .detail). Setting `tvFullscreen`
+(Settings → Look → "Open TV mode full-screen", chips `tvfs-off/on`, `TV_ACT.tvfs`; shown only while TV mode is on):
+start() goes full-screen when `fullscreen || (tvOn() && tvFullscreen)` and marks `S.boot.settings.fullscreen` locally
+(not saved) so the Window button reads "Leave fullscreen"; switching it on also goes full-screen right away.
+TV mode plan (claude/TV-MODE.md) is now complete.
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).
