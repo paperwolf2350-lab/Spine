@@ -617,6 +617,7 @@ image. Setting `consoleIcons` (mono default / systematic / lines), Settings → 
 Movies/TV/Streaming/Favorites/etc. keep line icons. Masks don't load from file:// in Chromium: test the UI through
 `python3 -m http.server` in ui/ (the app serves it from its own origin, so it's fine there). Owner's call (Nov 4):
 empty console folders stay hidden (only consoles with games show).
+Owner confirmed 0.26.0 (Nov 4): looks much better, happy with Monochrome as default.
 
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
