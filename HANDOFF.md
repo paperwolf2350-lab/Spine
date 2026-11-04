@@ -704,6 +704,8 @@ direction calls restoreFocus. Test that proves it: the gamepad harness with `Ele
 stubbed to return zeros: every move in Play and Watch still lands. If other screens (game pages, Settings) show the same
 "can't move" on his PC, `move()` itself needs a look on WebView2 (zoom + rects).
 
+Owner confirmed 0.29.3 (Nov 4): controller navigation in TV mode works as it should (Play and Watch, at his Windows scaling).
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).
