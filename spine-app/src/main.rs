@@ -279,6 +279,9 @@ struct GameView {
     /// TV shows and movies: the name the user typed for TMDB ("Fix match").
     #[serde(skip_serializing_if = "Option::is_none")]
     show_query: Option<String>,
+    /// The show's own Specials on TMDB (season 0), to pick from in a special's Fix match.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    specials: Vec<SpecialChoice>,
     /// TV shows: the arcs the user matched, by arc name.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     arcs: BTreeMap<String, spine_core::tv::ArcMap>,
@@ -300,6 +303,13 @@ struct EpisodeView {
     query: Option<String>,
     /// Movies & specials: the user said it isn't on TMDB (no lookup, file name shown).
     off: bool,
+}
+
+#[derive(Serialize, Clone)]
+struct SpecialChoice {
+    number: u32,
+    name: Option<String>,
+    year: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -435,6 +445,10 @@ fn view(app: &App) -> Boot {
                                 episodes: if g.episodes.is_empty() { vec![] } else { episode_views(g, &media, &rel, &saved.arc_seasons) },
                                 tmdb_seasons: if g.episodes.iter().any(|e| e.season.is_none() && e.number.is_some()) { spine_core::tv::load_seasons(&media, &g.id).map(|s| s.list).unwrap_or_default() } else { vec![] },
                                 show_query: saved.show_queries.get(&g.id).cloned(),
+                                specials: if g.episodes.iter().any(|e| e.number.is_none()) {
+                                    spine_core::tv::load_seasons(&media, &g.id).and_then(|s| s.seasons.get(&0).cloned()).unwrap_or_default().into_iter()
+                                        .map(|e| SpecialChoice { number: e.number, name: e.name, year: e.air.map(|a| a.chars().take(4).collect()) }).collect()
+                                } else { vec![] },
                                 arcs: saved.arc_seasons.iter().filter_map(|(k, v)| k.strip_prefix(&format!("{}|", g.id)).map(|a| (a.to_string(), *v))).collect(),
                             })
                             .collect(),
@@ -491,7 +505,7 @@ fn episode_views(g: &spine_core::Game, media: &Path, rel: &dyn Fn(&Path) -> Opti
                 let note = match (sp, found) {
                     _ if off => None,
                     (_, Some(x)) => {
-                        let mut parts = vec!["Movie".to_string()];
+                        let mut parts = vec![if x.episode.is_some() { "Special" } else { "Movie" }.to_string()];
                         parts.extend(x.year.clone());
                         if let Some(m) = x.runtime {
                             parts.push(if m >= 60 { format!("{} h {} min", m / 60, m % 60) } else { format!("{m} min") });

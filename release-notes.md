@@ -1,5 +1,9 @@
 ## What's new
-- **Fix match for each movie or special in a show.** On a show's "Movies & specials" tab, every file now has its own pencil button beside the watched check. It opens Fix match for just that file: type the English title as TMDB lists it and search again, or choose **Not on TMDB** for OVAs and extras TMDB doesn't have, so Spine shows the file's own name instead of a wrong movie.
+- **Specials from the show's own list on TMDB.** OVAs, OADs and extras in a show's folder are now also looked up in the show's "Specials" on TMDB (season 0), not only among movies. When a file's name matches one, it gets that special's name, summary, year and picture. Files that weren't found before are tried again by themselves.
+- **Pick a special from a list.** Fix match (the pencil beside a file on "Movies & specials") now lists every special TMDB has for the show, so you can just pick the right one. Handy when the file only says "OAD 01", or for ones you set to "Not on TMDB" earlier.
+
+From 0.20.3:
+- Fix match for each movie or special in a show, with a "Not on TMDB" choice.
 
 ---
 

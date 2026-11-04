@@ -362,6 +362,11 @@ pub struct TmdbEpisode {
     pub overview: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub still: Option<String>,
+    /// "2014-04-09" (kept for specials, season 0).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub air: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<u32>,
 }
 
 /// The show's TMDB id and the seasons fetched so far (saved next to its info).
@@ -395,6 +400,66 @@ pub struct Special {
     /// The search that found it (or failed), shown when fixing a match.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub query: Option<String>,
+    /// Found in the show's own "Specials" (TMDB season 0): that episode's number.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub episode: Option<u32>,
+    /// 1: season 0 was checked too (looked up with 0.20.4 or later).
+    #[serde(default)]
+    pub v: u8,
+}
+
+/// Fix match: the user picked this episode of the show's Specials (season 0).
+pub const S0_PREFIX: &str = "s0:";
+
+/// The season 0 episode a special's name fits best, if one clearly does.
+/// Words of the show's name and words like OVA / OAD / Special don't count.
+pub fn match_special(eps: &[TmdbEpisode], queries: &[String], show: &str) -> Option<u32> {
+    use std::collections::HashSet;
+    const SKIP: &[&str] = &["oad", "ova", "ona", "oav", "special", "specials", "sp", "episode", "ep", "the", "a", "an", "of", "no", "movie", "part", "and", "to", "in", "on", "bd", "tv"];
+    let words = |t: &str| -> Vec<String> { t.to_lowercase().split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(String::from).collect() };
+    let show_w: HashSet<String> = words(show).into_iter().collect();
+    let key = |t: &str| -> (HashSet<String>, HashSet<u32>) {
+        let (mut ws, mut ns) = (HashSet::new(), HashSet::new());
+        for w in words(t) {
+            if let Ok(n) = w.parse::<u32>() {
+                ns.insert(n);
+            } else if !SKIP.contains(&w.as_str()) && !show_w.contains(&w) && w.chars().count() > 1 {
+                ws.insert(w);
+            }
+        }
+        (ws, ns)
+    };
+    for q in queries {
+        let (qw, qn) = key(q);
+        if qw.is_empty() {
+            continue;
+        }
+        // Score each episode: the file's words found in TMDB's name, a little extra for a closer name or the same number.
+        let mut scored: Vec<(f32, u32)> = eps
+            .iter()
+            .filter_map(|e| {
+                let (ew, en) = key(e.name.as_deref()?);
+                if ew.is_empty() {
+                    return None;
+                }
+                let shared = qw.intersection(&ew).count() as f32;
+                // Most of the file's words have to be in TMDB's name (theirs often has a subtitle too).
+                if shared / (qw.len() as f32) < 0.75 {
+                    return None;
+                }
+                let num = !qn.is_empty() && !en.is_empty() && qn == en;
+                Some((shared / qw.len() as f32 + 0.1 * shared / ew.len() as f32 + if num { 0.05 } else { 0.0 }, e.number))
+            })
+            .collect();
+        scored.sort_by(|a, b| b.0.total_cmp(&a.0));
+        match scored.as_slice() {
+            [] => continue,
+            [one] => return Some(one.1),
+            [a, b, ..] if a.0 - b.0 > 0.001 => return Some(a.1),
+            _ => return None, // two equally good: leave it to Fix match
+        }
+    }
+    None
 }
 
 /// Where a special's picture is kept.
@@ -576,7 +641,7 @@ pub fn parse_season(json: &serde_json::Value) -> Vec<TmdbEpisode> {
     let s = |v: &serde_json::Value| v.as_str().map(str::trim).filter(|x| !x.is_empty()).map(String::from);
     json["episodes"]
         .as_array()
-        .map(|a| a.iter().filter_map(|e| Some(TmdbEpisode { number: e["episode_number"].as_u64()? as u32, name: s(&e["name"]), overview: s(&e["overview"]), still: s(&e["still_path"]) })).collect())
+        .map(|a| a.iter().filter_map(|e| Some(TmdbEpisode { number: e["episode_number"].as_u64()? as u32, name: s(&e["name"]), overview: s(&e["overview"]), still: s(&e["still_path"]), air: s(&e["air_date"]), runtime: e["runtime"].as_u64().filter(|m| *m > 0).map(|m| m as u32) })).collect())
         .unwrap_or_default()
 }
 
@@ -665,6 +730,10 @@ pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, 
         let arc_of = |group: &str| arc(&g.id, group);
         let mut wanted: std::collections::BTreeSet<u32> = g.episodes.iter().filter_map(|e| e.season).collect();
         wanted.extend(g.episodes.iter().filter(|e| e.season.is_none()).filter_map(|e| arc_of(&e.group)).map(|m| m.season));
+        // The show's own Specials (season 0), for its OVAs, OADs and extras.
+        if g.episodes.iter().any(|e| e.number.is_none()) {
+            wanted.insert(0);
+        }
         // A later season TMDB doesn't have is probably counted on in season 1.
         if wanted.iter().any(|s| *s > 1) {
             wanted.insert(1);
@@ -685,19 +754,52 @@ pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, 
         // Movies in the show's folder: look each up among TMDB's movies.
         for e in g.episodes.iter().filter(|e| e.number.is_none()) {
             let file = e.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
-            if seasons.specials.contains_key(&file) {
+            // Not found before season 0 was checked: try again.
+            if seasons.specials.get(&file).is_some_and(|x| x.tmdb != 0 || x.v >= 1 || x.query.as_deref() == Some(NO_MATCH)) {
                 continue;
             }
-            let queries = match special_query(&g.id, &file) {
+            let typed = special_query(&g.id, &file);
+            let queries = match typed.clone() {
                 // "Not on TMDB" picked in Fix match: no lookup, the file's own name is shown.
                 Some(q) if q == NO_MATCH => {
-                    seasons.specials.insert(file, Special { query: Some(NO_MATCH.into()), ..Default::default() });
+                    seasons.specials.insert(file, Special { query: Some(NO_MATCH.into()), v: 1, ..Default::default() });
                     changed = true;
                     continue;
                 }
+                Some(q) if q.starts_with(S0_PREFIX) => vec![],
                 Some(q) => vec![q],
                 None => special_queries(e),
             };
+            // The show's own Specials first: the episode picked in Fix match, else one whose name fits.
+            let s0 = seasons.seasons.get(&0).cloned().unwrap_or_default();
+            let picked = typed.as_deref().and_then(|q| q.strip_prefix(S0_PREFIX)).and_then(|n| n.trim().parse::<u32>().ok());
+            let show_name = crate::screenscraper::load_info(media, &g.id).and_then(|i| i.name).unwrap_or_else(|| g.title.clone());
+            let mut titles = queries.clone();
+            if typed.is_none() {
+                titles.extend(e.title.clone());
+            }
+            let ep_no = picked.or_else(|| match_special(&s0, &titles, &show_name));
+            if let Some(ep) = ep_no.and_then(|n| s0.iter().find(|x| x.number == n)) {
+                if let Some(p) = &ep.still {
+                    let _ = covers::download_image(&agent, &format!("{IMG}w300{p}"), &special_still(media, &g.id, &file));
+                }
+                let special = Special {
+                    tmdb: seasons.tmdb,
+                    name: ep.name.clone(),
+                    overview: ep.overview.clone(),
+                    year: ep.air.as_ref().map(|a| a.chars().take(4).collect()),
+                    runtime: ep.runtime,
+                    query: queries.first().cloned().or_else(|| e.title.clone()),
+                    episode: Some(ep.number),
+                    v: 1,
+                };
+                seasons.specials.insert(file, special);
+                changed = true;
+                continue;
+            }
+            if queries.is_empty() {
+                continue;
+            }
             let mut hit = None;
             let mut failed = false;
             for q in &queries {
@@ -720,7 +822,7 @@ pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, 
                 continue;
             }
             let special = match hit {
-                None => Special { query: queries.first().cloned(), ..Default::default() },
+                None => Special { query: queries.first().cloned(), v: 1, ..Default::default() },
                 Some((id, q)) => {
                     let j = match get_json(&format!("{API}/movie/{id}?language=en-US"), key) {
                         Ok(j) => j,
@@ -731,7 +833,7 @@ pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, 
                     if let Some(p) = d.backdrop.as_ref().or(d.poster.as_ref()) {
                         let _ = covers::download_image(&agent, &format!("{IMG}w300{p}"), &special_still(media, &g.id, &file));
                     }
-                    Special { tmdb: id, name: d.info.name, overview: d.info.description, year: d.info.year, runtime: d.info.runtime, query: Some(q) }
+                    Special { tmdb: id, name: d.info.name, overview: d.info.description, year: d.info.year, runtime: d.info.runtime, query: Some(q), episode: None, v: 1 }
                 }
             };
             seasons.specials.insert(file, special);
@@ -902,6 +1004,21 @@ mod tests {
     }
 
     #[test]
+    fn season0_matching() {
+        let ep = |n: u32, name: &str| TmdbEpisode { number: n, name: Some(name.into()), ..Default::default() };
+        let s0 = vec![ep(1, "Ilse's Notebook: Notes from a Squad Leader"), ep(2, "The Sudden Visitor: The Torturous Curse of Youth"), ep(3, "Distress"), ep(4, "No Regrets (Part 1)"), ep(5, "No Regrets (Part 2)"), ep(6, "Lost Girls: Wall Sina, Goodbye (Part 1)")];
+        let q = |t: &str| vec![t.to_string()];
+        let show = "Attack on Titan";
+        assert_eq!(match_special(&s0, &q("Attack on Titan OAD 01 - Ilse's Notebook"), show), Some(1));
+        assert_eq!(match_special(&s0, &q("OAD 3 - Distress"), show), Some(3));
+        assert_eq!(match_special(&s0, &q("No Regrets Part 2"), show), Some(5));
+        assert_eq!(match_special(&s0, &q("No Regrets"), show), None);
+        assert_eq!(match_special(&s0, &q("OAD 01"), show), None);
+        assert_eq!(match_special(&s0, &q("Guren no Yumiya"), show), None);
+        assert_eq!(match_special(&s0, &q("Attack on Titan"), show), None);
+    }
+
+    #[test]
     fn special_names() {
         let sp = |file: &str, title: &str| Episode { path: PathBuf::from(file), group: SPECIALS.into(), season: None, number: None, title: Some(title.into()), absolute: None };
         assert_eq!(split_year("Wind Breaker (2024)"), ("Wind Breaker".to_string(), Some("2024".to_string())));
@@ -926,7 +1043,7 @@ mod tests {
         let season: serde_json::Value = serde_json::from_str(r#"{"episodes":[{"episode_number":1,"name":"Heaven and Hell","overview":"Maru and Kiruko...","still_path":"/s1.jpg"},{"episode_number":2,"name":"Two Confessions","still_path":null}]}"#).unwrap();
         let eps = parse_season(&season);
         assert_eq!(eps.len(), 2);
-        assert_eq!(eps[0], TmdbEpisode { number: 1, name: Some("Heaven and Hell".into()), overview: Some("Maru and Kiruko...".into()), still: Some("/s1.jpg".into()) });
+        assert_eq!(eps[0], TmdbEpisode { number: 1, name: Some("Heaven and Hell".into()), overview: Some("Maru and Kiruko...".into()), still: Some("/s1.jpg".into()), ..Default::default() });
         assert_eq!(eps[1].still, None);
     }
 

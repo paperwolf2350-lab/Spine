@@ -518,6 +518,16 @@ AniSkip confirmed on the owner's PC (Nov 2): Demon Slayer and Edgerunners S1E2 (
 skips the lookup and records it, EpisodeView gets `off: true` (no note, file's own title). Empty box =
 Spine's own guess again. Owner found it with Attack on Titan (OADs matched a UFC event and Girls und Panzer).
 
+Owner confirmed 0.20.3: everything TMDB has as a movie now matches.
+
+**0.20.4**: specials also from TMDB season 0. `fetch_details` fetches season 0 for shows with any special
+(`TmdbEpisode` now keeps `air`, `runtime`). Per special: Fix match pick `s0:<n>` (`tv::S0_PREFIX`) wins,
+else `tv::match_special` (file's words, minus show name and OVA/OAD/Special..., must be >= 75% inside
+TMDB's episode name; ties = no match), else the movie search as before. `Special` gained `episode`
+(season 0 number, note says "Special · year") and `v` (1 = checked with season 0; old not-found entries
+with v 0 are retried). GameView `specials` (SpecialChoice: number, name, year) feeds a pick list in
+`specialPanel`. If season 0 isn't enough, next idea agreed with the owner: AniList as a backup for anime.
+
 **Next session (owner's choice, Nov 3)**: Spine downloads and sets up mpv on Windows. Owner installed it by hand
 from shinchiro/mpv-winbuild-cmake GitHub releases: plain `mpv-x86_64-<date>-git-<hash>.7z` (not dev / v3 /
 aarch64 / i686 / ffmpeg). Assets are .7z only, so this needs a 7z reader (e.g. the `sevenz-rust` crate) or

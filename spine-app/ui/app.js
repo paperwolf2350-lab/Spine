@@ -861,15 +861,18 @@ function specialPanel() {
   const found = findGame(S.spFix.id);
   const e = found?.g.episodes?.[S.spFix.ep];
   if (!e) return '';
-  const now = e.off ? 'Not on TMDB (shows the file name)' : e.note?.startsWith('Movie') ? `${e.title || ''} · ${e.note}` : 'Nothing found yet';
+  const now = e.off ? 'Not on TMDB (shows the file name)' : /^(Movie|Special)/.test(e.note || '') ? `${e.title || ''} · ${e.note}` : 'Nothing found yet';
+  const sps = found.g.specials || [];
   return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="Fix match">
     <h2>Fix match</h2>
-    <span class="note">Spine looks this up among TMDB's movies. If it's wrong, type its English title as TMDB lists it (for example "Attack on Titan: Crimson Bow and Arrow") and search again. Leave the box empty to go back to Spine's own guess. If it isn't on TMDB at all (many OVAs and extras aren't), choose "Not on TMDB".</span>
+    <span class="note">Spine looks this up in the show's specials on TMDB, then among TMDB's movies. If it's wrong, type its English title as TMDB lists it (for example "Attack on Titan: Crimson Bow and Arrow") and search again. Leave the box empty to go back to Spine's own guess. If it isn't on TMDB at all (many OVAs and extras aren't), choose "Not on TMDB".</span>
     <div class="grp"><span class="k">${esc(e.file)}</span>
       <span class="note">Now: ${esc(now)}</span>
       <label class="field"><span>Search TMDB for</span><input type="text" id="spq" data-nav data-key="spq" data-enter="setspecial" value="${esc(e.off ? '' : e.query || e.title || '')}" autocomplete="off" spellcheck="false"></label>
       <div class="opts"><button class="btn primary" data-nav data-key="sqgo" data-act="setspecial">Search again</button>
       ${e.off ? '' : `<button class="btn" data-nav data-key="sqoff" data-act="setspecial" data-off="1">Not on TMDB</button>`}</div></div>
+    ${sps.length ? `<div class="grp"><span class="k">Or pick it from ${esc(found.g.info?.name || found.g.title)}'s specials on TMDB</span>
+      ${sps.map((x) => `<button class="choice" data-nav data-key="s0-${x.number}" data-act="setspecial" data-s0="${x.number}"><span class="t">${esc(x.name || 'Special ' + x.number)}</span><span class="n">Special ${x.number}${x.year ? ' · ' + esc(x.year) : ''}</span></button>`).join('')}</div>` : ''}
   </aside></div>`;
 }
 
@@ -1396,11 +1399,11 @@ const ACT = {
     const sp = S.spFix;
     const e = findGame(sp?.id)?.g.episodes?.[sp.ep];
     if (!e) return;
-    const q = d.off ? '-' : document.getElementById('spq')?.value || '';
+    const q = d.off ? '-' : d.s0 ? 's0:' + d.s0 : document.getElementById('spq')?.value || '';
     S.boot = await api.call('set_special_query', { id: sp.id, file: e.file, query: q });
     S.panel = null; S.focusKey = 'spfix-' + sp.ep;
     render();
-    toast(d.off ? 'Showing the file name' : 'Searching TMDB…', 4000);
+    toast(d.off ? 'Showing the file name' : d.s0 ? 'Getting that special…' : 'Searching TMDB…', 4000);
     api.call('fetch_media');
   },
   showfix(d) { S.showFix = d.id; S.panel = 'showfix'; S.focusKey = 'showq'; render(); },
