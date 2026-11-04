@@ -551,6 +551,8 @@ addons for the name on the Search tab: `sPersonFallback`) and `tmdb_imdb(kind, t
 `S_STREAM.imdb`). A title opened from a person has addon null (`addon_meta` falls back to any meta addon/Cinemeta),
 `fromPerson: true`; details "From" fact says "Your addons". Not testable live from the workspace (needs the owner's
 TMDB key): parser tested with sample JSON, UI in Playwright with real Cinemeta meta.
+Owner confirmed 0.22.0 working (Nov 4). Next: owner picks between hiding genres (then age ratings) and
+controller in the mpv player; mpv download on Windows is still pending too.
 
 **Next session (owner's choice, Nov 3)**: Spine downloads and sets up mpv on Windows. Owner installed it by hand
 from shinchiro/mpv-winbuild-cmake GitHub releases: plain `mpv-x86_64-<date>-git-<hash>.7z` (not dev / v3 /
