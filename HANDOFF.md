@@ -624,6 +624,14 @@ blocked launcher for movies/tv, a leftover from the VLC days). Now every system 
 so Movies/TV say mpv ("Get mpv in Settings → ..." + Get mpv button on Windows, "Install mpv." + Flathub link
 on Linux). Test `player_hint_tests::no_player_suggests_mpv`.
 
+**0.27.0** (Nov 4): "Start with your PC" (Settings → Updates & window, chips `as-off`/`as-on`, `ACT.autostart`).
+`spine-app/src/autostart.rs`: Windows = HKCU\...\CurrentVersion\Run value "Spine" = quoted exe path (`winreg`,
+Windows-only dep, already in Cargo.lock via Tauri); Linux = `~/.config/autostart/spine.desktop` (`linux::desktop_entry`
++ X-GNOME-Autostart-enabled=true; Exec = $APPIMAGE when running as one). The OS setting is the truth: Boot `autostart`
+= `autostart::is_on()` (Hidden=true / enabled=false count as off); command `set_autostart(on)` returns the new state.
+`autostart::refresh()` at start rewrites the entry if Spine moved. Not settable in the workspace: real Windows registry
+(owner to check: Task Manager → Startup apps should list Spine).
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).

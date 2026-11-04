@@ -796,6 +796,7 @@ function settingsPanel() {
       ${S.update?.available ? `<button class="btn primary" data-nav data-key="upd-go" data-act="installupdate">${ICON.download} Update to ${esc(S.update.latest)}</button>` : ''}
       <button class="btn" data-nav data-key="upd-check" data-act="checkupdate">Check now</button>
       <button class="chip ${st.autoUpdate !== false ? 'on' : ''}" data-nav data-key="upd-auto" data-act="autoupdate">${st.autoUpdate !== false ? 'Checks when Spine starts' : 'Not checking automatically'}</button></div>`)
+      + grp('Start with your PC', 'Spine opens by itself when you log in. With Fullscreen on, it feels like a console.', `<div class="opts">${chips('as', 'autostart', [['off', 'Off'], ['on', 'On']], S.boot.autostart ? 'on' : 'off')}</div>`)
       + grp('Window', '', `<div class="opts">
       <button class="btn" data-nav data-key="fs" data-act="fullscreen">${st.fullscreen ? 'Leave fullscreen' : 'Fullscreen (couch mode)'}</button>
       <button class="btn" data-nav data-key="quit" data-act="quit">Quit Spine</button></div>`);
@@ -1754,6 +1755,12 @@ const ACT = {
   },
   homestyle(d) { S.focusKey = `hs-${d.s}`; setSetting('home_style', d.s); },
   wavecat(d) { const c = waveCats()[+d.i]; if (!c) return; S.wave.cat = c.id; waveSync(true); },
+  async autostart(d) {
+    S.focusKey = `as-${d.v}`;
+    try { S.boot.autostart = await api.call('set_autostart', { on: d.v === 'on' }); }
+    catch (e) { toast(String(e || 'Something went wrong.'), 6000); }
+    render();
+  },
   consoleicons(d) { S.focusKey = `ci-${d.v}`; setSetting('consoleIcons', d.v); },
   accent(d) { S.focusKey = `acc-${d.c}`; setSetting('accent', d.c); },
   async rescan() { S.panel = null; await doScan(S.boot.rom_root); },

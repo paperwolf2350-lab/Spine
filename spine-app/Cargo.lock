@@ -3013,7 +3013,7 @@ dependencies = [
 
 [[package]]
 name = "spine"
-version = "0.26.0"
+version = "0.27.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3022,11 +3022,12 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "winreg",
 ]
 
 [[package]]
 name = "spine-core"
-version = "0.26.0"
+version = "0.27.0"
 dependencies = [
  "percent-encoding",
  "regex",

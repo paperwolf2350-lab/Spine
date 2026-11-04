@@ -1,8 +1,8 @@
 ## What's new
-- **Points you to the right player.** With neither mpv nor VLC installed, opening a movie or episode now suggests mpv (Spine's own player, with resume, Skip intro and Up next) instead of VLC. On Windows that comes with the **Get mpv** button, so it's one click.
+- **Start Spine when you log in.** Settings → Updates & window → Start with your PC → On. Spine then opens by itself when you turn on your PC, like a console. Turn on Fullscreen too for the full effect. Works on Windows and Linux; if you switch it off in Task Manager or Startup Applications, Spine sees that too.
 
-From 0.26.0:
-- New console icons from RetroArch's "Monochrome" set (or "Systematic", or Spine's old "Lines"), Settings → Look → Console icons.
+From 0.26.1:
+- With no video player installed, Spine now suggests mpv (with a one-click **Get mpv** on Windows).
 
 ---
 

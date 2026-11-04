@@ -17,6 +17,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
+mod autostart;
 mod pad;
 mod update;
 #[cfg(target_os = "linux")]
@@ -365,6 +366,8 @@ struct Boot {
     stream_watched: BTreeMap<String, serde_json::Value>,
     /// Streamed movies/episodes with a remembered source (Resume can reopen it).
     stream_links: Vec<String>,
+    /// Spine starts when the user logs in (the computer's own setting).
+    autostart: bool,
 }
 
 fn view(app: &App) -> Boot {
@@ -485,6 +488,7 @@ fn view(app: &App) -> Boot {
         stream_lists: saved.stream_lists.clone(),
         stream_watched: saved.stream_watched.clone(),
         stream_links: app.links.lock().unwrap().keys().cloned().collect(),
+        autostart: autostart::is_on(),
     }
 }
 
@@ -1915,6 +1919,12 @@ fn quit(handle: AppHandle) {
     handle.exit(0);
 }
 
+/// Settings → Updates & window → "Start Spine when I log in". Returns the new state.
+#[tauri::command]
+fn set_autostart(on: bool) -> Result<bool, String> {
+    autostart::set(on)
+}
+
 #[tauri::command]
 fn set_fullscreen(on: bool, handle: AppHandle) {
     if let Some(w) = handle.get_webview_window("main") {
@@ -2181,6 +2191,7 @@ fn main() {
     }
     #[cfg(target_os = "linux")]
     linux::ensure_menu_entry();
+    autostart::refresh();
     let mut saved: Saved = fs::read_to_string(dir.join("spine-state.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
     backfill_watched(&mut saved);
     let media = dir.join("media");
@@ -2223,7 +2234,7 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, set_autostart, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }
