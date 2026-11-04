@@ -285,6 +285,32 @@ function tvWatchStep(row, d) {
   SFX.play('move');
 }
 
+// Up / down on Watch go to a fixed place instead of "the nearest thing on screen":
+// banner → tiles → Continue · your files → Continue · streaming, and back up the same way.
+// B in a Continue row backs out to the tiles.
+function tvWatchNav(btn) {
+  if (!['up', 'down', 'B'].includes(btn)) return false;
+  const cur = document.activeElement;
+  const rows = ['l', 's'].filter((r) => document.getElementById(`tvcwt-${r}`));
+  const cardOf = (r) => document.querySelectorAll(`#tvcwt-${r} .tv-cwc`)[S.tv.w[r]] || document.querySelector(`#tvcwt-${r} .tv-cwc`);
+  const tiles = [...document.querySelectorAll('#tvm .tv-wt')];
+  const tile = () => tiles.find((t) => t.dataset.key === S.tv.wtile) || tiles[0];
+  const heroBtn = () => document.querySelector('#tvwhero [data-nav]');
+  const go = (el) => { if (el) { focusEl(el, false, false); SFX.play('move'); } else SFX.play('edge'); return true; };
+  const card = cur?.closest?.('.tv-cwc');
+  if (card) {
+    const i = rows.indexOf(card.dataset.row);
+    if (btn === 'up') return go(i > 0 ? cardOf(rows[i - 1]) : tile() || heroBtn());
+    if (btn === 'down') return go(i < rows.length - 1 ? cardOf(rows[i + 1]) : null);
+    return go(tile() || heroBtn());
+  }
+  if (btn === 'B') return false;
+  if (cur?.closest?.('.tv-wt')) return go(btn === 'down' ? (rows.length ? cardOf(rows.includes(S.tv.w.row) ? S.tv.w.row : rows[0]) : null) : heroBtn() || document.querySelector('[data-key="tvs-watch"]'));
+  if (cur?.closest?.('#tvwhero')) return go(btn === 'down' ? tile() || (rows.length ? cardOf(rows[0]) : null) : document.querySelector('[data-key="tvs-watch"]'));
+  if (cur?.closest?.('.tv-top') && btn === 'down') return go(heroBtn() || tile() || (rows.length ? cardOf(rows[0]) : null));
+  return false;
+}
+
 function tvWatchMount() {
   const box = document.getElementById('tvm');
   if (!box || !box.classList.contains('watch')) return;
@@ -292,6 +318,8 @@ function tvWatchMount() {
   tvWatchSync();
   // Focus that reaches a card any way (up/down, mouse) makes it the picked one of its row.
   box.addEventListener('focusin', (e) => {
+    const t = e.target.closest?.('.tv-wt');
+    if (t) { S.tv.wtile = t.dataset.key; return; }
     const c = e.target.closest?.('.tv-cwc');
     if (!c) return;
     const r = c.dataset.row, k = +c.dataset.k;
@@ -361,17 +389,10 @@ function tvKey(btn) {
   tvState();
   if (btn === 'LT' || btn === 'RT') { tvSec(S.tv.sec === 'play' ? 'watch' : 'play'); return true; }
   if (S.tv.sec === 'watch') {
-    if (btn === 'B') { tvSec('play'); return true; }
     if (btn === 'LB' || btn === 'RB') return true;
+    if (tvWatchNav(btn)) return true;
     const c = document.activeElement?.closest?.('.tv-cwc');
-    if (!c) {
-      // From the banner, down goes to the Continue row you were on.
-      if (btn === 'down' && document.activeElement?.closest?.('#tvwhero')) {
-        const el = document.querySelectorAll(`#tvcwt-${S.tv.w.row} .tv-cwc`)[S.tv.w[S.tv.w.row]];
-        if (el) { focusEl(el, false, false); SFX.play('move'); return true; }
-      }
-      return false;
-    }
+    if (!c) { if (btn === 'B') { tvSec('play'); return true; } return false; }
     const r = c.dataset.row;
     if (btn === 'left' || btn === 'right') { tvWatchStep(r, btn === 'right' ? 1 : -1); return true; }
     if (btn === 'X') { if (r === 'l') TV_ACT.tvcw({ row: r, k: c.dataset.k, from: 'start' }); return true; }
@@ -388,14 +409,18 @@ function tvKey(btn) {
     if (btn === 'up') { focusKey(`con-${con.id}`); return true; }
     if (btn === 'down') { SFX.play('edge'); return true; }
     if (btn === 'X') { ACT.open({ id: con.items[at].g.id, from: 'home' }); return true; }
+    if (btn === 'B') { focusKey(`con-${con.id}`); return true; }
     return false;
   }
   if (zone === 'cons') {
     if (btn === 'left' || btn === 'right') { tvConGo(btn === 'right' ? 1 : -1, 'cons'); return true; }
     if (btn === 'down') { focusKey(tvGameKey(con.items[at])); return true; }
     if (btn === 'up') { focusKey('tvplay'); return true; }
+    if (btn === 'B') { focusKey(tvGameKey(con.items[at])); return true; }
     return false;
   }
+  // Top bar: down goes to the banner's Play button.
+  if (btn === 'down' && cur?.closest?.('.tv-top')) { focusKey('tvplay'); return true; }
   // Banner buttons: down goes to the games (the row you were on), not the nearest tile.
   if (btn === 'down' && cur?.closest?.('#tvhero')) { focusKey(`con-${con.id}`); return true; }
   return false;

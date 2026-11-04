@@ -1,4 +1,7 @@
 ## What's new
+- **TV mode: easier to move around with a controller.** Up and down now always go to the next row: top bar → banner → tiles → Continue watching · your files → Continue watching · streaming, and back up the same way. **B** backs out of a row (a Continue row goes back to the tiles; the games row goes back to the consoles), and B on the Watch tiles goes to Play.
+
+From 0.29.0:
 - **TV mode: the Watch screen.** Press RT (or pick Watch at the top) to see what you're in the middle of:
   - **Continue watching · your files**: your own movies and shows, with a progress bar. A resumes right where you stopped (or starts the next episode), X starts over, Y takes it off the row.
   - **Continue watching · streaming**: titles from your addons. A opens the title's page with Resume ready, Y takes it off the row.

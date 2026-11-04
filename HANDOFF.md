@@ -676,6 +676,14 @@ removes last_played[id]; resume position kept) or `stream_forget`. Picked card g
 (`.tv-cw:focus-within`). Tested in Playwright (1920x1080, 1280x720) with mock progress/stream_recent data.
 Next: release 3 (TV-sized game/movie pages, soft sounds, start in TV mode full-screen).
 
+**0.29.1** (Nov 4): owner: "with a controller I can't exit whatever row I entered (e.g. Continue watching · your files)".
+Not reproducible here (keyboard, simulated gamepad via a fake `navigator.getGamepads` in Playwright, WebKitGTK all moved
+fine), so up/down on Watch no longer use spatial `move()`: `tvWatchNav` sends them to fixed places (top → banner main
+button → last tile `S.tv.wtile` → row l card → row s card, and back), B in a Continue row → tiles, B elsewhere on Watch →
+Play. Play: B in games → consoles, B in consoles → games, top bar down → banner Play. Gamepad test harness: init script
+`window.__pad` {buttons[17], axes} + `navigator.getGamepads = () => [__pad]` + `document.hasFocus = () => true`, then
+toggle `__pad.buttons[i].pressed` with ~90 ms holds. If the owner still gets stuck: ask Windows or Linux, D-pad or stick.
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).
