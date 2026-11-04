@@ -619,6 +619,11 @@ Movies/TV/Streaming/Favorites/etc. keep line icons. Masks don't load from file:/
 empty console folders stay hidden (only consoles with games show).
 Owner confirmed 0.26.0 (Nov 4): looks much better, happy with Monochrome as default.
 
+**0.26.1** (Nov 4): with no player installed, Movies/TV said "Install VLC." (`launch::plan` kept the *last*
+blocked launcher for movies/tv, a leftover from the VLC days). Now every system reports its first launcher,
+so Movies/TV say mpv ("Get mpv in Settings → ..." + Get mpv button on Windows, "Install mpv." + Flathub link
+on Linux). Test `player_hint_tests::no_player_suggests_mpv`.
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).

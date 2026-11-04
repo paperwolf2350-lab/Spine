@@ -245,12 +245,8 @@ pub fn plan(sys: &System, game: &Game, installed: &Installed) -> LaunchPlan {
         if p.blocked.is_none() {
             return p;
         }
-        // Movies: when no player is installed, suggest VLC (the easiest to install).
-        if sys.id == "movies" || sys.id == "tv" {
-            first_block = Some(p);
-        } else {
-            first_block.get_or_insert(p);
-        }
+        // Nothing works: report the first choice (for Movies & TV that's mpv, Spine's player).
+        first_block.get_or_insert(p);
     }
     first_block.unwrap_or(LaunchPlan { emulator: "none".into(), program: PathBuf::new(), args: vec![], blocked: Some("No emulator configured for this console.".into()) })
 }
@@ -532,6 +528,23 @@ pub fn flathub_pages() -> &'static [(&'static str, &'static str)] {
         ("vlc", "https://flathub.org/apps/org.videolan.VLC"),
         ("mpv", "https://flathub.org/apps/io.mpv.Mpv"),
     ]
+}
+
+#[cfg(test)]
+mod player_hint_tests {
+    use super::*;
+    use crate::systems::system_by_id;
+
+    #[test]
+    fn no_player_suggests_mpv() {
+        for id in ["movies", "tv"] {
+            let sys = system_by_id(id).unwrap();
+            let game = Game { id: format!("{id}/film"), title: "Film".into(), sort_key: "film".into(), letter: 'F', path: PathBuf::from("Film (2010).mkv"), format: "mkv".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![], episodes: vec![] };
+            let p = plan(sys, &game, &Installed::default());
+            assert_eq!(p.emulator, "mpv", "{id}");
+            assert!(p.blocked.as_deref().unwrap().contains("mpv"), "{id}");
+        }
+    }
 }
 
 #[cfg(all(test, unix))]

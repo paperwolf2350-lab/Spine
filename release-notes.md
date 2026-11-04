@@ -1,8 +1,8 @@
 ## What's new
-- **New console icons.** Every console now has its own icon, PS2, Vita, Xbox 360, Switch and Wii U included, from RetroArch's "Monochrome" set (white controller outlines). Prefer drawings of the consoles themselves? Settings → Look → Console icons → **Systematic**. **Lines** brings back Spine's old icons. Both sets are by the RetroArch artists (libretro), used under CC BY 4.0.
+- **Points you to the right player.** With neither mpv nor VLC installed, opening a movie or episode now suggests mpv (Spine's own player, with resume, Skip intro and Up next) instead of VLC. On Windows that comes with the **Get mpv** button, so it's one click.
 
-From 0.25.0:
-- Use your controller in the video player (mpv): A/B/X/Y, D-pad, LB/RB, Audio & subtitles menu.
+From 0.26.0:
+- New console icons from RetroArch's "Monochrome" set (or "Systematic", or Spine's old "Lines"), Settings → Look → Console icons.
 
 ---
 
