@@ -86,7 +86,7 @@ const BGM = (() => {
     // Called after every render.
     sync() {
       const next = SONGS[settings().home_style] || null;
-      want = !!next && S.screen === 'home' && !S.playing && !document.hidden && level() > 0 && systems().length > 0;
+      want = !!next && !tvOn() && S.screen === 'home' && !S.playing && !document.hidden && level() > 0 && systems().length > 0;
       if (!want) { if (player.playing()) player.fade(0, 0.8); return; }
       if (next !== song) { song = next; player.load(next); } // switched style: new song from the top
       if (!player.playing()) player.play();

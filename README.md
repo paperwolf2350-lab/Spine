@@ -54,6 +54,8 @@ packages, or AppImages in `~/Applications` (EmuDeck's layout) on Linux.
 - **Looks good:** covers from libretro, Steam, SteamGridDB and ScreenScraper,
   trailers on game pages, four layouts, themes (including a retro CRT look), a moving
   cover wall per console.
+- **TV mode:** turn your PC into a living-room console: a Play section with your consoles and
+  games as big covers, a Watch section for movies, shows and streaming, big text for the couch.
 - **Five Home styles:** Classic, Wave, Channels, Blades and Cube, each with its own
   feel and sounds (Wave and Channels have their own background music). Put the Home
   tiles in any order you like.

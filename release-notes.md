@@ -1,8 +1,11 @@
 ## What's new
-- **Start Spine when you log in.** Settings → Updates & window → Start with your PC → On. Spine then opens by itself when you turn on your PC, like a console. Turn on Fullscreen too for the full effect. Works on Windows and Linux; if you switch it off in Task Manager or Startup Applications, Spine sees that too.
+- **TV mode** (first step). Settings → Look → TV mode → On turns Spine into a living-room console: a dark screen with big, easy-to-read text and two sections, **Play** and **Watch** (LT / RT switches between them).
+  - **Play**: the highlighted game's banner fills the top, with Play and Details. Below it, a row of your consoles (Recently played first) and that console's games as a row of covers. A plays, X opens the game's page, Y favorites, LB / RB changes console. A on a console opens its full A–Z list.
+  - **Watch**: big tiles for your Movies, TV and Streaming. More is coming here next (Continue watching rows).
+  - The mouse pointer hides while you use the controller. Your Home style is kept for when TV mode is off.
 
-From 0.26.1:
-- With no video player installed, Spine now suggests mpv (with a one-click **Get mpv** on Windows).
+From 0.27.0:
+- **Start Spine when you log in** (Settings → Updates & window → Start with your PC).
 
 ---
 

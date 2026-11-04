@@ -402,6 +402,7 @@ function home() {
     return topbar() + `<main class="main"><div class="welcome"><h2 style="font-size:36px">No games found here</h2><p>${esc(S.boot.rom_root)}</p>
       <button class="btn primary" data-nav data-key="pick" data-act="pick">${glyph('A')}Choose a different folder</button></div></main>` + hints('', [['B', 'Back']]);
   }
+  if (tvOn()) return homeTv();
   if (waveOn()) return homeWave();
   if (channelsOn()) return homeChannels();
   if (bladesOn()) return homeBlades();
@@ -746,11 +747,12 @@ function settingsPanel() {
     const sw = ['#C8431F', '#2F5FBF', '#237A52', '#5B21B6', '#C99A1A', '#0E7490'].map((c) =>
       `<button class="swatch ${c === accent ? 'on' : ''}" style="background:${c}" data-nav data-key="acc-${c}" data-act="accent" data-c="${c}" aria-label="Accent ${c}"></button>`).join('');
     const style = waveOn() ? 'wave' : channelsOn() ? 'channels' : bladesOn() ? 'blades' : cubeOn() ? 'cube' : 'classic';
-    body = grp('Theme', '', `<div class="opts">
+    body = grp('TV mode', 'Spine as your living-room console: Play and Watch, big text for the couch.', `<div class="opts">${chips('tvm', 'tvmode', [['off', 'Off'], ['on', 'On']], tvOn() ? 'on' : 'off')}</div>`)
+      + grp('Theme', '', `<div class="opts">
       <button class="chip ${(st.theme || 'cream') === 'cream' ? 'on' : ''}" data-nav data-key="th-cream" data-act="theme" data-t="cream">Cream</button>
       <button class="chip ${st.theme === 'midnight' ? 'on' : ''}" data-nav data-key="th-midnight" data-act="theme" data-t="midnight">Midnight</button>
       <button class="chip ${st.theme === 'crt' ? 'on' : ''}" data-nav data-key="th-crt" data-act="theme" data-t="crt">Retro CRT</button></div>`)
-      + grp('Home style', 'How Home is laid out.', `<div class="opts">${['classic', 'wave', 'channels', 'blades', 'cube'].map((v) =>
+      + grp('Home style', tvOn() ? 'Used when TV mode is off.' : 'How Home is laid out.', `<div class="opts">${['classic', 'wave', 'channels', 'blades', 'cube'].map((v) =>
         `<button class="chip ${style === v ? 'on' : ''}" data-nav data-key="hs-${v}" data-act="homestyle" data-s="${v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div>`)
       + grp('Console icons', 'Monochrome and Systematic are RetroArch\'s icons (libretro, CC BY 4.0).', `<div class="opts">${[['mono', 'Monochrome'], ['systematic', 'Systematic'], ['lines', 'Lines']].map(([v, l]) =>
         `<button class="chip ${iconSet() === v ? 'on' : ''}" data-nav data-key="ci-${v}" data-act="consoleicons" data-v="${v}">${sysIcon('ps2', 26, v)} ${l}</button>`).join('')}</div>`)
@@ -1197,6 +1199,7 @@ function render() {
   waveMount();
   bladesMount();
   cubeMount();
+  tvMount();
   BGM.sync();
   startPreview();
   const gs = document.getElementById('gamesscroll');
@@ -1308,7 +1311,7 @@ function focusEl(el, smooth = true, scroll = true) {
   document.querySelectorAll('.focused').forEach((x) => x.classList.remove('focused'));
   el.classList.add('focused');
   el.focus({ preventScroll: true });
-  if (scroll && !el.closest('.wave')) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
+  if (scroll && !el.closest('.wave, .tvm')) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
   S.focusKey = el.dataset.key;
   if (el.dataset.focus === 'selcon') {
     const i = +el.dataset.i;
@@ -1319,7 +1322,7 @@ function restoreFocus() {
   const els = navEls();
   let el = S.focusKey && els.find((e) => e.dataset.key === S.focusKey);
   if (!el) {
-    const pref = S.panel === 'settings' ? `stab-${setTab()}` : S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : { home: waveOn() ? waveFocusKey() : bladesOn() ? bladeFocusKey() : cubeOn() ? cubeFocusKey() : `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
+    const pref = S.panel === 'settings' ? `stab-${setTab()}` : S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : { home: tvOn() ? tvFocusKey() : waveOn() ? waveFocusKey() : bladesOn() ? bladeFocusKey() : cubeOn() ? cubeFocusKey() : `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
     el = (pref && els.find((e) => e.dataset.key === pref)) || els.find((e) => e.dataset.key?.startsWith('g-')) || els.find((e) => e.dataset.key !== 'brand') || els[0];
   }
   if (el) focusEl(el, false);
@@ -1838,6 +1841,7 @@ const ACT = {
   quit() { api.call('quit'); },
 };
 Object.assign(ACT, STREAM_ACT); // streaming addons (stream.js)
+Object.assign(ACT, TV_ACT); // TV mode (tv.js)
 
 async function doScan(dir) {
   S.boot = { ...(S.boot || {}), rom_root: dir };
@@ -1992,7 +1996,7 @@ function press(btn) {
   else if (btn === 'B' && (S.panel || S.screen !== 'home' || S.shot != null)) SFX.play('back');
   else if (btn === 'START' || btn === 'X') SFX.play('open');
   else if (btn === 'RANDOM') SFX.play('spin');
-  else if (['LB', 'RB', 'LT', 'RT', 'SELECT'].includes(btn) && !(S.screen === 'home' && (bladesOn() || cubeOn()) && !S.panel && ['LB', 'RB'].includes(btn))) SFX.play('tick');
+  else if (['LB', 'RB', 'LT', 'RT', 'SELECT'].includes(btn) && !(S.screen === 'home' && (bladesOn() || cubeOn() || tvOn()) && !S.panel && ['LB', 'RB'].includes(btn))) SFX.play('tick');
   if (S.shot != null && S.screen === 'detail') {
     if (btn === 'left' || btn === 'LB') return ACT.stepshot({ d: -1 });
     if (btn === 'right' || btn === 'RB') return ACT.stepshot({ d: 1 });
@@ -2000,6 +2004,7 @@ function press(btn) {
     return;
   }
   if (S.screen === 'stream' && !S.panel && !S.playing && streamKey(btn)) return;
+  if (S.screen === 'home' && tvOn() && !S.panel && !S.playing && tvKey(btn)) return;
   if (S.screen === 'home' && waveOn() && !S.panel && !S.playing && systems().length && waveKey(btn)) return;
   if (S.screen === 'home' && channelsOn() && !S.panel && !S.playing && channelsKey(btn)) return;
   if (S.screen === 'home' && bladesOn() && !S.panel && !S.playing && systems().length && bladesKey(btn)) return;

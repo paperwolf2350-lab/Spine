@@ -632,6 +632,27 @@ Windows-only dep, already in Cargo.lock via Tauri); Linux = `~/.config/autostart
 `autostart::refresh()` at start rewrites the entry if Spine moved. Not settable in the workspace: real Windows registry
 (owner to check: Task Manager → Startup apps should list Spine).
 
+**0.28.0** (Nov 4): TV mode, release 1 of 3 (plan: `claude/TV-MODE.md` in the claude.ai Project; mockup
+https://claude.ai/artifact/XQNhYkx4VyQEw9T3tPaDpp). Setting `tvMode` (bool, Settings → Look → TV mode, chips `tvm-off/on`,
+`ACT.tvmode`); `home()` hands off to `homeTv()` before the Home styles, so `home_style` is kept for when it's off; no home
+music in TV mode (`music.js`). Own files `ui/tv.js` + `ui/tv.css`; bundled Lexend (`ui/fonts/Lexend.woff2`, Latin subset
+of the variable font via pyftsubset, 38 KB, OFL in `Lexend-OFL.txt`). Own dark look whatever the theme: `--ta` = accent
+setting or amber `#F0B45A` when none is set, `--tink` = readable text on it (`tvInk`). State `S.tv` {sec 'play'|'watch',
+con, at: {con id: index}}. Play: `tvCons()` = Recent (last_played games, not media) + `tiles()` that hold games (fav,
+lists, consoles; movies/tv/stream/random left out), keys `con-<id>` (so Back from a library lands on the tile);
+games `tvg-<game id>` (`data-act="tvgame"`: first click picks, A/click on the picked one plays). Layout is a flex column
+(top bar, `.tv-hero` takes what's left, `.tv-lower`, hints) so nothing overlaps; `.tv-bg` (banner) is placed against
+the whole screen; `@media (max-height: 800px)` makes things smaller (1280x720, or 1080p at 150% scaling). Moving
+through games doesn't render: `tvSync` sets the track's translateX (picked card stays in slot 2), toggles `.sel`
+(grows via flex-basis/height transitions), lazy-loads covers within ±14 (`data-src`) and swaps `#tvhero`. Card steps
+are measured once per render in `tvMount` (`TVSTEP`): measuring during a grow/shrink transition gave off-by-one steps.
+Keys (`tvKey`, before the other Home styles in `press`): LT/RT Play⇄Watch, LB/RB console, games row ←/→ step, ↑ console,
+X Details; consoles ←/→ change console (render), ↓ games, ↑ banner Play; banner ↓ consoles; Watch: B goes to Play.
+Watch (placeholder for release 2): tiles for Movies/TV (`con-movies`/`con-tv`) and Streaming, opening the usual screens
+(`ACT.tile`). `focusEl` skips scrollIntoView inside `.tvm`; restoreFocus uses `tvFocusKey()`. Cursor hides with
+`body.kb`. Tested in Playwright (1920x1080 and 1280x720, mock) and real WebKitGTK 2.52 under Xvfb (snapshots there can
+lag a transition by a frame or two: wait ~2 s before judging). Next: release 2 (Watch screen with the two Continue rows).
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).

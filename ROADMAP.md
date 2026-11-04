@@ -1,15 +1,19 @@
 # Spine — to-do list
 
 ## Next up (planned)
-Nothing queued. On hold (owner, Nov 4): hide by age rating, only if people ask for it (needs TMDB lookups per title, cached).
-- New looks, one per small release (inspired by console menus, never copying their logos, fonts or sounds):
-  - Retro CRT theme (done, 0.7.8).
-  - Later ideas: Couch (one giant shelf for big TVs), matching sounds per style.
+- **TV mode** (agreed Nov 4): Spine as a living-room console, Play and Watch sections. Three small releases:
+  1. TV mode shell: setting, Play screen (consoles row with Recent first, games carousel), Play/Watch switch, big text, safe edges (done, 0.28.0).
+  2. Watch screen: Your library (Continue, Movies, TV) and From your addons (Streaming, Search); two Continue rows (your files / streaming).
+  3. TV-sized game and movie pages, soft sounds, start in TV mode full-screen.
+- On hold (owner, Nov 4): hide by age rating, only if people ask for it (needs TMDB lookups per title, cached).
+- Later look ideas: matching sounds per style.
 
 ## Later
 - Nothing planned. (macOS skipped Nov 1: no Mac to test on.)
 
 ## Done
+
+- TV mode, first step: Play screen with your consoles and games, Watch tiles, big text for the couch (0.28.0).
 
 - Start Spine when you log in, on Windows and Linux (0.27.0).
 - Console icons from RetroArch's Monochrome (default) and Systematic sets, with a setting (0.26.0).

@@ -1,0 +1,122 @@
+/* TV mode (tv.js). Its own dark look whatever the theme: dark ground, one soft accent
+   (--ta: the accent setting, amber until one is picked; --tink: text on it), Lexend type,
+   safe edges of about 5%. Sizes are CSS px at the 1440x860 reference that Auto size scales.
+   tv.js reads card sizes from the page. Bundled font: Lexend (SIL OFL, fonts/Lexend-OFL.txt). */
+@font-face { font-family: 'Lexend'; src: url('fonts/Lexend.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
+
+.tvm { --tbg: #101218; --tsurf: #1a1d26; --tsurf2: #262b38; --ttext: #f2efe8; --tmuted: #b4b9c5;
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; display: flex; flex-direction: column; padding-top: 30px;
+  background: var(--tbg); color: var(--ttext); font-family: 'Lexend', 'Segoe UI', system-ui, sans-serif; }
+.tvm h1, .tvm h2 { font-family: inherit; letter-spacing: 0; margin: 0; }
+.tvm button { font: inherit; color: inherit; border: none; cursor: pointer; }
+body.kb .tvm, body.kb .tvm * { cursor: none; }
+/* Our own focus rings instead of the shared box-shadow one. */
+body.kb .tvm [data-nav].focused, body.kb .tvm [data-nav]:focus-visible { box-shadow: none; outline: 3px solid var(--ta); outline-offset: 4px; }
+.tvm [data-nav]:focus { outline: none; }
+
+/* Top bar */
+.tv-top { position: relative; flex: none; margin: 0 72px; z-index: 3; display: flex; align-items: center; justify-content: space-between; }
+.tv-left, .tv-right { display: flex; align-items: center; gap: 30px; }
+.tv-brand { display: flex; align-items: center; gap: 10px; font-size: 24px; font-weight: 600; }
+.tv-switch { display: flex; gap: 6px; padding: 5px; border-radius: 999px; background: rgba(255,255,255,.07); }
+.tv-switch button { font-size: 19px; padding: 8px 26px; border-radius: 999px; background: transparent; color: var(--tmuted); transition: background .2s, color .2s; }
+.tv-switch button.on { background: var(--ttext); color: var(--tbg); font-weight: 500; }
+.tv-clock { font-size: 19px; color: var(--tmuted); font-variant-numeric: tabular-nums; }
+.tv-gear { width: 46px; height: 46px; border-radius: 50%; background: rgba(255,255,255,.08) !important; display: flex; align-items: center; justify-content: center; }
+.tv-gear svg { width: 24px; height: 24px; }
+
+/* Banner of the focused game */
+/* .tv-hero is a plain flex item that takes the room left over; its picture (.tv-bg) is placed against the whole screen. */
+.tv-hero { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; padding: 0 72px; }
+.tv-bg { position: absolute; top: 0; right: 0; width: 66%; height: 64%; overflow: hidden; z-index: 0; }
+.tv-art { width: 100%; height: 100%; object-fit: cover; display: block; animation: tvfade .5s ease both; }
+.tv-art.blur { filter: blur(28px) saturate(1.2); transform: scale(1.15); opacity: .65; }
+@keyframes tvfade { from { opacity: 0; } }
+.tv-art.blur { animation-name: tvfadeblur; }
+@keyframes tvfadeblur { from { opacity: 0; } to { opacity: .65; } }
+.tv-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(16,18,24,.75) 0%, rgba(16,18,24,0) 24%), linear-gradient(90deg, var(--tbg) 0%, rgba(16,18,24,.55) 28%, rgba(16,18,24,0) 58%), linear-gradient(0deg, var(--tbg) 0%, rgba(16,18,24,0) 55%); }
+.tv-info { position: relative; z-index: 1; width: 52%; display: flex; flex-direction: column; gap: 12px; }
+.tv-sys { font-size: 16px; color: var(--tmuted); letter-spacing: .08em; text-transform: uppercase; }
+.tv-title { font-size: 52px; font-weight: 600; line-height: 1.06; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tv-logo { max-width: 440px; max-height: 120px; object-fit: contain; object-position: left center; align-self: flex-start; filter: drop-shadow(0 4px 18px rgba(0,0,0,.5)); }
+.tv-meta { font-size: 19px; color: var(--tmuted); }
+.tv-meta.warn { color: #f0a58a; }
+.tv-acts { display: flex; gap: 14px; margin-top: 8px; }
+.tv-btn { height: 54px; padding: 0 30px; border-radius: 999px; background: rgba(255,255,255,.10) !important; font-size: 19px !important; display: inline-flex; align-items: center; gap: 12px; }
+.tv-btn.primary { background: var(--ta) !important; color: var(--tink) !important; font-weight: 500; padding-left: 12px; }
+.tv-btn.primary .glyph { width: 32px; height: 32px; border-radius: 50%; background: var(--tink); color: var(--ta); font-size: 14px; }
+
+/* Lower half: Consoles row and the games carousel */
+.tv-lower { position: relative; flex: none; margin-left: 60px; z-index: 2; display: flex; flex-direction: column; gap: 14px; }
+.tv-row h2 { font-size: 17px; font-weight: 400; color: var(--tmuted); margin: 0 0 4px 12px; }
+.tv-cons, .tv-games { position: relative; overflow: hidden; padding: 12px; }
+.tv-cons { height: 116px; }
+.tv-games { height: 252px; }
+.tv-track { display: flex; align-items: flex-end; height: 100%; transition: transform .3s cubic-bezier(.2,.7,.2,1); will-change: transform; }
+.tv-cons .tv-track { gap: 14px; }
+.tv-games .tv-track { gap: 20px; }
+
+.tv-con { flex: 0 0 124px; height: 92px; border-radius: 20px; background: var(--tsurf) !important; color: #d6d9e0 !important;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 14px !important; transition: background .2s; }
+.tv-con span:last-child { max-width: 112px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-con.sel { background: var(--tsurf2) !important; color: var(--ta) !important; box-shadow: inset 0 -4px 0 var(--ta); }
+.tv-con.sel span:last-child { color: var(--ttext); font-weight: 500; }
+body.kb .tvm .tv-con.focused, body.kb .tvm .tv-con:focus-visible { box-shadow: inset 0 -4px 0 var(--ta); }
+
+.tv-game { flex: 0 0 128px; width: 128px; height: 180px; padding: 0 !important; border-radius: 12px; overflow: hidden; position: relative;
+  background: var(--tsurf) !important; transition: width .22s ease, height .22s ease, flex-basis .22s ease, opacity .22s; }
+.tv-game.sel { flex-basis: 159px; width: 159px; height: 223px; box-shadow: 0 16px 36px rgba(0,0,0,.55); }
+.tv-game img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tv-game .ph { position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 12px; text-align: left; font-size: 14px; line-height: 1.25; color: #fff; }
+.tv-game.off { opacity: .45; }
+.tv-fav { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%; background: rgba(0,0,0,.55); color: #ff8fa3; display: flex; align-items: center; justify-content: center; }
+.tv-fav svg { width: 15px; height: 15px; }
+body.kb .tvm .tv-game.focused, body.kb .tvm .tv-game:focus-visible { outline: 4px solid var(--ta); outline-offset: 5px; }
+
+/* Watch */
+.tv-watch { position: relative; flex: 1 1 auto; margin: 40px 72px 0 60px; display: flex; flex-direction: column; gap: 24px; }
+.tv-wrow { display: flex; gap: 22px; flex-wrap: wrap; padding: 12px; }
+.tv-wtile { width: 300px; height: 184px; border-radius: 24px; padding: 22px 24px !important; text-align: left;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--tc) 38%, var(--tsurf)) 0%, var(--tsurf) 75%) !important;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; position: relative; overflow: hidden; }
+.tv-wtile .ic { position: absolute; top: 20px; left: 22px; color: var(--ttext); opacity: .9; }
+.tv-wtile .t { font-size: 26px; font-weight: 500; }
+.tv-wtile .s { font-size: 15px; color: var(--tmuted); }
+body.kb .tvm .tv-wtile.focused, body.kb .tvm .tv-wtile:focus-visible { outline: 4px solid var(--ta); outline-offset: 5px; }
+.tv-div { border: none; height: 1px; background: rgba(255,255,255,.1); margin: 0 12px; }
+
+.tv-empty { flex: 1 1 auto; margin: 0 72px; display: flex; flex-direction: column; justify-content: center; }
+.tv-empty h1 { font-size: 44px; font-weight: 600; }
+.tv-empty p { font-size: 20px; color: var(--tmuted); }
+
+/* Button hints, bottom right */
+.tv-hints { position: relative; flex: none; align-self: flex-end; padding: 18px 72px 26px; z-index: 3; display: flex; gap: 26px; font-size: 16px; color: var(--tmuted); }
+.tv-hints span { display: inline-flex; align-items: center; gap: 9px; }
+.tv-hints b { height: 28px; min-width: 28px; padding: 0 8px; border-radius: 7px; border: 2px solid var(--tmuted); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+.tv-hints b.r { border-radius: 50%; padding: 0; }
+
+/* Short screens (1280x720 at 100%, or 1920x1080 at 150% Windows scaling): everything a bit smaller. */
+@media (max-height: 800px) {
+  .tvm { padding-top: 22px; }
+  .tv-gear { width: 42px; height: 42px; }
+  .tv-title { font-size: 40px; }
+  .tv-logo { max-height: 92px; max-width: 360px; }
+  .tv-meta { font-size: 17px; }
+  .tv-sys { font-size: 14px; }
+  .tv-info { gap: 8px; }
+  .tv-btn { height: 48px; font-size: 17px !important; }
+  .tv-btn.primary .glyph { width: 28px; height: 28px; }
+  .tv-lower { gap: 6px; }
+  .tv-row h2 { font-size: 15px; }
+  .tv-cons { height: 92px; }
+  .tv-con { flex-basis: 108px; height: 70px; gap: 4px; font-size: 12px !important; }
+  .tv-con .sysicon { transform: scale(.72); margin: -6px 0; }
+  .tv-games { height: 210px; }
+  .tv-game { flex-basis: 104px; width: 104px; height: 146px; }
+  .tv-game.sel { flex-basis: 129px; width: 129px; height: 181px; }
+  .tv-hints { padding: 10px 72px 18px; font-size: 14px; }
+  .tv-hints b { height: 24px; min-width: 24px; }
+  .tv-wtile { width: 260px; height: 160px; }
+}
+
+@media (prefers-reduced-motion: reduce) { .tv-track, .tv-game, .tv-art { transition: none; animation: none; } }
