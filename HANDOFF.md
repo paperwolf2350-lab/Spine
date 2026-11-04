@@ -604,7 +604,9 @@ their own two hints. Esc keeps its old meaning (menu / Up next / leave fullscree
 xvfb-run with a driver script sending `keypress GAMEPAD_*` and taking `screenshot-to-file ... window`
 (needs `XDG_RUNTIME_DIR` set and `--vo=x11`; gpu vo fails there). Not testable here: a physical controller.
 Owner confirmed 0.25.0 (Nov 4): controller in the player works well.
-Ideas left: hide by age rating (needs TMDB certifications).
+Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
+/find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
+the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).
 
 **Old note (Nov 3), done in 0.24.0**: Spine downloads and sets up mpv on Windows. Owner installed it by hand
 from shinchiro/mpv-winbuild-cmake GitHub releases: plain `mpv-x86_64-<date>-git-<hash>.7z` (not dev / v3 /

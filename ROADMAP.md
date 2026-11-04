@@ -1,7 +1,7 @@
 # Spine — to-do list
 
 ## Next up (planned)
-Nothing queued. Ideas: hide by age rating (needs TMDB certifications).
+Nothing queued. On hold (owner, Nov 4): hide by age rating, only if people ask for it (needs TMDB lookups per title, cached).
 - New looks, one per small release (inspired by console menus, never copying their logos, fonts or sounds):
   - Retro CRT theme (done, 0.7.8).
   - Later ideas: Couch (one giant shelf for big TVs), matching sounds per style.
