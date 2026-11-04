@@ -1,7 +1,7 @@
 # Spine — to-do list
 
 ## Next up (planned)
-Owner's ideas (Nov 4), easiest first: clickable actors/directors, controller in the video player, hide adult content.
+Owner's ideas (Nov 4), easiest first: clickable actors/directors, controller in the video player, optional filter to hide genres and age ratings.
 Spine's own video player (mpv): Spine downloads mpv on Windows.
 - New looks, one per small release (inspired by console menus, never copying their logos, fonts or sounds):
   - Retro CRT theme (done, 0.7.8).

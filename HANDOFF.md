@@ -537,8 +537,8 @@ watched key ("stream/<item>" or "stream/<item>:..."). `backfill_watched` at star
 UI: tab ck `watched` last among "your" tabs (`streamMyTabs`), lines from `sWatchedLine`; the interface mirrors
 changes locally (`sWatchedMirror`, `sWatchedAfterPlay` from game-exited). Local Movies/TV: not included (owner's call).
 Feature list from Nov 4, easiest first: Watched tab (done), clickable actors/directors (TMDB person search; addons
-send cast/director names), controller in the mpv player, hiding adult content (TMDB adult flag/certifications;
-addons have no flag, so not airtight).
+send cast/director names), controller in the mpv player, optional filter to hide genres and age ratings (owner reworded it
+Nov 4; genres are easy since addons send them; age ratings need TMDB certifications, addons don't send them).
 
 **Next session (owner's choice, Nov 3)**: Spine downloads and sets up mpv on Windows. Owner installed it by hand
 from shinchiro/mpv-winbuild-cmake GitHub releases: plain `mpv-x86_64-<date>-git-<hash>.7z` (not dev / v3 /
