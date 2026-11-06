@@ -170,6 +170,29 @@ fn install(handle: AppHandle, app: tauri::State<App>, ids: Vec<String>) -> Resul
     Ok(())
 }
 
+#[derive(Serialize)]
+struct UpdatesView {
+    /// When the newest versions were asked (unix seconds).
+    at: u64,
+    /// id -> newer version, for items installed here that have one.
+    updates: std::collections::BTreeMap<String, String>,
+    /// id -> why it couldn't be checked.
+    errors: std::collections::BTreeMap<String, String>,
+}
+
+/// Which installed emulators and cores have a newer version. Uses the saved answer when
+/// it's under an hour old, unless `force` (the "Check again" link).
+#[tauri::command]
+async fn check_updates(handle: AppHandle, force: bool) -> Result<UpdatesView, String> {
+    let dir = handle.state::<App>().dir.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let l = emus::latest_versions(&dir, force);
+        UpdatesView { at: l.at, updates: emus::updates(&dir, &l), errors: l.errors }
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
 /// Show a folder in Explorer (our emulators folder, or one emulator's).
 #[tauri::command]
 fn open_folder(app: tauri::State<App>, id: Option<String>) -> Result<(), String> {
@@ -195,7 +218,7 @@ fn main() {
     let dir = emus::default_dir().unwrap_or_else(|| PathBuf::from("Emulators"));
     tauri::Builder::default()
         .manage(App { dir, busy: Mutex::new(false) })
-        .invoke_handler(tauri::generate_handler![boot, install, open_folder, open_site])
+        .invoke_handler(tauri::generate_handler![boot, install, check_updates, open_folder, open_site])
         .run(tauri::generate_context!())
         .expect("error while running Spine Emulators");
 }

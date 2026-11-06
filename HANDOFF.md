@@ -806,6 +806,20 @@ Remaining release-2 idea (only if the owner wants it): standalone MAME (GitHub m
 SHA256 digests; needs a Spine launcher with -rompath) and Snes9x (`snes9x-1.63-win32-x64.zip` on GitHub).
 Owner confirmed 0.34.0 (Nov 6): tested and working on Windows.
 
+**0.35.0** (Nov 6): release 3, Update button. emus.rs: `ours(dir)` = emulators whose program is in our folder + installed
+cores; `ask_latest` asks `latest()` for each (one thread each) and libretro's `.index-extended` once for cores, saves
+`.spine-emulators-latest.json` (`Latest` {at, versions: id -> version written like the stamp's, errors}); `latest_versions(dir,
+force)` reuses it for an hour (`LATEST_FRESH`; GitHub allows 60 unauthenticated questions an hour); `updates(dir, l)` = ours whose
+stamp version differs (no stamp = update), compared against current stamps so an item updated since the check drops off.
+Updating = the normal `install` (RetroArch carry_over keeps user files). App: async command `check_updates(force)` ->
+{at, updates, errors} (spawn_blocking). UI: on open `checkUpdates(false)`; line under the folder ("N updates available" +
+**Update all** (starts right away), "Couldn't check N" with reasons in the tooltip, "Checked X ago", "Check again"); amber
+`chip.upd` "Update · <new>" + "You have <old>"; main button says Update / Install / update / Install by what's ticked.
+Known limit: a rolling release (DuckStation "latest", Vita3K "continuous") without a GitHub sha256 would always look the same.
+Tests: `finds_updates`, live `cargo test --lib -- --ignored live_updates` (RetroArch, Dolphin, PPSSPP, a core; passed Nov 6).
+UI in Playwright with a mock. Not testable here: GitHub API sources (blocked from the workspace) — owner to check on Windows.
+Next (release 4): Linux via Flathub Flatpaks.
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).

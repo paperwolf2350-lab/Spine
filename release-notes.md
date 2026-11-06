@@ -1,10 +1,9 @@
 ## What's new
-- **Spine Emulators: RetroArch with cores.** RetroArch is now in the list, with a tick per console for its cores: NES, SNES, Game Boy / Color, GBA, Nintendo 64, Genesis / Master System / Game Gear / Sega CD, Dreamcast, Arcade (FinalBurn Neo) and the full MAME. Cores go straight into RetroArch's cores folder, so Spine can start those games right away. Installing RetroArch again later keeps your settings, saves and cores.
-- **Spine Emulators: Dolphin (GameCube, Wii) and PPSSPP (PSP)** from their official websites.
-- Spine now always picks PPSSPP's 64-bit program when both versions are in its folder.
+- **Spine Emulators: updates.** When you open Spine Emulators it checks whether the emulators and RetroArch cores it installed have a newer version. Those get an amber "Update" label (with the version you have underneath), and **Update all** installs them in one go. You can still tick single ones. RetroArch keeps your settings, saves and cores when it updates.
+- The check is saved for an hour, so opening the window often doesn't hit GitHub's limit. "Check again" asks right away.
 
-From 0.33.0:
-- Spine Emulators, a separate program that installs emulators from their official releases.
+From 0.34.0:
+- Spine Emulators: RetroArch with cores per console, Dolphin and PPSSPP.
 
 ---
 

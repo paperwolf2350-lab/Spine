@@ -15,6 +15,8 @@
 
 ## Done
 
+- Spine Emulators shows which emulators and cores have updates, with Update all (0.35.0).
+
 - Spine Emulators: RetroArch with a core per console (kept settings/saves on reinstall), Dolphin and PPSSPP (0.34.0).
 
 - Spine Emulators: separate Windows installer for 13 popular emulators; Flycast and Mesen as choices in Spine (0.33.0).

@@ -27,6 +27,12 @@
   .side { text-align: right; font-size: 13px; min-width: 220px; }
   .chip { display: inline-block; padding: 2px 9px; border-radius: 99px; background: var(--s2); color: var(--muted); }
   .chip.ok { background: #1f3324; color: var(--ok); }
+  .chip.upd { background: var(--accent); color: var(--ink); font-weight: 600; }
+  .was { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  .updline { margin-top: 10px; font-size: 13px; color: var(--muted); display: flex; gap: 10px; align-items: center; min-height: 28px; }
+  .updline b { color: var(--accent); font-weight: 600; }
+  .updline a { color: var(--muted); text-decoration: underline; cursor: pointer; }
+  .updline a:hover { color: var(--text); }
   .chip.bad { background: #3a2220; color: var(--bad); }
   .links { margin-top: 3px; }
   .links a { color: var(--muted); text-decoration: underline; cursor: pointer; margin-left: 10px; }
@@ -49,6 +55,7 @@
   <h1><span>Spine</span> Emulators</h1>
   <div class="sub">Tick the emulators you want and press Install. Each one comes straight from its official release.</div>
   <div class="folder">Installs into <code id="dir">…</code><button class="small" id="openDir">Open folder</button></div>
+  <div class="updline" id="upd"></div>
 </header>
 <div id="banner"></div>
 <main id="list"></main>
@@ -61,11 +68,15 @@
 const T = window.__TAURI__;
 const call = (cmd, args) => T ? T.core.invoke(cmd, args) : window.__MOCK__.call(cmd, args);
 const on = (ev, cb) => T ? T.event.listen(ev, e => cb(e.payload)) : window.__MOCK__.on(ev, cb);
-const S = { boot: null, picked: new Set(), state: {}, busy: false };
+const S = { boot: null, picked: new Set(), state: {}, busy: false, upd: null, checking: false };
 // Emulators and RetroArch cores in one list; core ids are "core:<id>".
 const items = () => [...S.boot.emus, ...S.boot.cores.map(c => ({ id: 'core:' + c.id, name: c.name, consoles: c.consoles, ours: c.installed, version: c.version, core: true }))];
 const item = id => items().find(x => x.id === id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// Newer version for an item installed here (from check_updates), or undefined.
+const newer = e => e.ours && S.upd ? S.upd.updates[e.id] : undefined;
+const updIds = () => items().filter(newer).map(e => e.id);
+const ago = at => { const m = Math.max(0, Math.round((Date.now() / 1000 - at) / 60)); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
 const mb = b => (b / 1e6).toFixed(b < 1e7 ? 1 : 0) + ' MB';
 
 function status(e) {
@@ -77,7 +88,9 @@ function status(e) {
     return `<span class="chip">${esc(line || 'Working…')}</span><div class="bar"><i style="width:${pct ?? (st.got ? 50 : 8)}%"></i></div>`;
   }
   let html;
-  if (e.ours) html = `<span class="chip ok">Installed${e.version ? ' · ' + esc(e.version) : ''}</span>`;
+  const nv = newer(e);
+  if (nv) html = `<span class="chip upd">Update · ${esc(nv)}</span><div class="was">You have ${esc(e.version || 'an older version')}</div>`;
+  else if (e.ours) html = `<span class="chip ok">Installed${e.version ? ' · ' + esc(e.version) : ''}</span>`;
   else if (e.elsewhere) html = `<span class="chip ok" title="${esc(e.elsewhere)}">Already on this PC</span>`;
   else html = `<span class="chip">Not installed</span>`;
   if (st && st.phase === 'fail') html = `<span class="chip bad">Didn't install</span><div class="err">${esc(st.msg)}</div>`;
@@ -105,10 +118,34 @@ function render() {
     : '')).join('')).join('');
   const n = S.picked.size;
   const go = document.getElementById('go');
-  const anyInstalled = [...S.picked].some(id => { const e = item(id); return e && e.ours; });
-  go.textContent = S.busy ? 'Installing…' : n ? `${anyInstalled ? 'Install / update' : 'Install'} ${n} item${n > 1 ? 's' : ''}` : 'Install';
+  const kinds = [...S.picked].map(id => { const e = item(id); return e && e.ours ? 'u' : 'i'; });
+  const verb = kinds.every(k => k === 'u') ? 'Update' : kinds.some(k => k === 'u') ? 'Install / update' : 'Install';
+  go.textContent = S.busy ? 'Working…' : n ? `${verb} ${n} item${n > 1 ? 's' : ''}` : 'Install';
+  renderUpd();
   go.disabled = S.busy || !n || !b.windows;
   document.getElementById('pickNew').disabled = S.busy;
+}
+
+function renderUpd() {
+  const el = document.getElementById('upd');
+  if (!S.boot.windows) { el.innerHTML = ''; return; }
+  if (S.checking) { el.innerHTML = 'Checking for updates…'; return; }
+  if (!S.upd) { el.innerHTML = ''; return; }
+  const n = updIds().length;
+  const failed = Object.keys(S.upd.errors).filter(id => { const e = item(id); return e && e.ours; });
+  const parts = [];
+  if (n) parts.push(`<b>${n} update${n > 1 ? 's' : ''} available</b>`, `<button class="small main" id="updAll" ${S.busy ? 'disabled' : ''}>Update all</button>`);
+  else if (items().some(e => e.ours)) parts.push('Everything you installed here is up to date.');
+  if (failed.length) parts.push(`<span title="${esc(failed.map(id => item(id).name + ': ' + S.upd.errors[id]).join('\n'))}">Couldn't check ${failed.length}.</span>`);
+  if (items().some(e => e.ours)) parts.push(`<span>Checked ${ago(S.upd.at)}</span>`, S.busy ? '' : `<a id="recheck">Check again</a>`);
+  el.innerHTML = parts.join('');
+}
+
+async function checkUpdates(force) {
+  if (!S.boot.windows || !items().some(e => e.ours)) return;
+  S.checking = true; renderUpd();
+  try { S.upd = await call('check_updates', { force }); } catch (e) { S.upd = null; }
+  S.checking = false; render();
 }
 
 function paintOne(id) {
@@ -132,6 +169,10 @@ document.addEventListener('click', ev => {
     render();
   }
 });
+document.getElementById('upd').addEventListener('click', ev => {
+  if (ev.target.id === 'recheck') checkUpdates(true);
+  if (ev.target.id === 'updAll' && !S.busy) { S.picked = new Set(updIds()); start(); }
+});
 document.getElementById('openDir').onclick = () => call('open_folder', { id: null });
 document.getElementById('pickNew').onclick = () => {
   S.picked = new Set(items().filter(e => !e.ours && (e.core || !e.elsewhere)).map(e => e.id));
@@ -139,7 +180,8 @@ document.getElementById('pickNew').onclick = () => {
   if ([...S.picked].some(id => id.startsWith('core:')) && ra && !ra.ours) S.picked.add('retroarch');
   render();
 };
-document.getElementById('go').onclick = async () => {
+document.getElementById('go').onclick = () => start();
+async function start() {
   const ids = items().map(e => e.id).filter(id => S.picked.has(id));
   if (!ids.length) return;
   S.busy = true;
@@ -147,7 +189,7 @@ document.getElementById('go').onclick = async () => {
   render();
   try { await call('install', { ids }); }
   catch (e) { S.busy = false; ids.forEach(id => S.state[id] = { phase: 'fail', msg: String(e) }); render(); }
-};
+}
 
 on('emu-progress', p => {
   const st = S.state[p.id] && S.state[p.id].phase === 'run' ? S.state[p.id] : (S.state[p.id] = { phase: 'run', text: '', got: 0, total: 0 });
@@ -157,6 +199,7 @@ on('emu-progress', p => {
 on('emu-done', d => {
   if (d.ok) {
     delete S.state[d.id]; S.picked.delete(d.id);
+    if (S.upd) delete S.upd.updates[d.id];
     const c = d.id.startsWith('core:') && S.boot.cores.find(x => 'core:' + x.id === d.id);
     if (c) { c.installed = true; c.version = d.msg; }
     const e = S.boot.emus.find(x => x.id === d.id);
@@ -164,6 +207,7 @@ on('emu-done', d => {
   }
   else S.state[d.id] = { phase: 'fail', msg: d.msg };
   paintOne(d.id);
+  renderUpd();
 });
 on('emu-finished', async () => {
   S.busy = false;
@@ -171,7 +215,7 @@ on('emu-finished', async () => {
   render();
 });
 
-(async () => { S.boot = await call('boot'); render(); })();
+(async () => { S.boot = await call('boot'); render(); checkUpdates(false); })();
 </script>
 </body>
 </html>

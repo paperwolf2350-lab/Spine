@@ -538,6 +538,98 @@ pub fn install_core(dir: &Path, c: &CoreDef, index: &BTreeMap<String, (String, u
     r.map(|p| (p, date))
 }
 
+// ---------- updates (0.35) ----------
+
+/// The newest versions, as last asked. Kept for an hour so opening the window again and
+/// again doesn't use up GitHub's 60 questions an hour.
+pub const LATEST: &str = ".spine-emulators-latest.json";
+
+/// How long a check stays fresh (seconds).
+pub const LATEST_FRESH: u64 = 3600;
+
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Latest {
+    /// When it was asked (unix seconds).
+    pub at: u64,
+    /// id (emulator id or "core:<id>") -> newest version, written the same way as the stamp's.
+    pub versions: BTreeMap<String, String>,
+    /// id -> why it couldn't be checked.
+    pub errors: BTreeMap<String, String>,
+}
+
+fn now() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+pub fn read_latest(dir: &Path) -> Option<Latest> {
+    fs::read_to_string(dir.join(LATEST)).ok().and_then(|t| serde_json::from_str(&t).ok())
+}
+
+/// The ids this installer put in the folder and that are still there.
+pub fn ours(dir: &Path) -> (Vec<&'static EmuDef>, Vec<&'static CoreDef>) {
+    let emus = EMUS.iter().filter(|e| find_exe(&target(dir, e), e).is_some()).collect();
+    let cores = CORES.iter().filter(|c| core_installed(dir, c.id)).collect();
+    (emus, cores)
+}
+
+/// Ask every source of what's installed here for its newest version (emulators in
+/// parallel, libretro's core list once) and save the answer.
+pub fn ask_latest(dir: &Path) -> Latest {
+    let (emus, cores) = ours(dir);
+    let threads: Vec<_> = emus.into_iter().map(|e| (e.id, std::thread::spawn(move || latest(e).map(|a| a.version())))).collect();
+    let mut l = Latest { at: now(), ..Default::default() };
+    if !cores.is_empty() {
+        match core_index() {
+            Ok(ix) => {
+                for c in cores {
+                    match ix.get(c.id) {
+                        Some((date, _)) => l.versions.insert(core_key(c.id), date.clone()),
+                        None => l.errors.insert(core_key(c.id), format!("libretro doesn't list a Windows {} core right now.", c.name)),
+                    };
+                }
+            }
+            Err(e) => {
+                for c in cores {
+                    l.errors.insert(core_key(c.id), e.clone());
+                }
+            }
+        }
+    }
+    for (id, t) in threads {
+        match t.join().unwrap_or_else(|_| Err("check failed".into())) {
+            Ok(v) => l.versions.insert(id.to_string(), v),
+            Err(e) => l.errors.insert(id.to_string(), e),
+        };
+    }
+    if let Ok(t) = serde_json::to_string_pretty(&l) {
+        let _ = fs::create_dir_all(dir);
+        let _ = fs::write(dir.join(LATEST), t);
+    }
+    l
+}
+
+/// The saved check if it's fresh (and `force` isn't set), else a new one.
+pub fn latest_versions(dir: &Path, force: bool) -> Latest {
+    match read_latest(dir) {
+        Some(l) if !force && now().saturating_sub(l.at) < LATEST_FRESH => l,
+        _ => ask_latest(dir),
+    }
+}
+
+/// Which installed items have a newer version: id -> newest version. Compared with what
+/// was written at install time, so an item updated since the check drops off by itself.
+/// Something of ours with no stamp (unknown version) counts as having an update.
+pub fn updates(dir: &Path, l: &Latest) -> BTreeMap<String, String> {
+    let stamps = read_stamps(dir);
+    let (emus, cores) = ours(dir);
+    let ids = emus.iter().map(|e| e.id.to_string()).chain(cores.iter().map(|c| core_key(c.id)));
+    ids.filter_map(|id| {
+        let newest = l.versions.get(&id)?;
+        (stamps.get(&id).map(|s| &s.version) != Some(newest)).then(|| (id, newest.clone()))
+    })
+    .collect()
+}
+
 /// The folder the installer uses by default: `Emulators` in the user's home folder
 /// (Spine searches it).
 pub fn default_dir() -> Option<PathBuf> {
@@ -698,6 +790,65 @@ mod tests {
         assert_eq!(read_stamps(&d)["core:gambatte"].version, "2026-11-05");
         // Spine finds the core next to our RetroArch.
         assert!(crate::launch::retroarch_core_dirs(Some(&d.join("RetroArch").join("retroarch.exe"))).contains(&cores_dir(&d)));
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn finds_updates() {
+        let d = tmp("updates");
+        // Nothing installed: nothing to check.
+        let (e, c) = ours(&d);
+        assert!(e.is_empty() && c.is_empty());
+        // Ours: mGBA (stamped 0.10.4), Cemu (no stamp), one core; Azahar's stamp but no folder.
+        for (dir, exe) in [("mGBA", "mgba.exe"), ("Cemu", "cemu.exe"), ("RetroArch", "retroarch.exe")] {
+            fs::create_dir_all(d.join(dir)).unwrap();
+            fs::write(d.join(dir).join(exe), "MZ").unwrap();
+        }
+        fs::create_dir_all(cores_dir(&d)).unwrap();
+        fs::write(cores_dir(&d).join("snes9x_libretro.dll"), "MZ").unwrap();
+        let st = |v: &str| Stamp { version: v.into(), file: String::new(), at: 1 };
+        write_stamp(&d, "mgba", st("0.10.4"));
+        write_stamp(&d, "retroarch", st("1.22.2"));
+        write_stamp(&d, "azahar", st("2126.1"));
+        write_stamp(&d, "core:snes9x", st("2026-11-01"));
+        let (e, c) = ours(&d);
+        assert_eq!(e.iter().map(|e| e.id).collect::<Vec<_>>(), vec!["retroarch", "mgba", "cemu"]);
+        assert_eq!(c.iter().map(|c| c.id).collect::<Vec<_>>(), vec!["snes9x"]);
+        let mut l = Latest { at: now(), ..Default::default() };
+        for (k, v) in [("mgba", "0.10.5"), ("retroarch", "1.22.2"), ("cemu", "v2.6"), ("azahar", "2126.2"), ("core:snes9x", "2026-11-06")] {
+            l.versions.insert(k.into(), v.into());
+        }
+        let u = updates(&d, &l);
+        assert_eq!(u.keys().cloned().collect::<Vec<_>>(), vec!["cemu", "core:snes9x", "mgba"]);
+        assert_eq!(u["mgba"], "0.10.5");
+        // After updating mGBA its stamp matches: it drops off without asking again.
+        write_stamp(&d, "mgba", st("0.10.5"));
+        assert!(!updates(&d, &l).contains_key("mgba"));
+        // A fresh saved check is reused; an old one is asked again (here: nothing reachable
+        // is needed, so only the freshness rule is checked through read_latest).
+        fs::write(d.join(LATEST), serde_json::to_string(&l).unwrap()).unwrap();
+        assert_eq!(latest_versions(&d, false), l);
+        assert_eq!(read_latest(&d).unwrap().versions.len(), 5);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    /// Real check against every source (installs fake programs, then asks live):
+    /// cargo test --lib -- --ignored live_updates
+    #[test]
+    #[ignore]
+    fn live_updates() {
+        let d = tmp("liveupd");
+        for e in EMUS.iter().filter(|e| !matches!(e.source, Source::GitHub(_) | Source::Forgejo(_))) {
+            fs::create_dir_all(target(&d, e)).unwrap();
+            fs::write(target(&d, e).join(e.exes[0]), "MZ").unwrap();
+        }
+        fs::create_dir_all(cores_dir(&d)).unwrap();
+        fs::write(cores_dir(&d).join("gambatte_libretro.dll"), "MZ").unwrap();
+        let l = ask_latest(&d);
+        assert!(l.errors.is_empty(), "{:?}", l.errors);
+        assert_eq!(l.versions.len(), 4, "{:?}", l.versions);
+        // No stamps: everything counts as an update.
+        assert_eq!(updates(&d, &l).len(), 4);
         let _ = fs::remove_dir_all(&d);
     }
 
