@@ -34,6 +34,8 @@ pub static EMULATORS: &[EmulatorDef] = &[
     EmulatorDef { id: "rmg", name: "Rosalie's Mupen GUI", exes: &["rmg.exe", "rmg", "rmg.appimage"], args: &["--fullscreen", "{rom}"] },
     EmulatorDef { id: "simple64", name: "simple64", exes: &["simple64-gui.exe", "simple64-gui"], args: &["{rom}"] },
     EmulatorDef { id: "mgba", name: "mGBA", exes: &["mgba.exe", "mgba-qt", "mgba.appimage"], args: &["-f", "{rom}"] },
+    EmulatorDef { id: "flycast", name: "Flycast", exes: &["flycast.exe", "flycast", "flycast.appimage"], args: &["-config", "window:fullscreen=yes", "{rom}"] },
+    EmulatorDef { id: "mesen", name: "Mesen", exes: &["mesen.exe", "mesen"], args: &["{rom}", "--fullscreen"] },
     // Movie players (the Movies shelf).
     EmulatorDef { id: "mpv", name: "mpv", exes: &["mpv.exe", "mpvnet.exe", "mpv"], args: &["--fullscreen", "{rom}"] },
     EmulatorDef { id: "vlc", name: "VLC", exes: &["vlc.exe", "vlc"], args: &["--fullscreen", "--play-and-exit", "{rom}"] },
@@ -64,6 +66,7 @@ pub const FLATPAKS: &[(&str, &str)] = &[
     ("melonds", "net.kuribo64.melonDS"),
     ("xemu", "app.xemu.xemu"),
     ("mgba", "io.mgba.mGBA"),
+    ("flycast", "org.flycast.Flycast"),
     ("rmg", "com.github.Rosalie241.RMG"),
     ("simple64", "io.github.simple64.simple64"),
     ("ryujinx", "io.github.ryubing.Ryujinx"),
@@ -166,6 +169,7 @@ pub fn default_search_paths(rom_root: &Path) -> Vec<PathBuf> {
     }
     if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
         let home = PathBuf::from(home);
+        v.push(home.join("Emulators")); // Spine Emulators puts them here
         v.push(home.join("EmuDeck").join("Emulators"));
         v.push(home.join("Emulation").join("tools"));
         v.push(home.join("Applications"));
@@ -485,6 +489,8 @@ pub fn download_pages() -> &'static [(&'static str, &'static str)] {
         ("rmg", "https://github.com/Rosalie241/RMG/releases"),
         ("simple64", "https://simple64.github.io/"),
         ("mgba", "https://mgba.io/downloads.html"),
+        ("flycast", "https://github.com/flyinghead/flycast/releases"),
+        ("mesen", "https://www.mesen.ca"),
         ("vlc", "https://www.videolan.org/vlc/"),
         ("mpv", "https://mpv.io/installation/"),
     ]
@@ -523,6 +529,7 @@ pub fn flathub_pages() -> &'static [(&'static str, &'static str)] {
         ("melonds", "https://flathub.org/apps/net.kuribo64.melonDS"),
         ("xemu", "https://flathub.org/apps/app.xemu.xemu"),
         ("mgba", "https://flathub.org/apps/io.mgba.mGBA"),
+        ("flycast", "https://flathub.org/apps/org.flycast.Flycast"),
         ("rmg", "https://flathub.org/apps/com.github.Rosalie241.RMG"),
         ("simple64", "https://flathub.org/apps/io.github.simple64.simple64"),
         ("vlc", "https://flathub.org/apps/org.videolan.VLC"),

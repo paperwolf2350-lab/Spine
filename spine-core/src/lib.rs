@@ -9,6 +9,7 @@ pub mod aniskip;
 pub mod bios;
 pub mod config;
 pub mod covers;
+pub mod emus;
 pub mod extras;
 pub mod hostenv;
 pub mod launch;

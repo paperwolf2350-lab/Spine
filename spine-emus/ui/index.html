@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Spine Emulators</title>
+<style>
+  :root { --bg: #101218; --s1: #1a1d26; --s2: #262b38; --text: #f2efe8; --muted: #a9afbd; --accent: #F0B45A; --ink: #1d1406; --ok: #7fd18b; --bad: #ff8a7a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 15px/1.4 "Segoe UI", system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  header { padding: 22px 28px 14px; }
+  h1 { margin: 0; font-size: 26px; font-weight: 650; letter-spacing: .2px; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); margin-top: 4px; }
+  .folder { margin-top: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+  .folder code { background: var(--s1); padding: 4px 8px; border-radius: 6px; color: var(--text); }
+  main { flex: 1; overflow-y: auto; padding: 0 28px 16px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); margin: 18px 0 8px; font-weight: 600; }
+  .row { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center; background: var(--s1); border-radius: 10px; padding: 11px 14px; margin-bottom: 6px; border: 1px solid transparent; cursor: pointer; }
+  .row:hover { border-color: var(--s2); }
+  .row.on { border-color: var(--accent); }
+  .row input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+  .name { font-weight: 600; }
+  .cons { color: var(--muted); font-size: 13px; }
+  .side { text-align: right; font-size: 13px; min-width: 220px; }
+  .chip { display: inline-block; padding: 2px 9px; border-radius: 99px; background: var(--s2); color: var(--muted); }
+  .chip.ok { background: #1f3324; color: var(--ok); }
+  .chip.bad { background: #3a2220; color: var(--bad); }
+  .links { margin-top: 3px; }
+  .links a { color: var(--muted); text-decoration: underline; cursor: pointer; margin-left: 10px; }
+  .links a:hover { color: var(--text); }
+  .bar { height: 5px; background: var(--s2); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+  .err { color: var(--bad); font-size: 12.5px; margin-top: 3px; max-width: 320px; margin-left: auto; }
+  footer { border-top: 1px solid var(--s1); padding: 14px 28px; display: flex; gap: 12px; align-items: center; }
+  footer .note { flex: 1; color: var(--muted); font-size: 12.5px; }
+  button { font: inherit; border: 0; border-radius: 8px; padding: 9px 16px; background: var(--s2); color: var(--text); cursor: pointer; }
+  button:hover { filter: brightness(1.15); }
+  button.main { background: var(--accent); color: var(--ink); font-weight: 650; }
+  button:disabled { opacity: .45; cursor: default; filter: none; }
+  button.small { padding: 4px 10px; font-size: 13px; }
+  .banner { margin: 14px 28px 0; padding: 10px 14px; border-radius: 8px; background: #3a2220; color: var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>Spine</span> Emulators</h1>
+  <div class="sub">Tick the emulators you want and press Install. Each one comes straight from its official release.</div>
+  <div class="folder">Installs into <code id="dir">…</code><button class="small" id="openDir">Open folder</button></div>
+</header>
+<div id="banner"></div>
+<main id="list"></main>
+<footer>
+  <div class="note">BIOS files, keys and firmware are never included: dump them from consoles you own. Spine tells you which file goes where.</div>
+  <button id="pickNew">Select not installed</button>
+  <button class="main" id="go" disabled>Install</button>
+</footer>
+<script>
+const T = window.__TAURI__;
+const call = (cmd, args) => T ? T.core.invoke(cmd, args) : window.__MOCK__.call(cmd, args);
+const on = (ev, cb) => T ? T.event.listen(ev, e => cb(e.payload)) : window.__MOCK__.on(ev, cb);
+const S = { boot: null, picked: new Set(), state: {}, busy: false };
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const mb = b => (b / 1e6).toFixed(b < 1e7 ? 1 : 0) + ' MB';
+
+function status(e) {
+  const st = S.state[e.id];
+  if (st && st.phase === 'wait') return `<span class="chip">Waiting…</span>`;
+  if (st && st.phase === 'run') {
+    const pct = st.total ? Math.min(100, Math.round(st.got * 100 / st.total)) : null;
+    const line = st.got ? (st.total ? `${mb(st.got)} of ${mb(st.total)}` : mb(st.got)) : st.text;
+    return `<span class="chip">${esc(line || 'Working…')}</span><div class="bar"><i style="width:${pct ?? (st.got ? 50 : 8)}%"></i></div>`;
+  }
+  let html;
+  if (e.ours) html = `<span class="chip ok">Installed${e.version ? ' · ' + esc(e.version) : ''}</span>`;
+  else if (e.elsewhere) html = `<span class="chip ok" title="${esc(e.elsewhere)}">Already on this PC</span>`;
+  else html = `<span class="chip">Not installed</span>`;
+  if (st && st.phase === 'fail') html = `<span class="chip bad">Didn't install</span><div class="err">${esc(st.msg)}</div>`;
+  const links = [`<a data-site="${e.id}">Website</a>`];
+  if (e.ours) links.unshift(`<a data-open="${e.id}">Open folder</a>`);
+  return html + `<div class="links">${links.join('')}</div>`;
+}
+
+function render() {
+  const b = S.boot;
+  document.getElementById('dir').textContent = b.dir;
+  document.getElementById('banner').innerHTML = b.windows ? '' : `<div class="banner">This first version installs Windows emulators. On Linux, install them from Flathub (your software center); a Linux version is planned.</div>`;
+  const groups = [];
+  for (const e of b.emus) { let g = groups.find(g => g.name === e.group); if (!g) groups.push(g = { name: e.group, items: [] }); g.items.push(e); }
+  document.getElementById('list').innerHTML = groups.map(g => `<h2>${esc(g.name)}</h2>` + g.items.map(e => `
+    <div class="row ${S.picked.has(e.id) ? 'on' : ''}" data-id="${e.id}">
+      <input type="checkbox" ${S.picked.has(e.id) ? 'checked' : ''} ${S.busy ? 'disabled' : ''} aria-label="${esc(e.name)}">
+      <div><div class="name">${esc(e.name)}</div><div class="cons">${esc(e.consoles)}</div></div>
+      <div class="side" id="st-${e.id}">${status(e)}</div>
+    </div>`).join('')).join('');
+  const n = S.picked.size;
+  const go = document.getElementById('go');
+  const anyInstalled = [...S.picked].some(id => { const e = b.emus.find(x => x.id === id); return e && e.ours; });
+  go.textContent = S.busy ? 'Installing…' : n ? `${anyInstalled ? 'Install / update' : 'Install'} ${n} emulator${n > 1 ? 's' : ''}` : 'Install';
+  go.disabled = S.busy || !n || !b.windows;
+  document.getElementById('pickNew').disabled = S.busy;
+}
+
+function paintOne(id) {
+  const e = S.boot.emus.find(x => x.id === id);
+  const el = document.getElementById('st-' + id);
+  if (e && el) el.innerHTML = status(e);
+}
+
+document.addEventListener('click', ev => {
+  const site = ev.target.closest('[data-site]');
+  if (site) { ev.stopPropagation(); call('open_site', { id: site.dataset.site }); return; }
+  const open = ev.target.closest('[data-open]');
+  if (open) { ev.stopPropagation(); call('open_folder', { id: open.dataset.open }); return; }
+  const row = ev.target.closest('.row');
+  if (row && !S.busy) {
+    const id = row.dataset.id;
+    S.picked.has(id) ? S.picked.delete(id) : S.picked.add(id);
+    render();
+  }
+});
+document.getElementById('openDir').onclick = () => call('open_folder', { id: null });
+document.getElementById('pickNew').onclick = () => {
+  S.picked = new Set(S.boot.emus.filter(e => !e.ours && !e.elsewhere).map(e => e.id));
+  render();
+};
+document.getElementById('go').onclick = async () => {
+  const ids = S.boot.emus.map(e => e.id).filter(id => S.picked.has(id));
+  if (!ids.length) return;
+  S.busy = true;
+  ids.forEach(id => S.state[id] = { phase: 'wait' });
+  render();
+  try { await call('install', { ids }); }
+  catch (e) { S.busy = false; ids.forEach(id => S.state[id] = { phase: 'fail', msg: String(e) }); render(); }
+};
+
+on('emu-progress', p => {
+  const st = S.state[p.id] && S.state[p.id].phase === 'run' ? S.state[p.id] : (S.state[p.id] = { phase: 'run', text: '', got: 0, total: 0 });
+  if (p.text) { st.text = p.text; st.got = 0; st.total = 0; } else { st.got = p.got; st.total = p.total; }
+  paintOne(p.id);
+});
+on('emu-done', d => {
+  const e = S.boot.emus.find(x => x.id === d.id);
+  if (d.ok) { delete S.state[d.id]; S.picked.delete(d.id); if (e) { e.ours = e.ours || '1'; e.version = d.msg; } }
+  else S.state[d.id] = { phase: 'fail', msg: d.msg };
+  paintOne(d.id);
+});
+on('emu-finished', async () => {
+  S.busy = false;
+  S.boot = await call('boot');
+  render();
+});
+
+(async () => { S.boot = await call('boot'); render(); })();
+</script>
+</body>
+</html>

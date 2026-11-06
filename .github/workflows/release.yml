@@ -53,6 +53,9 @@ jobs:
           SPINE_SS_DEVID: ${{ secrets.SCREENSCRAPER_DEVID }}
           SPINE_SS_DEVPASSWORD: ${{ secrets.SCREENSCRAPER_DEVPASSWORD }}
         run: npx --yes @tauri-apps/cli@2.12.4 build --bundles nsis
+      - name: Build Spine-Emulators.exe (the separate emulator installer)
+        working-directory: spine-emus
+        run: npx --yes @tauri-apps/cli@2.12.4 build --no-bundle
       - name: Package
         shell: pwsh
         run: |
@@ -60,7 +63,9 @@ jobs:
           Copy-Item spine-app/target/release/Spine.exe dist/Spine.exe
           $setup = Get-ChildItem spine-app/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
           Copy-Item $setup.FullName dist/Spine-Setup.exe
-          foreach ($f in 'Spine.exe', 'Spine-Setup.exe') {
+          $emus = Get-ChildItem spine-emus/target/release/*.exe | Where-Object { $_.Name -match '^(Spine-Emulators|spine-emulators)\.exe$' } | Select-Object -First 1
+          Copy-Item $emus.FullName dist/Spine-Emulators.exe
+          foreach ($f in 'Spine.exe', 'Spine-Setup.exe', 'Spine-Emulators.exe') {
             $h = (Get-FileHash "dist/$f" -Algorithm SHA256).Hash.ToLower()
             Set-Content -Path "dist/$f.sha256" -Value "$h  $f" -NoNewline
           }

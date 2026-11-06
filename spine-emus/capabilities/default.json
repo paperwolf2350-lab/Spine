@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Spine Emulators window",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

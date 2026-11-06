@@ -748,6 +748,37 @@ with reduced motion. Stage strip `#cbstrip` (`cubeStripHtml` / `cubeStripSync`):
 Tested in Playwright (held turns: lag 0 400 ms after release; strip clicks; shelf transform sampled per frame) and
 WebKitGTK under Xvfb. Cube redesign plan (claude/CUBE-REDESIGN.md) is now complete.
 
+## Spine Emulators (separate installer), started Nov 6
+
+Owner's choice: a separate program next to Spine, not a button inside it (plan: claude/EMULATOR-INSTALLER.md in the
+Project). Windows first, install only (no controller/emulator config), never BIOS/keys/firmware, sources written into the
+code (fake Eden download pages with malware exist). Releases: 1 = app + GitHub/Forgejo emulators (0.33.0); 2 = RetroArch with
+cores per console + Dolphin, PPSSPP, MAME, Snes9x (non-GitHub sources); 3 = Update button; 4 = Linux via Flathub.
+
+**0.33.0** (Nov 6): release 1. Logic in `spine-core/src/emus.rs` (so its tests run in CI on both OSes): `EMUS` = 13 `EmuDef`
+(id = Spine's `launch::EMULATORS` id, folder name, consoles, group, `Source::GitHub(repo)` or `Source::Forgejo(api)`, `pick` =
+file-name matcher for the 64-bit Windows build, `exes`). `latest()` asks api.github.com `/releases/latest` (or Eden's Forgejo
+`git.eden-emu.dev/api/v1/repos/eden-emu/eden/releases`, newest non-prerelease; its links go to stable.eden-emu.dev, size 0).
+Checks: GitHub size, GitHub `digest` sha256 when present (Cemu 2.6's Windows zip has none: older upload), and the archive's
+per-file CRCs while unpacking. zip via the `zip` crate (own loop: Azahar's zip uses "\" as folder separator; rejects ".." and
+":"), 7z via sevenz-rust2. Unpacks into `<Name>.new`, flattens a single top folder (Cemu_2.6/, azahar-windows-msvc-*/), checks
+the program is there, swaps (old copy to `<Name>.old`, "still open" if locked). `spine-emulators.json` in the folder =
+{id: {version, file, at}}; rolling tags (DuckStation "latest", Vita3K "continuous") store tag + first 12 hex of the sha256.
+Folder: `%USERPROFILE%\Emulators\<Name>` (`emus::default_dir`), added to `launch::default_search_paths`.
+File names checked Nov 6: Xenia's is really `xenia_canary_windows_.zip` (trailing underscore). Live test
+`cargo test --lib -- --ignored live_downloads` downloads and unpacks melonDS, mGBA, Xenia, Eden, Azahar, PCSX2, Cemu, RPCS3
+and checks Spine's `Installed::detect` finds each (the workspace can download release files, not use the GitHub API).
+App: `spine-emus/` (Tauri 2, `Spine-Emulators.exe`, identifier app.spine.emulators, no bundle), `src/main.rs` commands `boot`
+(EmuView: version/ours/elsewhere via `Installed::detect` over Spine's search paths), `install(ids)` (one at a time in a
+thread; events `emu-progress` {text | got/total from watching the file size}, `emu-done`, `emu-finished`), `open_folder`,
+`open_site` (explorer.exe with the address from our list). UI `spine-emus/ui/index.html` (single file, TV-mode colors,
+groups, checkboxes, progress bars, "Select not installed"). On non-Windows it shows a Flathub note and won't install.
+CI: windows job builds it with `tauri build --no-bundle` and publishes Spine-Emulators.exe + .sha256.
+Spine: new launchers `flycast` (`-config window:fullscreen=yes {rom}`) and `mesen` (`{rom} --fullscreen`) as Standalone
+choices (Dreamcast; NES, SNES, GB, GBC, GBA) — args not tested on a real PC yet. Tested: unit tests, real downloads,
+Windows cross-check (`cargo check --target x86_64-pc-windows-gnu`, needs gcc-mingw-w64-x86-64 for the icon resource),
+Playwright with a mock, and the real app under Xvfb (boot lists everything).
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).

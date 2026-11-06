@@ -42,6 +42,10 @@ users can install **Spine-amd64.deb** instead. Settings and covers live in
 
 Both update themselves: when a new version is out, Settings → Updates offers it.
 
+Need emulators? On Windows, download **Spine-Emulators.exe** from the same release: tick the ones
+you want and it installs them from their official releases into an `Emulators` folder that Spine
+finds. It never downloads BIOS files, keys or firmware.
+
 Your emulators can be anywhere common: an `Emulators` folder next to your ROMs,
 Program Files or AppData on Windows; Flatpaks (Flathub), your distribution's
 packages, or AppImages in `~/Applications` (EmuDeck's layout) on Linux.

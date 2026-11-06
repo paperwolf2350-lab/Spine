@@ -41,13 +41,13 @@ use Launcher::*;
 
 pub static SYSTEMS: &[System] = &[
     // ---- Nintendo
-    System { id: "nes", name: "Nintendo Entertainment System", short: "NES", folders: &["nes", "famicom", "nintendo", "nintendoentertainmentsystem"], exts: &["nes", "unf", "unif", "zip", "7z"], launchers: &[RetroArch("mesen"), RetroArch("nestopia")], color: "#B23A2E" },
+    System { id: "nes", name: "Nintendo Entertainment System", short: "NES", folders: &["nes", "famicom", "nintendo", "nintendoentertainmentsystem"], exts: &["nes", "unf", "unif", "zip", "7z"], launchers: &[RetroArch("mesen"), RetroArch("nestopia"), Standalone("mesen")], color: "#B23A2E" },
     System { id: "fds", name: "Famicom Disk System", short: "FDS", folders: &["fds", "famicomdisksystem"], exts: &["fds", "zip", "7z"], launchers: &[RetroArch("mesen")], color: "#9E3A2E" },
-    System { id: "snes", name: "Super Nintendo", short: "SNES", folders: &["snes", "sfc", "snesna", "superfamicom", "supernintendo"], exts: &["sfc", "smc", "fig", "swc", "bs", "zip", "7z"], launchers: &[RetroArch("snes9x"), RetroArch("bsnes"), RetroArch("mesen-s")], color: "#5B4BC0" },
+    System { id: "snes", name: "Super Nintendo", short: "SNES", folders: &["snes", "sfc", "snesna", "superfamicom", "supernintendo"], exts: &["sfc", "smc", "fig", "swc", "bs", "zip", "7z"], launchers: &[RetroArch("snes9x"), RetroArch("bsnes"), RetroArch("mesen-s"), Standalone("mesen")], color: "#5B4BC0" },
     System { id: "n64", name: "Nintendo 64", short: "N64", folders: &["n64", "nintendo64"], exts: &["z64", "n64", "v64", "zip", "7z"], launchers: &[RetroArch("mupen64plus_next"), RetroArch("parallel_n64"), Standalone("rmg"), Standalone("simple64")], color: "#237A52" },
-    System { id: "gb", name: "Game Boy", short: "GB", folders: &["gb", "gameboy"], exts: &["gb", "zip", "7z"], launchers: &[RetroArch("gambatte"), RetroArch("mgba")], color: "#5E6B3A" },
-    System { id: "gbc", name: "Game Boy Color", short: "GBC", folders: &["gbc", "gameboycolor"], exts: &["gbc", "gb", "zip", "7z"], launchers: &[RetroArch("gambatte"), RetroArch("mgba"), RetroArch("sameboy")], color: "#7A3F8F" },
-    System { id: "gba", name: "Game Boy Advance", short: "GBA", folders: &["gba", "gameboyadvance"], exts: &["gba", "zip", "7z"], launchers: &[RetroArch("mgba"), RetroArch("vba_next"), RetroArch("gpsp"), Standalone("mgba")], color: "#2F5FBF" },
+    System { id: "gb", name: "Game Boy", short: "GB", folders: &["gb", "gameboy"], exts: &["gb", "zip", "7z"], launchers: &[RetroArch("gambatte"), RetroArch("mgba"), Standalone("mgba"), Standalone("mesen")], color: "#5E6B3A" },
+    System { id: "gbc", name: "Game Boy Color", short: "GBC", folders: &["gbc", "gameboycolor"], exts: &["gbc", "gb", "zip", "7z"], launchers: &[RetroArch("gambatte"), RetroArch("mgba"), RetroArch("sameboy"), Standalone("mgba"), Standalone("mesen")], color: "#7A3F8F" },
+    System { id: "gba", name: "Game Boy Advance", short: "GBA", folders: &["gba", "gameboyadvance"], exts: &["gba", "zip", "7z"], launchers: &[RetroArch("mgba"), RetroArch("vba_next"), RetroArch("gpsp"), Standalone("mgba"), Standalone("mesen")], color: "#2F5FBF" },
     System { id: "nds", name: "Nintendo DS", short: "DS", folders: &["nds", "ds", "nintendods"], exts: &["nds", "zip", "7z"], launchers: &[RetroArch("melondsds"), Standalone("melonds")], color: "#4A4F5C" },
     System { id: "n3ds", name: "Nintendo 3DS", short: "3DS", folders: &["n3ds", "3ds", "nintendo3ds"], exts: &["3ds", "cci", "cxi", "cia", "3dsx", "app"], launchers: &[Standalone("azahar"), RetroArch("citra")], color: "#B5252F" },
     System { id: "virtualboy", name: "Virtual Boy", short: "VB", folders: &["virtualboy", "vb"], exts: &["vb", "vboy", "zip", "7z"], launchers: &[RetroArch("mednafen_vb")], color: "#8E1F1F" },
@@ -62,7 +62,7 @@ pub static SYSTEMS: &[System] = &[
     System { id: "segacd", name: "Sega CD", short: "Sega CD", folders: &["segacd", "megacd", "megacdjp"], exts: &["chd", "cue", "iso", "m3u"], launchers: &[RetroArch("genesis_plus_gx")], color: "#33415C" },
     System { id: "sega32x", name: "Sega 32X", short: "32X", folders: &["sega32x", "32x", "sega32xjp", "sega32xna"], exts: &["32x", "bin", "zip", "7z"], launchers: &[RetroArch("picodrive")], color: "#3D3D52" },
     System { id: "saturn", name: "Sega Saturn", short: "Saturn", folders: &["saturn", "saturnjp", "segasaturn"], exts: &["chd", "cue", "m3u", "iso", "ccd", "mds"], launchers: &[RetroArch("mednafen_saturn"), RetroArch("yabasanshiro")], color: "#2E4370" },
-    System { id: "dreamcast", name: "Dreamcast", short: "DC", folders: &["dreamcast", "dc", "segadreamcast"], exts: &["chd", "gdi", "cdi", "cue", "m3u"], launchers: &[RetroArch("flycast")], color: "#C25A1A" },
+    System { id: "dreamcast", name: "Dreamcast", short: "DC", folders: &["dreamcast", "dc", "segadreamcast"], exts: &["chd", "gdi", "cdi", "cue", "m3u"], launchers: &[RetroArch("flycast"), Standalone("flycast")], color: "#C25A1A" },
     // ---- Sony
     System { id: "psx", name: "PlayStation", short: "PS1", folders: &["psx", "ps1", "playstation", "playstation1", "sonyplaystation"], exts: &["chd", "m3u", "cue", "pbp", "ecm", "iso", "img", "ccd", "bin"], launchers: &[Standalone("duckstation"), RetroArch("swanstation"), RetroArch("mednafen_psx_hw")], color: "#5C6270" },
     System { id: "ps2", name: "PlayStation 2", short: "PS2", folders: &["ps2", "playstation2", "sonyplaystation2"], exts: &["chd", "iso", "cso", "zso", "gz", "m3u", "cue", "bin", "elf"], launchers: &[Standalone("pcsx2"), RetroArch("pcsx2")], color: "#1E3A8A" },

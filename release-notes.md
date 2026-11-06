@@ -1,14 +1,13 @@
 ## What's new
-- **The Cube home feels snappier.** Turns start the moment you press, and holding a direction spins through your consoles without the cube lagging behind. Short light streaks rush past while it turns (not with Reduce motion).
-- **Console strip.** A slim row of console icons sits under the cube: the one you're on lights up and shows how many games it has. Click any icon to jump there.
-- **Games slide up.** Going down to the games row slides it up from under the cube.
+- **New: Spine Emulators (Windows).** A separate little program, **Spine-Emulators.exe**, sits next to Spine in every release. Tick the emulators you want, press Install, and it downloads each one from its official release, checks the file and unpacks it into an `Emulators` folder in your user folder, where Spine finds it. First list: Mesen, mGBA, Flycast, DuckStation, PCSX2, RPCS3, Vita3K, melonDS, Azahar, Cemu, Eden, xemu and Xenia Canary. Install again later to update. BIOS files, keys and firmware are never included.
+- **Flycast and Mesen** can now start games in Spine too (Dreamcast; NES, SNES, Game Boy and GBA), as choices next to RetroArch.
 
-From 0.31.0:
-- New look for the Cube home: a glowing frame with the console floating inside it.
+From 0.32.0:
+- The Cube home feels snappier, with a console strip under the cube.
 
 ---
 
-**Windows:** download **Spine-Setup.exe** below and run it. No admin rights needed.
+**Windows:** download **Spine-Setup.exe** below and run it. No admin rights needed. Want emulators too? Download **Spine-Emulators.exe** and run it.
 
 **Linux:** run `curl -fsSL https://raw.githubusercontent.com/paperwolf2350-lab/spine/main/install.sh | sh`, or download **Spine-x86_64.AppImage**, allow it to run as a program (right-click → Properties → Permissions), and open it. Debian/Ubuntu/Mint: **Spine-amd64.deb**.
 
