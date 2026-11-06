@@ -778,7 +778,7 @@ Spine: new launchers `flycast` (`-config window:fullscreen=yes {rom}`) and `mese
 choices (Dreamcast; NES, SNES, GB, GBC, GBA) — args not tested on a real PC yet. Tested: unit tests, real downloads,
 Windows cross-check (`cargo check --target x86_64-pc-windows-gnu`, needs gcc-mingw-w64-x86-64 for the icon resource),
 Playwright with a mock, and the real app under Xvfb (boot lists everything).
-Owner confirmed 0.33.0 (Nov 6): Spine Emulators installed, tested, working on Windows.
+Owner confirmed 0.33.0 (Nov 6): Spine Emulators installed, tested, working on Windows; a Dreamcast game started from Spine with the Flycast launcher works (Mesen not checked yet).
 
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
