@@ -818,6 +818,7 @@ Updating = the normal `install` (RetroArch carry_over keeps user files). App: as
 Known limit: a rolling release (DuckStation "latest", Vita3K "continuous") without a GitHub sha256 would always look the same.
 Tests: `finds_updates`, live `cargo test --lib -- --ignored live_updates` (RetroArch, Dolphin, PPSSPP, a core; passed Nov 6).
 UI in Playwright with a mock. Not testable here: GitHub API sources (blocked from the workspace) — owner to check on Windows.
+Owner confirmed 0.35.0 (Nov 6): the check ran on Windows and said everything is up to date (no errors).
 Next (release 4): Linux via Flathub Flatpaks.
 
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
