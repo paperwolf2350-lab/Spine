@@ -68,7 +68,7 @@ Gotchas learned the hard way:
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
-## Where things stand (Nov 2026, v0.31.0)
+## Where things stand (Nov 2026, v0.32.0)
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
@@ -733,6 +733,20 @@ up/down (cubetilt; when tilted they offer the way back). `.onshelf` dims the pan
 canvases stretched by CSS or drawImage look blocky there), two `.cb-art` canvases crossfade. The old dots row is gone
 (release 2 adds the console strip). Tested in Playwright (Midnight, Cream, CRT; 1440x860, 1920x1080, 1280x720; clicks,
 held turns) and real WebKitGTK 2.52 under Xvfb. Next: release 2 (feel) per CUBE-REDESIGN.md.
+
+Owner confirmed 0.31.0 (Nov 5): "so far so good, i like it".
+
+**0.32.0** (Nov 5): Cube redesign release 2, the feel (cube.js/cube.css). Turns: `cubeAnimate` uses 300 ms instead of
+520 ms when a turn comes < 320 ms after the last (`CG.lastTurn`, `CG.dur`), and never lets the frame lag more than one
+quarter turn (whole quarter turns of backlog are skipped: the wireframe looks identical after each, so it's invisible;
+before this a held button left it ~3 turns behind and it kept spinning after release). Panel slide-in now also scales from
+.9 (shrink + turn start together, .3 s, no delay). Warp streaks: `cubeDraw` draws 34 gradient lines on `#cbback` along the
+turn axis, moved by `CG.warp` (sum of per-frame movement) with strength from `CG.vy`/`CG.vx` (per-frame velocity); skipped
+with reduced motion. Stage strip `#cbstrip` (`cubeStripHtml` / `cubeStripSync`): one `.cb-chip` per belt console
+(cubepick), `.on` = console color + count, `.press` animation when the console changes, `.off` while tilted. Shelf rests
+12 px low at .55 opacity and slides up (`transform` transition) when `.live`; shelf is 200 px tall so titles aren't cut.
+Tested in Playwright (held turns: lag 0 400 ms after release; strip clicks; shelf transform sampled per frame) and
+WebKitGTK under Xvfb. Cube redesign plan (claude/CUBE-REDESIGN.md) is now complete.
 
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for

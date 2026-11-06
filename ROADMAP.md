@@ -6,7 +6,7 @@
   2. Watch screen: Your library (Continue, Movies, TV) and From your addons (Streaming, Search); two Continue rows (your files / streaming) (done, 0.29.0).
   3. TV-sized game and movie pages, start in TV mode full-screen (done, 0.30.0; soft sounds dropped, owner likes the current ones).
 - On hold (owner, Nov 4): hide by age rating, only if people ask for it (needs TMDB lookups per title, cached).
-- **Cube redesign** (agreed Nov 5, plan in claude/CUBE-REDESIGN.md): 1. new look (done, 0.31.0); 2. feel: instant turns, warp streaks, console strip under the cube, games row sliding up.
+- **Cube redesign** (agreed Nov 5, plan in claude/CUBE-REDESIGN.md): 1. new look (done, 0.31.0); 2. feel: instant turns, warp streaks, console strip, games row sliding up (done, 0.32.0).
 - Later look ideas: matching sounds per style.
 
 ## Later
@@ -14,6 +14,7 @@
 
 ## Done
 
+- Cube home feel: instant turns that keep up when held, light streaks while turning, console strip under the cube, games row slides up (0.32.0).
 - Cube home's new look: glowing wireframe cube, floating console panel, consoles waiting on the floor, blurred console art behind (0.31.0).
 
 - TV mode: couch-sized game, movie and show pages; option to open TV mode full-screen (0.30.0).

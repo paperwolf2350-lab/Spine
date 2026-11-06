@@ -96,6 +96,22 @@ function cubeSideHtml(belt) {
   return side(-1) + side(1) + tag(up, 'up', '▲', t < 0 ? 0 : 1) + tag(down, 'down', '▼', t > 0 ? 0 : -1);
 }
 
+// The stage strip under the cube: one small icon per console; the chosen one lights up and shows its count.
+function cubeStripHtml(belt) {
+  return belt.map((b, k) => `<button class="cb-chip" style="--dc:${b.color}" data-act="cubepick" data-i="${k}" tabindex="-1" aria-label="${esc(b.name)}">
+      ${sysIcon(tileIcon(b), 22)}<span class="n">${b.count != null ? b.count.toLocaleString() : ''}</span></button>`).join('');
+}
+function cubeStripSync(press) {
+  const strip = document.getElementById('cbstrip');
+  if (!strip) return;
+  strip.classList.toggle('off', !!S.cube.tilt);
+  strip.querySelectorAll('.cb-chip').forEach((el, k) => {
+    const on = k === S.cube.i && !S.cube.tilt;
+    el.classList.toggle('on', on);
+    if (on && press && !cubeStill()) { el.classList.remove('press'); void el.offsetWidth; el.classList.add('press'); }
+  });
+}
+
 function cubeShelfHtml(cat) {
   const items = waveItems(cat);
   const at = Math.min(S.cube.at[cat.id] || 0, items.length - 1);
@@ -136,6 +152,7 @@ function homeCube() {
         <button class="cb-hit" data-nav data-key="cb-cube" aria-label="${esc(cat.name)}"></button>
       </div>
       <canvas class="cb-lines front" id="cbfront" aria-hidden="true"></canvas>
+      <div class="cb-strip" id="cbstrip">${cubeStripHtml(belt)}</div>
       <div class="cb-shelf ${c.zone === 'shelf' ? 'live' : ''}" id="cbshelf">${cubeShelfHtml(cat)}</div>
     </main>` + hints(c.zone === 'shelf' ? '↑ or B: back to the cube' : '← → turn · ↑ Recent · ↓ Favorites', c.zone === 'shelf' ? [['A', 'Open'], ['Y', 'Favorite'], ['X', 'Search'], ['☰', 'Settings']] : [['A', 'Open'], ['X', 'Search'], ['☰', 'Settings']]);
 }
@@ -149,7 +166,7 @@ function homeCube() {
 const CUBE_D = 4.284, CUBE_EYE = -0.186;
 const CUBE_V = [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]];
 const CUBE_E = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
-const CG = { y: 0, x: 0, fromY: 0, fromX: 0, t0: 0, raf: 0, geo: null, col: null, dots: null };
+const CG = { y: 0, x: 0, fromY: 0, fromX: 0, t0: 0, raf: 0, geo: null, col: null, dots: null, vy: 0, vx: 0, warp: 0, streaks: null, dur: 520, lastTurn: 0 };
 
 function cubeProject(p, g) {
   const k = g.fs * 1.642, s = k / (CUBE_D - p[2]);
@@ -181,6 +198,22 @@ function cubeDraw() {
   for (const [x, y, t] of CG.dots) {
     back.fillStyle = t > 0.5 ? cubeCss(c2, (0.15 + t * 0.4) * (light ? 0.8 : 1)) : light ? cubeCss(c1, 0.12 + t * 0.2) : `rgba(255,255,255,${0.15 + t * 0.4})`;
     back.beginPath(); back.arc(x * g.w, 8 + y * (g.h - 16), t > 0.8 ? 1.5 : 1, 0, Math.PI * 2); back.fill();
+  }
+  // Warp streaks while the cube turns: thin lines rushing past, brighter the faster it moves.
+  const v = Math.abs(CG.vy) > Math.abs(CG.vx) ? CG.vy : CG.vx, horiz = Math.abs(CG.vy) >= Math.abs(CG.vx), sp = Math.min(1, Math.abs(v) * 14);
+  if (sp > 0.02 && !cubeStill()) {
+    if (!CG.streaks) { let seed = 11; const r = () => (seed = (seed * 9301 + 49297) % 233280) / 233280; CG.streaks = Array.from({ length: 34 }, () => [r(), r(), 0.4 + r() * 0.6, 0.6 + r() * 0.8]); }
+    const W = horiz ? g.w : g.h, Hh = horiz ? g.h : g.w, dir = -Math.sign(v);
+    back.lineCap = 'round'; back.lineWidth = 1.5;
+    for (const [a, b, len, speed] of CG.streaks) {
+      const along = mod(a * W + CG.warp * speed * W * dir, W), across = 10 + b * (Hh - 20), l = len * sp * W * 0.18;
+      const p1 = along, p2 = along - dir * l;
+      const grad = horiz ? back.createLinearGradient(p1, 0, p2, 0) : back.createLinearGradient(0, p1, 0, p2);
+      grad.addColorStop(0, cubeCss(c2, 0.7 * sp)); grad.addColorStop(1, cubeCss(c2, 0));
+      back.strokeStyle = grad; back.beginPath();
+      if (horiz) { back.moveTo(p1, across); back.lineTo(p2, across); } else { back.moveTo(across, p1); back.lineTo(across, p2); }
+      back.stroke();
+    }
   }
   // The floor: a grid that stays put while the frame turns above it.
   const fl = (x, z) => cubeProject([x, 1, z], g);
@@ -218,13 +251,24 @@ const cubeEase = (t) => { const c = 1.35; return 1 + (c + 1) * Math.pow(t - 1, 3
 function cubeAnimate(fromY, fromX) {
   const ty = S.cube.rot, tx = S.cube.tilt;
   cancelAnimationFrame(CG.raf);
-  if (cubeStill() || (CG.y === ty && CG.x === tx && fromY == null)) { CG.y = ty; CG.x = tx; return cubeDraw(); }
-  CG.fromY = fromY ?? CG.y; CG.fromX = fromX ?? CG.x; CG.t0 = performance.now();
+  if (cubeStill() || (CG.y === ty && CG.x === tx && fromY == null)) { CG.y = ty; CG.x = tx; CG.vy = CG.vx = 0; return cubeDraw(); }
+  // Never fall more than one quarter turn behind (a held button): the frame looks the same after every
+  // quarter turn, so skipping whole turns of backlog can't be seen, and the cube stops when you let go.
+  let y0 = fromY ?? CG.y; const lag = ty - y0;
+  if (Math.abs(lag) > 1) y0 += Math.trunc(lag) - Math.sign(lag);
+  CG.fromY = y0; CG.fromX = fromX ?? CG.x; CG.t0 = performance.now();
+  // Turns that come quickly one after another (a held button) get shorter, so the cube keeps up instead of lagging.
+  const gap = CG.t0 - CG.lastTurn; CG.lastTurn = CG.t0;
+  CG.dur = gap < 320 ? 300 : 520;
+  let py = CG.fromY, px = CG.fromX;
   const step = (now) => {
     if (!document.getElementById('cbback')) return;
-    const t = Math.min(1, (now - CG.t0) / 520), e = cubeEase(t);
+    const t = Math.min(1, (now - CG.t0) / CG.dur), e = cubeEase(t);
     CG.y = CG.fromY + (S.cube.rot - CG.fromY) * e; CG.x = CG.fromX + (S.cube.tilt - CG.fromX) * e;
     if (t >= 1) { CG.y = S.cube.rot; CG.x = S.cube.tilt; }
+    CG.vy = CG.y - py; CG.vx = CG.x - px; py = CG.y; px = CG.x;
+    CG.warp += Math.abs(CG.vy) + Math.abs(CG.vx);
+    if (t >= 1) { CG.vy = 0; CG.vx = 0; }
     cubeDraw();
     if (t < 1) CG.raf = requestAnimationFrame(step);
   };
@@ -310,6 +354,7 @@ function cubeSync(catChanged) {
   if (S.cube.tilt) { holo.dataset.act = 'cubetilt'; holo.dataset.t = S.cube.tilt; } else { holo.dataset.act = 'cubepick'; holo.dataset.i = S.cube.i; }
   document.getElementById('cbside').innerHTML = cubeSideHtml(belt);
   const hit = document.querySelector('.cb-hit'); if (hit) hit.setAttribute('aria-label', cat.name);
+  cubeStripSync(catChanged);
   home.classList.toggle('onshelf', S.cube.zone === 'shelf');
   home.classList.toggle('light', CG.col.light);
   if (catChanged) shelf.innerHTML = cubeShelfHtml(cat);
@@ -397,6 +442,7 @@ function cubeMount() {
   const { cat } = cubeState();
   CG.col = cubeColors(cat.color);
   cubeArtFor = '';
+  cubeStripSync(false);
   cubeLayout();
   document.fonts?.ready.then(cubeFitName); // the display font may arrive after the first fit
   cubeArt(cat);

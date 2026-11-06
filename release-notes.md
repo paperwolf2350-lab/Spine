@@ -1,5 +1,10 @@
 ## What's new
-- **New look for the Cube home.** The cube is now a hollow frame of glowing lines in each console's color, with the console floating inside it as a see-through panel: covers hover around it, and a light beam shines up from a projector on the floor. The previous and next consoles wait on the floor, and the background softly takes on the console's art. Controls are exactly the same as before. (Settings → Look → Home style → Cube.)
+- **The Cube home feels snappier.** Turns start the moment you press, and holding a direction spins through your consoles without the cube lagging behind. Short light streaks rush past while it turns (not with Reduce motion).
+- **Console strip.** A slim row of console icons sits under the cube: the one you're on lights up and shows how many games it has. Click any icon to jump there.
+- **Games slide up.** Going down to the games row slides it up from under the cube.
+
+From 0.31.0:
+- New look for the Cube home: a glowing frame with the console floating inside it.
 
 ---
 

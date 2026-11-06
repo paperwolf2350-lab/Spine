@@ -100,22 +100,43 @@ body.kb .cubehome [data-nav].focused, body.kb .cubehome [data-nav]:focus-visible
 .cubehome.onshelf .cb-beam { opacity: .4; }
 
 /* A new console's panel arrives from the side the cube turned (r/l) or from above/below (u/d). */
-.cb-hin.in-r { animation: cbinr .38s cubic-bezier(.2,.9,.3,1) both; }
-.cb-hin.in-l { animation: cbinl .38s cubic-bezier(.2,.9,.3,1) both; }
-.cb-hin.in-u { animation: cbinu .38s cubic-bezier(.2,.9,.3,1) both; }
-.cb-hin.in-d { animation: cbind .38s cubic-bezier(.2,.9,.3,1) both; }
-@keyframes cbinr { from { transform: translateX(calc(70 * var(--U))); opacity: 0; } }
-@keyframes cbinl { from { transform: translateX(calc(-70 * var(--U))); opacity: 0; } }
-@keyframes cbinu { from { transform: translateY(calc(-60 * var(--U))); opacity: 0; } }
-@keyframes cbind { from { transform: translateY(calc(60 * var(--U))); opacity: 0; } }
+.cb-hin.in-r { animation: cbinr .3s cubic-bezier(.2,.9,.3,1) both; }
+.cb-hin.in-l { animation: cbinl .3s cubic-bezier(.2,.9,.3,1) both; }
+.cb-hin.in-u { animation: cbinu .3s cubic-bezier(.2,.9,.3,1) both; }
+.cb-hin.in-d { animation: cbind .3s cubic-bezier(.2,.9,.3,1) both; }
+/* Shrink and slide start together with the turn: no delay, so a held button never queues anything up. */
+@keyframes cbinr { from { transform: translateX(calc(70 * var(--U))) scale(.9); opacity: 0; } }
+@keyframes cbinl { from { transform: translateX(calc(-70 * var(--U))) scale(.9); opacity: 0; } }
+@keyframes cbinu { from { transform: translateY(calc(-60 * var(--U))) scale(.9); opacity: 0; } }
+@keyframes cbind { from { transform: translateY(calc(60 * var(--U))) scale(.9); opacity: 0; } }
 .cubehome.intro .cb-hin { animation: cbintro .7s .1s cubic-bezier(.2,.9,.3,1) both; }
 @keyframes cbintro { from { transform: scale(.85); opacity: 0; } }
 
-/* The curved shelf of games. */
-.cb-shelf { position: relative; flex: 0 0 190px; width: 100%; perspective: 900px; transform-style: preserve-3d; opacity: .6; transition: opacity .25s ease; z-index: 4; }
-.cb-shelf.live { opacity: 1; }
+/* The stage strip: a slim row of console icons; the chosen one lights up, shows its count and presses in. */
+.cb-strip {
+  position: relative; z-index: 4; flex: 0 0 auto; display: flex; gap: 4px; padding: 5px 8px; margin-top: 6px; border-radius: 14px;
+  max-width: 92%; flex-wrap: wrap; justify-content: center;
+  background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid color-mix(in srgb, var(--c2) 30%, transparent);
+  transition: opacity .25s ease;
+}
+.cb-strip.off { opacity: .45; }
+.cb-chip {
+  display: flex; align-items: center; gap: 0; height: 30px; padding: 0 8px; border-radius: 9px; color: var(--muted); opacity: .7;
+  transition: background-color .18s ease, color .18s ease, opacity .18s ease, gap .18s ease;
+}
+.cb-chip:hover { opacity: 1; }
+.cb-chip .n { max-width: 0; overflow: hidden; font-size: 12px; font-weight: 700; white-space: nowrap; transition: max-width .2s ease; }
+.cb-chip.on { background: var(--dc); color: #fff; opacity: 1; gap: 6px; box-shadow: 0 0 14px color-mix(in srgb, var(--dc) 70%, transparent); }
+.cb-chip.on .n { max-width: 60px; }
+.cb-chip.press { animation: cbpress .28s ease-out; }
+@keyframes cbpress { 0% { transform: scale(1); } 35% { transform: scale(.86); } 70% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+/* The curved shelf of games: it rests a little low and slides up from the stage when you go down to it. */
+.cb-shelf { position: relative; flex: 0 0 200px; width: 100%; perspective: 900px; transform-style: preserve-3d; opacity: .55; z-index: 4;
+  transform: translateY(12px); transition: opacity .25s ease, transform .32s cubic-bezier(.2,.9,.3,1); }
+.cb-shelf.live { opacity: 1; transform: none; }
 .cb-game {
-  position: absolute; left: calc(50% - 60px); top: 18px; width: 120px; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  position: absolute; left: calc(50% - 60px); top: 14px; width: 120px; display: flex; flex-direction: column; align-items: center; gap: 8px;
   transition: transform .35s cubic-bezier(.3,1.25,.5,1), opacity .25s ease;
 }
 .cb-game .art { width: 120px; height: 120px; display: flex; align-items: flex-end; justify-content: center; }
@@ -127,6 +148,7 @@ body.kb .cubehome [data-nav].focused, body.kb .cubehome [data-nav]:focus-visible
 .cb-shelf.live .cb-game.sel .art img, .cb-shelf.live .cb-game.sel .ph { box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--c2), 0 10px 24px rgba(0,0,0,.35); }
 
 @media (prefers-reduced-motion: reduce) {
-  .cb-game, .cb-panel, .cb-art { transition: none; }
+  .cb-game, .cb-panel, .cb-art, .cb-shelf, .cb-chip, .cb-chip .n { transition: none; }
+  .cb-chip.press { animation: none; }
   .cb-hin, .cubehome.intro .cb-hin { animation: none !important; }
 }
