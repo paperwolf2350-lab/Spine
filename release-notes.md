@@ -1,9 +1,5 @@
 ## What's new
-- **TV-sized pages.** With TV mode on, game, movie and show pages (and Streaming's title pages) get bigger text, covers, buttons and episode rows, and wider edges, so they read well from the couch.
-- **Open TV mode full-screen.** Settings → Look → Open TV mode full-screen → On. Spine then opens full-screen whenever TV mode is on. Turn on Start with your PC (Settings → Updates & window) as well, and your PC starts up straight into TV mode like a console.
-
-From 0.29.3:
-- TV mode: left and right work everywhere with a controller.
+- **New look for the Cube home.** The cube is now a hollow frame of glowing lines in each console's color, with the console floating inside it as a see-through panel: covers hover around it, and a light beam shines up from a projector on the floor. The previous and next consoles wait on the floor, and the background softly takes on the console's art. Controls are exactly the same as before. (Settings → Look → Home style → Cube.)
 
 ---
 

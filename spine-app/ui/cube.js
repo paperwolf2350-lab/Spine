@@ -1,15 +1,17 @@
-// Cube: a Home style with one big cube in the middle. The four faces around
-// its middle show consoles in order (left/right rolls to the previous/next one,
-// wrapping round at the ends); the top face is Recent and the bottom face is
-// Favorites. Below it, the chosen console's games sit on a curved shelf.
-// Only six faces exist: faces out of view are repainted with the next console
-// in line before they can come round again. Settings → Home style → Cube.
+// Cube: a Home style built around a hollow cube of glowing data lines. The
+// chosen console floats inside it as a holographic panel; left/right turn the
+// cube to the previous/next console (wrapping round), up shows Recent and down
+// Favorites. The previous and next consoles wait as small panels on the floor.
+// Below, the chosen console's games sit on a curved shelf.
+// The frame is drawn on two canvases (edges behind the panel, edges in front of
+// it) with canvas glow, never CSS filters or preserve-3d: Linux WebKitGTK
+// without a GPU flattens 3D and makes live blur slow. Settings → Home style → Cube.
 // No music; Cube has its own interface sounds (SFX in app.js). Loaded before app.js.
 
 const cubeOn = () => settings().home_style === 'cube';
-const CB = { gap: 168, window: 8 }; // shelf spacing (CSS px) and how many games each side are drawn
+const CB = { gap: 168, window: 8, u: 1 }; // shelf spacing (CSS px), games drawn each side, last frame scale (frame size / 560)
 
-// The ring of consoles (everything except Favorites, which lives on the bottom face).
+// The ring of consoles (everything except Recent and Favorites, which are up and down).
 function cubeBelt() { return waveCats().filter((c) => c.kind !== 'recent' && c.kind !== 'fav'); }
 function cubeTop() { const c = waveCats()[0]; return c && c.kind === 'recent' ? c : null; }
 function cubeBottom() { const c = waveCats().find((x) => x.kind === 'fav'); return c || null; }
@@ -18,7 +20,7 @@ function cubeState() {
   if (!S.cube) {
     const belt = cubeBelt();
     const i = Math.max(0, belt.findIndex((c) => c.ti === S.sel));
-    S.cube = { i, rot: 0, tilt: 0, zone: 'cube', at: {}, intro: true };
+    S.cube = { i, rot: 0, tilt: 0, zone: 'cube', at: {}, intro: true, dir: '' };
   }
   const belt = cubeBelt();
   S.cube.i = Math.min(S.cube.i, belt.length - 1);
@@ -26,25 +28,72 @@ function cubeState() {
   return { belt, cat: cat || belt[S.cube.i] };
 }
 const mod = (a, n) => ((a % n) + n) % n;
-// Which console a side slot (0–3) shows: the front slot shows the current one,
-// the slot to its right the next, to its left the previous, behind it two along.
-function cubeSlotCat(belt, s) {
-  const front = mod(S.cube.rot, 4);
-  const d = [0, 1, 2, -1][mod(s - front, 4)];
-  return { c: belt[mod(S.cube.i + d, belt.length)], k: mod(S.cube.i + d, belt.length) };
+const cubeStill = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---- colors ---------------------------------------------------------------
+const cubeRgbCtx = document.createElement('canvas').getContext('2d');
+function cubeRgb(str) { // any CSS color -> [r, g, b]
+  cubeRgbCtx.fillStyle = '#000'; cubeRgbCtx.fillStyle = str || '#000';
+  const v = cubeRgbCtx.fillStyle;
+  if (v[0] === '#') { const n = parseInt(v.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  const m = v.match(/[\d.]+/g) || [0, 0, 0]; return [+m[0], +m[1], +m[2]];
+}
+const cubeMix = (a, b, t) => a.map((x, k) => Math.round(x + (b[k] - x) * t));
+const cubeCss = (c, a = 1) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+const cubeHex = (c) => '#' + c.map((x) => x.toString(16).padStart(2, '0')).join('');
+// The console color and its light partner (lines, glow); on light themes the partner goes darker instead.
+function cubeColors(color) {
+  const bg = cubeRgb(getComputedStyle(document.documentElement).getPropertyValue('--bg'));
+  const light = (bg[0] * 0.299 + bg[1] * 0.587 + bg[2] * 0.114) > 140;
+  const c1 = cubeRgb(color);
+  return { light, c1, c2: light ? cubeMix(c1, [0, 0, 0], 0.2) : cubeMix(c1, [255, 255, 255], 0.5) };
 }
 
-function cubeFaceHtml(c, extra = '') {
-  if (!c) return `<span class="cb-in empty"><span class="nm">Nothing here yet</span></span>`;
-  const items = c.kind === 'stream' ? [] : c.kind === 'recent' ? c.recent : c.kind === 'fav' ? favItems() : c.kind === 'coll' ? collItems(c.coll)
+// ---- what each console shows ----------------------------------------------
+function cubeItems(c) {
+  if (!c || c.kind === 'stream') return [];
+  return c.kind === 'recent' ? c.recent : c.kind === 'fav' ? favItems() : c.kind === 'coll' ? collItems(c.coll)
     : c.kind === 'sys' ? c.sys.games.map((g) => ({ s: c.sys, g })) : systems().filter((x) => !isMovies(x)).flatMap((x) => x.games.map((g) => ({ s: x, g })));
-  const covers = items.filter((x) => x.g.cover);
-  const step = Math.max(1, Math.floor(covers.length / 3));
-  const stickers = covers.filter((_, k) => k % step === 0).slice(0, 3)
-    .map((x, k) => `<img class="st st${k}" src="${mediaUrl(x.g.cover)}" alt="" decoding="async">`).join('');
-  const count = c.kind === 'recent' ? `${c.recent.length} recently played` : c.count != null ? `${c.count.toLocaleString()} ${c.kind === 'sys' ? things(c.sys, c.count) : c.count === 1 ? 'game' : 'games'}` : c.label || 'Random pick';
-  return `<span class="cb-in" style="--fc:${c.color}">${stickers}<span class="ic">${sysIcon(tileIcon(c), 92)}</span>
-    <span class="nm">${esc(c.name)}</span><span class="ct">${esc(count)}</span>${extra}</span>`;
+}
+function cubeCount(c) {
+  return c.kind === 'recent' ? `${c.recent.length} recently played` : c.count != null ? `${c.count.toLocaleString()} ${c.kind === 'sys' ? things(c.sys, c.count) : c.count === 1 ? 'game' : 'games'}` : c.label || 'Random pick';
+}
+// The floating panel: two faint ghost layers, a cover behind and one in front, the panel itself.
+function cubeHoloHtml(c, dir = '') {
+  if (!c) return `<div class="cb-hin"><div class="cb-panel empty"><span class="nm">Nothing here yet</span></div></div>`;
+  const covers = cubeItems(c).filter((x) => x.g.cover);
+  const step = Math.max(1, Math.floor(covers.length / 2));
+  const pick = covers.filter((_, k) => k % step === 0).slice(0, 2);
+  const cov = (x, k) => x ? `<img class="cb-cov cv${k}" src="${mediaUrl(x.g.cover)}" alt="" decoding="async">` : '';
+  return `<div class="cb-hin ${dir ? 'in-' + dir : ''}">
+      <span class="cb-ghost g1"></span><span class="cb-ghost g2"></span>${cov(pick[0], 0)}
+      <div class="cb-panel"><span class="cb-scan"></span><i class="cb-br tl"></i><i class="cb-br tr"></i><i class="cb-br bl"></i><i class="cb-br br"></i>
+        <span class="ic">${sysIcon(tileIcon(c), Math.round(64 * CB.u))}</span>
+        <span class="nm">${esc(c.name)}</span><span class="ct">${esc(cubeCount(c))}</span></div>${cov(pick[1], 1)}
+    </div>`;
+}
+// Shrink the console name until it fits the panel (at most two lines, no word cut).
+function cubeFitName() {
+  const el = document.querySelector('#cbholo .cb-panel .nm');
+  if (!el) return;
+  let size = 34 * CB.u;
+  el.style.fontSize = size + 'px';
+  const tooBig = () => el.scrollWidth > el.clientWidth + 1 || el.offsetHeight > size * 1.1 * 2 + 2;
+  for (let k = 0; k < 14 && tooBig() && size > 14; k++) { size *= 0.92; el.style.fontSize = size + 'px'; }
+}
+// The two consoles waiting on the floor, and the Recent / Favorites tags on the frame.
+function cubeSideHtml(belt) {
+  const t = S.cube.tilt, n = belt.length;
+  const side = (d) => {
+    if (t || n < 2) return '';
+    const k = mod(S.cube.i + d, n), c = belt[k];
+    return `<button class="cb-floor ${d < 0 ? 'prev' : 'next'}" style="--fc:${c.color}" data-act="cubepick" data-i="${k}" tabindex="-1">
+      <span class="fn">${esc(c.short || c.name)}</span><span class="fd">${d < 0 ? '◀ previous' : 'next ▶'}</span></button>`;
+  };
+  const top = cubeTop(), bot = cubeBottom(), here = belt[S.cube.i];
+  const up = t < 0 ? here : t === 0 ? top : null, down = t > 0 ? here : t === 0 ? bot : null;
+  const tag = (c, cls, ch, to) => c ? `<button class="cb-tag ${cls}" data-act="cubetilt" data-t="${to}" tabindex="-1">${ch} ${esc(c.short || c.name)}</button>` : '';
+  return side(-1) + side(1) + tag(up, 'up', '▲', t < 0 ? 0 : 1) + tag(down, 'down', '▼', t > 0 ? 0 : -1);
 }
 
 function cubeShelfHtml(cat) {
@@ -65,85 +114,209 @@ function cubeGameStyle(off) {
   return `transform:translateX(${x}px) translateZ(${-Math.min(a, 6) * 46}px) rotateY(${-s * Math.min(a * 22, 48)}deg) scale(${off === 0 ? 1.18 : 1});opacity:${Math.max(0.25, 1 - a * 0.1)};z-index:${20 - a}`;
 }
 
+function cubePanelAct(belt) { return S.cube.tilt ? `data-act="cubetilt" data-t="${S.cube.tilt}"` : `data-act="cubepick" data-i="${S.cube.i}"`; }
+function cubeVars(cat) {
+  const { c2 } = cubeColors(cat.color);
+  return `--cc:${cat.color};--c2:${cubeHex(c2)}`;
+}
+
 function homeCube() {
   const { belt, cat } = cubeState();
   const c = S.cube;
-  const slots = [0, 1, 2, 3].map((s) => { const { c: sc, k } = cubeSlotCat(belt, s); return `<span class="cb-face s${s}" data-f="s${s}" style="transform:${cubeFaceTransform(`s${s}`)}" data-act="cubepick" data-i="${k}">${cubeFaceHtml(sc)}</span>`; }).join('');
   const intro = c.intro; c.intro = false;
-  const dots = belt.map((b, k) => `<button class="cb-dot ${k === c.i && !c.tilt ? 'on' : ''}" style="--dc:${b.color}" data-act="cubepick" data-i="${k}" tabindex="-1" aria-label="${esc(b.name)}">${sysIcon(tileIcon(b), 26)}</button>`).join('');
-  const drift = Array.from({ length: 12 }, (_, k) => `<i style="left:${(k * 37) % 100}%;top:${(k * 53) % 90}%;animation-delay:${-k * 3.1}s;animation-duration:${22 + (k % 5) * 6}s;--s:${18 + (k % 4) * 14}px"></i>`).join('');
-  return topbar() + `<main class="main cubehome" id="cubehome" style="--cc:${cat.color}">
-      <div class="cb-drift" aria-hidden="true">${drift}</div>
-      <div class="cb-stage">
+  S.cube.shown = cat.id;
+  return topbar() + `<main class="main cubehome ${cubeColors(cat.color).light ? 'light' : ''} ${c.zone === 'shelf' ? 'onshelf' : ''} ${intro ? 'intro' : ''}" id="cubehome" style="${cubeVars(cat)}">
+      <canvas class="cb-art" id="cbart0" aria-hidden="true"></canvas><canvas class="cb-art" id="cbart1" aria-hidden="true"></canvas>
+      <div class="cb-tint" aria-hidden="true"></div>
+      <canvas class="cb-lines" id="cbback" aria-hidden="true"></canvas>
+      <div class="cb-stage" id="cbstage">
+        <span class="cb-beam" aria-hidden="true"></span><span class="cb-disc" aria-hidden="true"></span>
+        <div class="cb-side" id="cbside">${cubeSideHtml(belt)}</div>
+        <div class="cb-holo" id="cbholo" ${cubePanelAct(belt)}>${cubeHoloHtml(cat)}</div>
         <button class="cb-hit" data-nav data-key="cb-cube" aria-label="${esc(cat.name)}"></button>
-        <div class="cb-cube ${intro ? 'intro' : ''}" id="cbcube">
-          ${slots}
-          <span class="cb-face top" data-f="top" style="transform:${cubeFaceTransform('top')}" data-act="cubetilt" data-t="1">${cubeFaceHtml(cubeTop())}</span>
-          <span class="cb-face bot" data-f="bot" style="transform:${cubeFaceTransform('bot')}" data-act="cubetilt" data-t="-1">${cubeFaceHtml(cubeBottom())}</span>
-        </div>
       </div>
-      <div class="cb-dots" id="cbdots">${dots}</div>
+      <canvas class="cb-lines front" id="cbfront" aria-hidden="true"></canvas>
       <div class="cb-shelf ${c.zone === 'shelf' ? 'live' : ''}" id="cbshelf">${cubeShelfHtml(cat)}</div>
-    </main>` + hints(c.zone === 'shelf' ? '↑ or B: back to the cube' : '← → roll · ↑ Recent · ↓ Favorites', c.zone === 'shelf' ? [['A', 'Open'], ['Y', 'Favorite'], ['X', 'Search'], ['☰', 'Settings']] : [['A', 'Choose'], ['X', 'Search'], ['☰', 'Settings']]);
+    </main>` + hints(c.zone === 'shelf' ? '↑ or B: back to the cube' : '← → turn · ↑ Recent · ↓ Favorites', c.zone === 'shelf' ? [['A', 'Open'], ['Y', 'Favorite'], ['X', 'Search'], ['☰', 'Settings']] : [['A', 'Open'], ['X', 'Search'], ['☰', 'Settings']]);
 }
 
-// The cube's rotation: rolls are whole quarter turns that keep adding up (so
-// the cube always turns the short way), tilts show the top or bottom face.
-// The top and bottom faces counter-turn so their pictures stay upright.
-// At rest the cube is turned a little so you see its top (Recent) and the next console on its right.
-function cubeTransform() {
-  return S.cube.tilt ? `rotateX(${-S.cube.tilt * 90}deg) rotateY(${-S.cube.rot * 90}deg)` : `rotateX(-14deg) rotateY(${-22 - S.cube.rot * 90}deg)`;
-}
-// Each face gets the whole cube's turn plus its own place, so the cube doesn't
-// depend on the engine keeping 3D children together (some Linux setups can't).
-const CUBE_FACE = { s0: 'rotateY(0deg) rotateX(0deg)', s1: 'rotateY(90deg) rotateX(0deg)', s2: 'rotateY(180deg) rotateX(0deg)', s3: 'rotateY(270deg) rotateX(0deg)', top: 'rotateY(0deg) rotateX(90deg)', bot: 'rotateY(0deg) rotateX(-90deg)' };
-const cubeFaceTransform = (f) => `${cubeTransform()} ${CUBE_FACE[f]} translateZ(150px)`;
-function cubePlaceFaces() {
-  document.querySelectorAll('#cbcube .cb-face').forEach((el) => { el.style.transform = cubeFaceTransform(el.dataset.f); });
-}
+// ---- the frame ------------------------------------------------------------
+// A cube of half-size 1 seen from straight in front, a little from above
+// (numbers match the approved mockup: front square 560 px, back square 348 px).
+// The frame turns -90° round the vertical per console (rot) and ±90° round the
+// horizontal for Recent / Favorites (tilt). A turned cube looks the same, so
+// only the in-between frames show the turn.
+const CUBE_D = 4.284, CUBE_EYE = -0.186;
+const CUBE_V = [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]];
+const CUBE_E = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+const CG = { y: 0, x: 0, fromY: 0, fromX: 0, t0: 0, raf: 0, geo: null, col: null, dots: null };
 
-// Which faces can be seen from where the cube is now. Only those are drawn:
-// some Linux setups can't tell which side of a 3D face points at you and would
-// paint the back of the cube over the front.
-function cubeVisible() {
-  const f = mod(S.cube.rot, 4);
-  if (S.cube.tilt > 0) return ['top'];
-  if (S.cube.tilt < 0) return ['bot'];
-  return [`s${f}`, `s${mod(f + 1, 4)}`, 'top'];
+function cubeProject(p, g) {
+  const k = g.fs * 1.642, s = k / (CUBE_D - p[2]);
+  return [g.cx + p[0] * s, g.cy - g.fs * 0.093 + (p[1] - CUBE_EYE) * s];
 }
-let cubeShowT = 0;
-function cubeShow(before) {
-  const cube = document.getElementById('cbcube');
-  if (!cube) return;
-  const now = cubeVisible(), during = new Set([...(before || []), ...now]);
-  // While turning, faces on both sides of the turn stay; once it settles, only what's in view.
-  const apply = (set) => cube.querySelectorAll('.cb-face').forEach((el) => { el.style.visibility = set.has(el.dataset.f) ? '' : 'hidden'; });
-  apply(during);
-  clearTimeout(cubeShowT);
-  cubeShowT = setTimeout(() => apply(new Set(now)), before ? 560 : 0);
+function cubeTurn(v, ay, ax) {
+  const a = -ay * Math.PI / 2, b = -ax * Math.PI / 2;
+  const x1 = v[0] * Math.cos(a) + v[2] * Math.sin(a), z1 = -v[0] * Math.sin(a) + v[2] * Math.cos(a);
+  return [x1, v[1] * Math.cos(b) - z1 * Math.sin(b), v[1] * Math.sin(b) + z1 * Math.cos(b)];
 }
-
-// Update the cube, dots and shelf in place so the turns animate.
-function cubeSync(catChanged, before) {
-  const { belt, cat } = cubeState();
-  const cube = document.getElementById('cbcube'), shelf = document.getElementById('cbshelf'), home = document.getElementById('cubehome');
-  if (!cube || !shelf) return render();
-  cubePlaceFaces();
-  cubeShow(before);
-  home.style.setProperty('--cc', cat.color);
-  const spin = mod(S.cube.rot, 4) * 90;
-  cube.querySelectorAll('.cb-face.top .cb-in, .cb-face.bot .cb-in').forEach((el) => { el.style.transform = `rotate(${el.closest('.top') ? -spin : spin}deg)`; });
-  // Repaint side faces whose console changed; they're out of view when that happens.
-  for (let s = 0; s < 4; s++) {
-    const f = cube.querySelector(`.cb-face.s${s}`), { c, k } = cubeSlotCat(belt, s);
-    if (+f.dataset.i !== k) { f.dataset.i = k; f.innerHTML = cubeFaceHtml(c); }
+function cubeCanvas(id, g) {
+  const cv = document.getElementById(id);
+  if (!cv) return null;
+  const w = Math.round(g.w * g.scale), h = Math.round(g.h * g.scale);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, w, h);
+  ctx.setTransform(g.scale, 0, 0, g.scale, 0, 0);
+  return ctx;
+}
+function cubeDraw() {
+  const g = CG.geo, col = CG.col;
+  if (!g || !col) return;
+  const back = cubeCanvas('cbback', g), front = cubeCanvas('cbfront', g);
+  if (!back || !front) return;
+  const { c1, c2, light } = col, dim = S.cube && S.cube.zone === 'shelf' ? 0.6 : 1;
+  // Data points scattered over the background.
+  if (!CG.dots) { let seed = 7; const r = () => (seed = (seed * 9301 + 49297) % 233280) / 233280; CG.dots = Array.from({ length: 70 }, () => [r(), r(), r()]); }
+  for (const [x, y, t] of CG.dots) {
+    back.fillStyle = t > 0.5 ? cubeCss(c2, (0.15 + t * 0.4) * (light ? 0.8 : 1)) : light ? cubeCss(c1, 0.12 + t * 0.2) : `rgba(255,255,255,${0.15 + t * 0.4})`;
+    back.beginPath(); back.arc(x * g.w, 8 + y * (g.h - 16), t > 0.8 ? 1.5 : 1, 0, Math.PI * 2); back.fill();
   }
-  document.querySelectorAll('#cbdots .cb-dot').forEach((d, k) => d.classList.toggle('on', k === S.cube.i && !S.cube.tilt));
+  // The floor: a grid that stays put while the frame turns above it.
+  const fl = (x, z) => cubeProject([x, 1, z], g);
+  back.fillStyle = cubeCss(c1, 0.12);
+  back.beginPath(); [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([x, z], k) => { const p = fl(x, z); k ? back.lineTo(p[0], p[1]) : back.moveTo(p[0], p[1]); }); back.fill();
+  back.strokeStyle = cubeCss(c2, 0.22); back.lineWidth = 1;
+  const seg = (a, b) => { back.beginPath(); back.moveTo(a[0], a[1]); back.lineTo(b[0], b[1]); back.stroke(); };
+  [-0.5, 0, 0.5].forEach((x) => seg(fl(x, -1), fl(x, 1)));
+  [-1 / 3, 1 / 3].forEach((z) => seg(fl(-1, z), fl(1, z)));
+  // The frame. Edges nearer than the middle go on the front canvas (over the panel).
+  const pts = CUBE_V.map((v) => cubeTurn(v, CG.y, CG.x));
+  const u = g.fs / 560, glow = (light ? 6 : 10) * u * g.scale;
+  const edges = CUBE_E.map(([a, b]) => ({ a: pts[a], b: pts[b], z: (pts[a][2] + pts[b][2]) / 2 })).sort((p, q) => p.z - q.z);
+  for (const e of edges) {
+    const ctx = e.z > 0.05 ? front : back, near = (e.z + 1) / 2; // 0 at the back .. 1 at the front
+    const A = cubeProject(e.a, g), B = cubeProject(e.b, g);
+    ctx.lineCap = 'round';
+    ctx.shadowBlur = 0; ctx.strokeStyle = cubeCss(c1, (light ? 0.28 : 0.35) * dim); ctx.lineWidth = (2 + near * 2) * u;
+    ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    ctx.shadowBlur = glow; ctx.shadowColor = cubeCss(light ? c1 : c2, light ? 0.6 : 1);
+    ctx.strokeStyle = cubeCss(c2, (0.7 + near * 0.3) * dim); ctx.lineWidth = (1.2 + near * 0.8) * u;
+    ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+  }
+  // Small bright nodes at the corners.
+  pts.forEach((p) => {
+    const ctx = p[2] > 0.05 ? front : back, q = cubeProject(p, g);
+    ctx.shadowBlur = glow; ctx.shadowColor = cubeCss(light ? c1 : c2, light ? 0.6 : 1);
+    ctx.fillStyle = light ? cubeCss(c2, dim) : `rgba(255,255,255,${0.9 * dim})`;
+    ctx.beginPath(); ctx.arc(q[0], q[1], (1.6 + (p[2] + 1)) * u, 0, Math.PI * 2); ctx.fill();
+  });
+  front.shadowBlur = 0; back.shadowBlur = 0;
+}
+// Ease towards the cube's current rot/tilt. A new turn mid-way starts from where the frame is.
+const cubeEase = (t) => { const c = 1.35; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+function cubeAnimate(fromY, fromX) {
+  const ty = S.cube.rot, tx = S.cube.tilt;
+  cancelAnimationFrame(CG.raf);
+  if (cubeStill() || (CG.y === ty && CG.x === tx && fromY == null)) { CG.y = ty; CG.x = tx; return cubeDraw(); }
+  CG.fromY = fromY ?? CG.y; CG.fromX = fromX ?? CG.x; CG.t0 = performance.now();
+  const step = (now) => {
+    if (!document.getElementById('cbback')) return;
+    const t = Math.min(1, (now - CG.t0) / 520), e = cubeEase(t);
+    CG.y = CG.fromY + (S.cube.rot - CG.fromY) * e; CG.x = CG.fromX + (S.cube.tilt - CG.fromX) * e;
+    if (t >= 1) { CG.y = S.cube.rot; CG.x = S.cube.tilt; }
+    cubeDraw();
+    if (t < 1) CG.raf = requestAnimationFrame(step);
+  };
+  CG.raf = requestAnimationFrame(step);
+}
+
+// Size everything from the room the stage gets (CSS px, so it works at any Interface size).
+function cubeLayout() {
+  const home = document.getElementById('cubehome'), stage = document.getElementById('cbstage');
+  if (!home || !stage) return;
+  const z = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--z')) || 1;
+  const fs = Math.max(240, Math.min(stage.offsetHeight * 0.9, stage.offsetWidth * 0.55, 620));
+  const u = fs / 560, changed = Math.abs(u - CB.u) > 0.08;
+  CB.u = u;
+  home.style.setProperty('--u', u.toFixed(4));
+  CG.geo = { w: home.offsetWidth, h: home.offsetHeight, fs, scale: Math.min(3, z * (window.devicePixelRatio || 1)),
+    cx: stage.offsetLeft + stage.offsetWidth / 2, cy: stage.offsetTop + stage.offsetHeight / 2 };
+  if (changed) { const { cat } = cubeState(); const h = document.getElementById('cbholo'); if (h) h.innerHTML = cubeHoloHtml(cat); }
+  cubeFitName();
+  cubeDraw();
+}
+
+// ---- the blurred background art ---------------------------------------------
+// The picture is drawn into a tiny canvas and stretched by the browser, which
+// blurs it for free; two canvases crossfade when the console changes.
+let cubeArtN = 0, cubeArtFor = '';
+function cubeArt(cat) {
+  if (cubeArtFor === cat.id) return;
+  cubeArtFor = cat.id;
+  const items = cubeItems(cat).slice(0, 40);
+  const g = (items.find((x) => x.g.hero) || items.find((x) => x.g.cover) || {}).g;
+  const src = g ? mediaUrl(g.hero || g.cover) : null;
+  const show = (cv) => { document.querySelectorAll('#cubehome .cb-art').forEach((el) => el.classList.toggle('on', el === cv)); };
+  if (!src) return show(null);
+  const img = new Image();
+  img.decoding = 'async';
+  img.onload = () => {
+    if (cubeArtFor !== cat.id) return;
+    const home = document.getElementById('cubehome');
+    const cv = document.getElementById(`cbart${cubeArtN = 1 - cubeArtN}`);
+    if (!home || !cv) return;
+    // Shrink to 48 px wide, stretch to 384 px, then soften by averaging shifted copies
+    // (a box blur, run twice each way). Linux WebKitGTK scales canvases without
+    // smoothing, so the blur can't come from scaling; shifting works everywhere.
+    const asp = home.offsetHeight / Math.max(1, home.offsetWidth);
+    const w0 = 48, h0 = Math.max(12, Math.round(48 * asp)), W = w0 * 8, H = h0 * 8;
+    const small = document.createElement('canvas'); small.width = w0; small.height = h0;
+    const r = Math.max(w0 / img.naturalWidth, h0 / img.naturalHeight), dw = img.naturalWidth * r, dh = img.naturalHeight * r;
+    small.getContext('2d').drawImage(img, (w0 - dw) / 2, (h0 - dh) / 2, dw, dh);
+    const a = document.createElement('canvas'), b = document.createElement('canvas');
+    a.width = b.width = W; a.height = b.height = H;
+    const actx = a.getContext('2d'), bctx = b.getContext('2d');
+    actx.imageSmoothingEnabled = true; actx.drawImage(small, -8, -8, W + 16, H + 16);
+    const pass = (from, to, ctx, dx, dy) => {
+      ctx.clearRect(0, 0, W, H);
+      for (let k = 0; k < 9; k++) { const o = (k - 4) * 2; ctx.globalAlpha = 1 / (k + 1); ctx.drawImage(from, o * dx, o * dy); }
+      ctx.globalAlpha = 1;
+    };
+    for (let n = 0; n < 2; n++) { pass(a, b, bctx, 1, 0); pass(b, a, actx, 0, 1); }
+    cv.width = W; cv.height = H;
+    cv.getContext('2d').drawImage(a, 0, 0);
+    show(cv);
+  };
+  img.src = src;
+}
+
+// Update everything in place so turns animate. `dir` (S.cube.dir) says where the new panel comes from.
+function cubeSync(catChanged) {
+  const { belt, cat } = cubeState();
+  const home = document.getElementById('cubehome'), shelf = document.getElementById('cbshelf'), holo = document.getElementById('cbholo');
+  if (!home || !shelf || !holo) return render();
+  const fromY = CG.y, fromX = CG.x;
+  if (S.cube.shown !== cat.id) {
+    S.cube.shown = cat.id;
+    holo.innerHTML = cubeHoloHtml(cat, cubeStill() ? '' : S.cube.dir);
+    cubeFitName();
+    home.setAttribute('style', cubeVars(cat) + `;--u:${CB.u.toFixed(4)}`);
+    CG.col = cubeColors(cat.color);
+    cubeArt(cat);
+  }
+  S.cube.dir = '';
+  holo.removeAttribute('data-i'); holo.removeAttribute('data-t');
+  if (S.cube.tilt) { holo.dataset.act = 'cubetilt'; holo.dataset.t = S.cube.tilt; } else { holo.dataset.act = 'cubepick'; holo.dataset.i = S.cube.i; }
+  document.getElementById('cbside').innerHTML = cubeSideHtml(belt);
   const hit = document.querySelector('.cb-hit'); if (hit) hit.setAttribute('aria-label', cat.name);
-  if (catChanged) { shelf.innerHTML = cubeShelfHtml(cat); }
+  home.classList.toggle('onshelf', S.cube.zone === 'shelf');
+  home.classList.toggle('light', CG.col.light);
+  if (catChanged) shelf.innerHTML = cubeShelfHtml(cat);
   cubeShelfPlace(cat);
   shelf.classList.toggle('live', S.cube.zone === 'shelf');
   if (cat.ti != null) S.sel = cat.ti;
+  cubeAnimate(fromY, fromX);
 }
 function cubeShelfPlace(cat) {
   const shelf = document.getElementById('cbshelf');
@@ -163,19 +336,19 @@ const cubeFocusKey = () => { const { cat } = cubeState(); return S.cube.zone ===
 function cubeRoll(d) {
   const { belt } = cubeState();
   if (belt.length < 2 && !S.cube.tilt) { SFX.play('edge'); return; }
-  const before = cubeVisible();
-  if (S.cube.tilt) { S.cube.tilt = 0; SFX.play('cubeL'); return cubeSync(true, before); } // level out first
+  if (S.cube.tilt) { S.cube.dir = S.cube.tilt > 0 ? 'd' : 'u'; S.cube.tilt = 0; SFX.play('cubeL'); return cubeSync(true); } // level out first
   S.cube.rot += d; S.cube.i = mod(S.cube.i + d, belt.length);
+  S.cube.dir = d > 0 ? 'r' : 'l';
   SFX.play(d > 0 ? 'cubeR' : 'cubeL');
-  cubeSync(true, before);
+  cubeSync(true);
 }
 function cubeTilt(t) {
   const want = Math.max(-1, Math.min(1, S.cube.tilt + t));
   if (want === S.cube.tilt || (want > 0 && !cubeTop()) || (want < 0 && !cubeBottom())) return false;
-  const before = cubeVisible();
+  S.cube.dir = want > S.cube.tilt ? 'u' : 'd';
   S.cube.tilt = want;
   SFX.play('cubeR');
-  cubeSync(true, before);
+  cubeSync(true);
   return true;
 }
 
@@ -184,14 +357,14 @@ function cubeKey(btn) {
   const cur = document.activeElement;
   const inCube = cur?.classList?.contains('cb-hit'), inShelf = cur?.classList?.contains('cb-game');
   if (!inCube && !inShelf) { // focus is up in the top bar
-    if (btn === 'down') { S.cube.zone = 'cube'; const hit = document.querySelector('.cb-hit'); if (hit) { focusEl(hit, false, false); SFX.play('move'); return true; } }
+    if (btn === 'down') { S.cube.zone = 'cube'; const hit = document.querySelector('.cb-hit'); if (hit) { focusEl(hit, false, false); document.getElementById('cubehome')?.classList.remove('onshelf'); cubeDraw(); SFX.play('move'); return true; } }
     return false;
   }
   const { cat } = cubeState();
   if (S.cube.zone === 'cube') {
     if (btn === 'left' || btn === 'LB') return cubeRoll(-1), true;
     if (btn === 'right' || btn === 'RB') return cubeRoll(1), true;
-    if (btn === 'up') return cubeTilt(1) || (S.cube.tilt > 0 ? false : (SFX.play('edge'), true)); // past the top face: up to the top bar
+    if (btn === 'up') return cubeTilt(1) || (S.cube.tilt > 0 ? false : (SFX.play('edge'), true)); // past the top: up to the top bar
     if (btn === 'down') { if (!cubeTilt(-1)) { S.cube.zone = 'shelf'; SFX.play('move'); cubeSync(false); } return true; }
     if (btn === 'A') { S.cube.zone = 'shelf'; SFX.play('select'); cubeSync(false); return true; }
     return false;
@@ -214,20 +387,29 @@ function cubeClick(el) {
   if (!el.classList.contains('cb-game') || el.classList.contains('sel')) return false;
   const { cat } = cubeState();
   S.cube.zone = 'shelf'; S.cube.at[cat.id] = +el.dataset.k; SFX.play('move'); cubeShelfPlace(cat);
+  document.getElementById('cubehome')?.classList.add('onshelf'); cubeDraw();
   return true;
 }
+let cubeResizeOn = false;
 function cubeMount() {
   const home = document.getElementById('cubehome');
-  if (!home) return;
-  const spin = mod(S.cube.rot, 4) * 90;
-  home.querySelectorAll('.cb-face.top .cb-in, .cb-face.bot .cb-in').forEach((el) => { el.style.transform = `rotate(${el.closest('.top') ? -spin : spin}deg)`; });
-  cubeShow();
-  cubeShelfPlace(cubeState().cat);
+  if (!home) { cancelAnimationFrame(CG.raf); return; }
+  const { cat } = cubeState();
+  CG.col = cubeColors(cat.color);
+  cubeArtFor = '';
+  cubeLayout();
+  document.fonts?.ready.then(cubeFitName); // the display font may arrive after the first fit
+  cubeArt(cat);
+  // The intro: the frame swings in from a little off to the side.
+  if (home.classList.contains('intro') && !cubeStill()) cubeAnimate(S.cube.rot - 0.6, S.cube.tilt + 0.25);
+  else { CG.y = S.cube.rot; CG.x = S.cube.tilt; cubeDraw(); }
+  cubeShelfPlace(cat);
+  if (!cubeResizeOn) { cubeResizeOn = true; window.addEventListener('resize', () => cubeLayout()); }
   home.onwheel = (e) => {
     e.preventDefault();
     const now = performance.now(); if (now - (cubeMount.last || 0) < 120) return; cubeMount.last = now;
     const d = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) > 0 ? 1 : -1;
-    if (e.target.closest('.cb-shelf')) { const { cat } = cubeState(); const n = waveItems(cat).length; S.cube.zone = 'shelf'; S.cube.at[cat.id] = Math.max(0, Math.min(n - 1, (S.cube.at[cat.id] || 0) + d)); SFX.play('move'); cubeShelfPlace(cat); }
+    if (e.target.closest('.cb-shelf')) { const { cat: c } = cubeState(); const n = waveItems(c).length; S.cube.zone = 'shelf'; S.cube.at[c.id] = Math.max(0, Math.min(n - 1, (S.cube.at[c.id] || 0) + d)); SFX.play('move'); cubeShelfPlace(c); home.classList.add('onshelf'); cubeDraw(); }
     else cubeRoll(d);
   };
 }

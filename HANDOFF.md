@@ -68,7 +68,7 @@ Gotchas learned the hard way:
 - The owner's ROM files have ranking prefixes ("02. Super Mario 64 (USA).z64").
   Anything that matches by file name must use `covers::strip_rank`.
 
-## Where things stand (Nov 2026, v0.7.6)
+## Where things stand (Nov 2026, v0.31.0)
 
 - Windows: the owner's PC runs Spine from `C:\Users\brand\Documents\spine`
   (portable, updates itself). ~680 games over 12 consoles + Steam/Epic.
@@ -714,6 +714,25 @@ covers detail (games, movies, shows) and Streaming's sdetail/sperson (both use .
 start() goes full-screen when `fullscreen || (tvOn() && tvFullscreen)` and marks `S.boot.settings.fullscreen` locally
 (not saved) so the Window button reads "Leave fullscreen"; switching it on also goes full-screen right away.
 TV mode plan (claude/TV-MODE.md) is now complete.
+
+**0.31.0** (Nov 5): Cube redesign release 1, the look (plan: claude/CUBE-REDESIGN.md in the Project; mockup
+https://claude.ai/artifact/VoQgZmJBoPtHz6s7xjRuPC, "data lines" frame). cube.js/cube.css rewritten; controls, `S.cube`
+state, keys and sounds unchanged. The cube is a wireframe drawn on two canvases covering `#cubehome`: `#cbback` (data dots,
+world-fixed floor grid, edges with average z <= 0.05) under the panel, `#cbfront` (nearer edges, corner nodes) over it.
+Projection in `cubeProject` (half-size 1, `CUBE_D` 4.284, eye `CUBE_EYE` -0.186, front square = `fs` px: matches the
+mockup's 560/348 squares); `cubeTurn` = -90° round Y per `rot`, -90° round X per `tilt`. Glow = canvas shadowBlur
+(two strokes per edge: dark wide, bright thin). `cubeAnimate` eases CG.y/CG.x to rot/tilt over 520 ms (back-ease; a new
+turn starts from where the frame is); only draws while moving (2.2 ms/frame in software WebKitGTK). `cubeLayout` sizes
+from `#cbstage` (fs = min(0.9 h, 0.55 w, 620)), sets `--u` = fs/560; CSS sizes are the mockup's px times `--U` measured
+from the frame's middle. Panel = `#cbholo` (`cubeHoloHtml`: ghosts g1/g2, cover behind, panel with scanlines + corner
+brackets, cover in front), re-rendered with `.in-r/l/u/d` from `S.cube.dir` when the console changes; `cubeFitName`
+shrinks the name to fit (re-run on document.fonts.ready). Floor: `.cb-floor` prev/next (cubepick), tags `.cb-tag`
+up/down (cubetilt; when tilted they offer the way back). `.onshelf` dims the panel/frame. Light themes: `.light` class
+(bg luminance > 140) makes `--c2` darker and the panel solid. Background art: `cubeArt` draws the first hero/cover into a
+48 px canvas, stretches to 384 and box-blurs with shifted copies (WebKitGTK scales canvases WITHOUT smoothing: tiny
+canvases stretched by CSS or drawImage look blocky there), two `.cb-art` canvases crossfade. The old dots row is gone
+(release 2 adds the console strip). Tested in Playwright (Midnight, Cream, CRT; 1440x860, 1920x1080, 1280x720; clicks,
+held turns) and real WebKitGTK 2.52 under Xvfb. Next: release 2 (feel) per CUBE-REDESIGN.md.
 
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for

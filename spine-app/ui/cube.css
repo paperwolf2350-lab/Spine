@@ -1,61 +1,121 @@
-/* Cube home style (Settings → Home style). --cc is the current console's color.
-   The cube is 300px a side; faces sit 150px out from its middle. */
+/* Cube home style (Settings → Home style). --cc = current console's color, --c2 its light
+   partner (darker on light themes), --u = frame size / 560 (set by cubeLayout). Sizes below are
+   the approved mockup's pixels, measured from the frame's middle, times --U. */
 .cubehome {
-  position: relative; overflow: hidden; align-items: center;
-  background: radial-gradient(90% 70% at 50% 32%, color-mix(in srgb, var(--cc) 30%, var(--bg)), var(--bg) 75%);
+  --u: 1; --U: calc(var(--u) * 1px);
+  position: relative; overflow: hidden; align-items: center; isolation: isolate;
+  background: color-mix(in srgb, var(--cc) 14%, var(--bg));
+  transition: background-color .5s ease;
+}
+/* Blurred console art: a tiny canvas stretched to fill (the browser's scaling does the blur). */
+.cb-art { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .6s ease; pointer-events: none; z-index: 0; }
+.cb-art.on { opacity: .24; }
+.cb-tint {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(45% 55% at 50% 40%, color-mix(in srgb, var(--cc) 45%, transparent), transparent 100%),
+    radial-gradient(25% 30% at 88% 6%, color-mix(in srgb, var(--c2) 18%, transparent), transparent 100%),
+    radial-gradient(25% 30% at 6% 92%, color-mix(in srgb, var(--c2) 18%, transparent), transparent 100%),
+    radial-gradient(120% 90% at 50% 45%, transparent 55%, color-mix(in srgb, var(--bg) 70%, transparent));
   transition: background .5s ease;
 }
-.cb-drift { position: absolute; inset: 0; pointer-events: none; }
-.cb-drift i {
-  position: absolute; width: var(--s); height: var(--s); border-radius: 22%;
-  border: 2px solid color-mix(in srgb, var(--cc) 45%, transparent); background: color-mix(in srgb, var(--cc) 10%, transparent);
-  animation: cbfloat 30s linear infinite; opacity: .55;
+/* The frame's two canvases: edges behind the panel, and edges in front of it. */
+.cb-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.cb-lines.front { z-index: 3; }
+
+.cb-stage { position: relative; flex: 1 1 auto; width: 100%; min-height: 0; z-index: 2; }
+.cb-hit { position: absolute; left: calc(50% - 180 * var(--U)); top: calc(50% - 178 * var(--U)); width: calc(360 * var(--U)); height: calc(290 * var(--U)); border-radius: 18px; pointer-events: none; }
+body.kb .cubehome [data-nav].focused, body.kb .cubehome [data-nav]:focus-visible { box-shadow: none; }
+
+/* Projector on the floor and its beam up to the panel. */
+.cb-disc {
+  position: absolute; left: calc(50% - 100 * var(--U)); top: calc(50% + 226 * var(--U)); width: calc(200 * var(--U)); height: calc(34 * var(--U));
+  border-radius: 50%; border: 1px solid var(--c2); background: radial-gradient(closest-side, color-mix(in srgb, var(--c2) 75%, transparent), transparent);
 }
-@keyframes cbfloat {
-  0% { transform: translateY(40px) rotate(0deg); opacity: 0; }
-  15%, 80% { opacity: .55; }
-  100% { transform: translateY(-160px) rotate(220deg); opacity: 0; }
+.cb-beam {
+  position: absolute; left: calc(50% - 160 * var(--U)); top: calc(50% + 100 * var(--U)); width: calc(320 * var(--U)); height: calc(145 * var(--U));
+  clip-path: polygon(0 0, 100% 0, 64% 100%, 36% 100%); background: linear-gradient(to top, color-mix(in srgb, var(--c2) 35%, transparent), transparent);
+  transition: opacity .25s ease;
 }
 
-.cb-stage { position: relative; flex: 0 0 auto; width: 300px; height: 300px; margin-top: 44px; perspective: 1300px; }
-.cb-hit { position: absolute; inset: -20px; border-radius: 30px; pointer-events: none; }
-.cb-cube { position: absolute; inset: 0; }
-.cb-face {
-  position: absolute; inset: 0; border-radius: 26px; overflow: hidden; cursor: pointer; backface-visibility: hidden;
-  transition: transform .5s cubic-bezier(.3,1.45,.5,1);
-  background: var(--surface); box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--line) 80%, transparent);
+/* Previous / next console waiting on the floor; Recent / Favorites tags on the frame's edges. */
+.cb-floor {
+  position: absolute; top: calc(50% + 166 * var(--U)); width: calc(110 * var(--U)); height: calc(64 * var(--U)); padding: 0 0 0 calc(12 * var(--U));
+  display: flex; flex-direction: column; justify-content: center; align-items: flex-start; text-align: left; color: #fff;
+  border-radius: 8px; border: 1px solid color-mix(in srgb, var(--fc) 50%, #fff 30%); background: color-mix(in srgb, var(--fc) 35%, transparent);
+  opacity: .55; transition: opacity .2s ease; z-index: 1; cursor: pointer;
 }
-.cb-in {
-  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #fff;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--fc) 80%, #fff 20%), var(--fc) 55%, color-mix(in srgb, var(--fc) 75%, #000 25%));
-  box-shadow: inset 0 0 0 4px rgba(255,255,255,.18), inset 0 -10px 30px rgba(0,0,0,.18);
+.cb-floor:hover { opacity: .9; }
+.cb-floor.prev { left: calc(50% - 259 * var(--U)); }
+.cb-floor.next { left: calc(50% + 149 * var(--U)); }
+.cb-floor .fn { font-size: calc(15 * var(--U)); font-weight: 600; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
+.cb-floor .fd { font-size: calc(11 * var(--U)); opacity: .75; }
+.cubehome.light .cb-floor { color: var(--text); }
+.cb-tag {
+  position: absolute; left: 50%; transform: translate(-50%, -50%); z-index: 4; padding: 3px 12px; border-radius: 99px;
+  font-size: calc(13 * var(--U)); font-weight: 600; letter-spacing: .02em; white-space: nowrap; cursor: pointer;
+  color: var(--text); background: color-mix(in srgb, var(--bg) 70%, transparent); border: 1px solid color-mix(in srgb, var(--c2) 70%, transparent);
+  opacity: .7; transition: opacity .2s ease;
 }
-.cb-in.empty { background: var(--surface2); color: var(--muted); }
-.cb-in .ic { position: relative; z-index: 2; filter: drop-shadow(0 4px 10px rgba(0,0,0,.3)); }
-.cb-in .nm { position: relative; z-index: 2; font-family: var(--display); font-weight: 700; font-size: 26px; text-align: center; padding: 0 18px; line-height: 1.1; text-shadow: 0 2px 10px rgba(0,0,0,.35); }
-.cb-in .ct { position: relative; z-index: 2; font-size: 14px; opacity: .9; }
-/* Covers stuck on the face at jaunty angles. */
-.cb-in .st { position: absolute; z-index: 1; height: 98px; width: auto; max-width: 110px; border-radius: 6px; box-shadow: 0 6px 14px rgba(0,0,0,.35); opacity: .9; border: 3px solid rgba(255,255,255,.85); }
-.cb-in .st0 { left: 14px; top: 16px; transform: rotate(-9deg); }
-.cb-in .st1 { right: 14px; top: 22px; transform: rotate(8deg); }
-.cb-in .st2 { right: 26px; bottom: 14px; transform: rotate(-4deg); height: 70px; }
-/* The intro: faces fly in from all around and click together. */
-.cb-cube.intro .cb-face { animation: cbin .9s cubic-bezier(.3,1.3,.5,1) both; }
-.cb-cube.intro .cb-face[data-f="s1"] { animation-delay: .06s; } .cb-cube.intro .cb-face[data-f="top"] { animation-delay: .12s; }
-@keyframes cbin { from { scale: 2.6; opacity: 0; } }
+.cb-tag:hover { opacity: 1; }
+.cb-tag.up { top: calc(50% - 280 * var(--U)); }
+.cb-tag.down { top: calc(50% + 280 * var(--U)); }
 
-/* The row of console icons: where you are in the ring. */
-.cb-dots { display: flex; gap: 6px; margin-top: 104px; z-index: 2; max-width: 90%; flex-wrap: wrap; justify-content: center; }
-.cb-dot { width: 38px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--muted); opacity: .6; transition: all .2s ease; }
-.cb-dot svg { width: 24px; height: 18px; }
-.cb-dot.on { background: var(--dc); color: #fff; opacity: 1; transform: scale(1.18); }
-.cb-dot:hover { opacity: 1; }
+/* The holographic panel and what floats around it. */
+.cb-holo { position: absolute; left: 50%; top: 50%; width: 0; height: 0; z-index: 2; cursor: pointer; }
+.cb-hin { position: absolute; inset: 0; }
+.cb-ghost { position: absolute; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--c2) 35%, transparent); transition: opacity .25s ease; }
+.cb-ghost.g1 { left: calc(-154 * var(--U)); top: calc(-202 * var(--U)); width: calc(340 * var(--U)); height: calc(270 * var(--U)); background: color-mix(in srgb, var(--cc) 8%, transparent); }
+.cb-ghost.g2 { left: calc(-168 * var(--U)); top: calc(-190 * var(--U)); width: calc(350 * var(--U)); height: calc(280 * var(--U)); }
+.cb-panel {
+  position: absolute; left: calc(-180 * var(--U)); top: calc(-178 * var(--U)); width: calc(360 * var(--U)); height: calc(290 * var(--U));
+  border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(10 * var(--U));
+  color: #fff; border: 1.5px solid color-mix(in srgb, var(--c2) 95%, transparent);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c2) 38%, transparent), color-mix(in srgb, var(--cc) 22%, transparent));
+  box-shadow: 0 30px 90px color-mix(in srgb, var(--cc) 55%, transparent), inset 0 0 40px color-mix(in srgb, var(--c2) 25%, transparent);
+  transform: scale(1.04); transition: transform .25s ease, opacity .25s ease, box-shadow .25s ease;
+}
+.cubehome.light .cb-panel { background: linear-gradient(160deg, color-mix(in srgb, var(--cc) 72%, #fff), color-mix(in srgb, var(--cc) 92%, #000)); }
+.cb-panel.empty { color: var(--muted); }
+.cb-scan { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255,255,255,.06) 0 1px, transparent 1px 4px); pointer-events: none; }
+.cb-br { position: absolute; width: calc(22 * var(--U)); height: calc(22 * var(--U)); border: 0 solid var(--c2); }
+.cubehome.light .cb-br { border-color: rgba(255,255,255,.85); }
+.cb-br.tl { left: 12px; top: 12px; border-left-width: 2px; border-top-width: 2px; }
+.cb-br.tr { right: 12px; top: 12px; border-right-width: 2px; border-top-width: 2px; }
+.cb-br.bl { left: 12px; bottom: 12px; border-left-width: 2px; border-bottom-width: 2px; }
+.cb-br.br { right: 12px; bottom: 12px; border-right-width: 2px; border-bottom-width: 2px; }
+.cb-panel .ic { position: relative; color: #fff; filter: drop-shadow(0 0 10px var(--c2)); }
+.cubehome.light .cb-panel .ic { filter: none; }
+.cb-panel .nm { position: relative; font-family: var(--display); font-weight: 700; font-size: calc(34 * var(--U)); letter-spacing: -.01em; line-height: 1.1; text-align: center; max-width: calc(290 * var(--U)); box-sizing: border-box; padding: 0 4px; text-shadow: 0 0 18px var(--c2); }
+.cubehome.light .cb-panel .nm { text-shadow: 0 2px 10px rgba(0,0,0,.3); }
+.cb-panel .ct { position: relative; font-size: calc(16 * var(--U)); opacity: .85; }
+/* Covers floating at different depths: one behind the panel, one in front. */
+.cb-cov { position: absolute; max-width: calc(150 * var(--U)); height: calc(140 * var(--U)); width: auto; border-radius: 6px; object-fit: cover; transition: opacity .25s ease; }
+.cb-cov.cv0 { right: calc(150 * var(--U)); top: calc(-168 * var(--U)); transform: rotate(-7deg); opacity: .8; box-shadow: 0 16px 30px rgba(0,0,0,.45); }
+.cb-cov.cv1 { left: calc(150 * var(--U)); top: calc(-130 * var(--U)); height: calc(152 * var(--U)); transform: rotate(6deg); box-shadow: 0 20px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.25); }
+
+/* Selected (focus on the cube): the panel pops; on the shelf it steps back. */
+.cubehome.onshelf .cb-panel { transform: scale(.97); opacity: .7; box-shadow: 0 20px 50px color-mix(in srgb, var(--cc) 30%, transparent); }
+.cubehome.onshelf .cb-ghost, .cubehome.onshelf .cb-cov { opacity: .45; }
+.cubehome.onshelf .cb-beam { opacity: .4; }
+
+/* A new console's panel arrives from the side the cube turned (r/l) or from above/below (u/d). */
+.cb-hin.in-r { animation: cbinr .38s cubic-bezier(.2,.9,.3,1) both; }
+.cb-hin.in-l { animation: cbinl .38s cubic-bezier(.2,.9,.3,1) both; }
+.cb-hin.in-u { animation: cbinu .38s cubic-bezier(.2,.9,.3,1) both; }
+.cb-hin.in-d { animation: cbind .38s cubic-bezier(.2,.9,.3,1) both; }
+@keyframes cbinr { from { transform: translateX(calc(70 * var(--U))); opacity: 0; } }
+@keyframes cbinl { from { transform: translateX(calc(-70 * var(--U))); opacity: 0; } }
+@keyframes cbinu { from { transform: translateY(calc(-60 * var(--U))); opacity: 0; } }
+@keyframes cbind { from { transform: translateY(calc(60 * var(--U))); opacity: 0; } }
+.cubehome.intro .cb-hin { animation: cbintro .7s .1s cubic-bezier(.2,.9,.3,1) both; }
+@keyframes cbintro { from { transform: scale(.85); opacity: 0; } }
 
 /* The curved shelf of games. */
-.cb-shelf { position: relative; flex: 1; width: 100%; min-height: 0; perspective: 900px; transform-style: preserve-3d; margin-top: 8px; opacity: .55; transition: opacity .25s ease; }
+.cb-shelf { position: relative; flex: 0 0 190px; width: 100%; perspective: 900px; transform-style: preserve-3d; opacity: .6; transition: opacity .25s ease; z-index: 4; }
 .cb-shelf.live { opacity: 1; }
 .cb-game {
-  position: absolute; left: calc(50% - 60px); top: 12px; width: 120px; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  position: absolute; left: calc(50% - 60px); top: 18px; width: 120px; display: flex; flex-direction: column; align-items: center; gap: 8px;
   transition: transform .35s cubic-bezier(.3,1.25,.5,1), opacity .25s ease;
 }
 .cb-game .art { width: 120px; height: 120px; display: flex; align-items: flex-end; justify-content: center; }
@@ -64,16 +124,9 @@
 .cb-game .ph.icon { width: 110px; height: 110px; border-radius: 24px; align-items: center; justify-content: center; padding: 0; }
 .cb-game .t { font-size: 13px; font-weight: 600; text-align: center; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity .2s ease; }
 .cb-game.sel .t { opacity: 1; font-size: 15px; }
-.cb-shelf.live .cb-game.sel .art img, .cb-shelf.live .cb-game.sel .ph { box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--cc), 0 10px 24px rgba(0,0,0,.35); }
-body.kb .cubehome [data-nav].focused, body.kb .cubehome [data-nav]:focus-visible { box-shadow: none; }
-.cb-stage::after { /* soft glow on the floor under the cube; brighter when it's highlighted */
-  content: ''; position: absolute; left: 0; right: 0; bottom: -70px; height: 46px; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--cc) 45%, transparent), transparent); opacity: .5; transition: opacity .25s ease;
-}
-.cb-stage:has(.cb-hit.focused)::after { opacity: 1; }
+.cb-shelf.live .cb-game.sel .art img, .cb-shelf.live .cb-game.sel .ph { box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--c2), 0 10px 24px rgba(0,0,0,.35); }
 
 @media (prefers-reduced-motion: reduce) {
-  .cb-drift { display: none; }
-  .cb-face, .cb-game { transition: none; }
-  .cb-cube.intro .cb-face { animation: none; }
+  .cb-game, .cb-panel, .cb-art { transition: none; }
+  .cb-hin, .cubehome.intro .cb-hin { animation: none !important; }
 }

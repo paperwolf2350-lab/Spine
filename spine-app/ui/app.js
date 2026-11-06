@@ -1751,9 +1751,9 @@ const ACT = {
     const { belt } = cubeState(), k = +d.i, n = belt.length;
     if (k === S.cube.i && !S.cube.tilt) { S.cube.zone = 'shelf'; return cubeSync(false); }
     let delta = mod(k - S.cube.i, n); if (delta > n / 2) delta -= n; // turn the short way round
-    const before = cubeVisible();
+    S.cube.dir = S.cube.tilt ? (S.cube.tilt > 0 ? 'd' : 'u') : delta < 0 ? 'l' : 'r';
     S.cube.tilt = 0; S.cube.i = k; S.cube.rot += Math.sign(delta) || 1;
-    SFX.play(delta < 0 ? 'cubeL' : 'cubeR'); cubeSync(true, before);
+    SFX.play(delta < 0 ? 'cubeL' : 'cubeR'); cubeSync(true);
   },
   cubetilt(d) { if (+d.t === S.cube.tilt) { S.cube.zone = 'shelf'; cubeSync(false); } else cubeTilt(+d.t - S.cube.tilt); },
   chpage(d) {
