@@ -804,6 +804,7 @@ live_downloads` (RetroArch, Dolphin, PPSSPP asked live via `latest()`, all cores
 Windows run (owner to check), the MAME core download size (large).
 Remaining release-2 idea (only if the owner wants it): standalone MAME (GitHub mamedev/mame `mame0289b_x64.exe` = 7z SFX with
 SHA256 digests; needs a Spine launcher with -rompath) and Snes9x (`snes9x-1.63-win32-x64.zip` on GitHub).
+Owner confirmed 0.34.0 (Nov 6): tested and working on Windows.
 
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
