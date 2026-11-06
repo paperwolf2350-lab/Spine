@@ -844,6 +844,8 @@ Tested in the workspace (flatpak 1.14 installed with apt): live `cargo test --li
 second run = update), real app under Xvfb: ticked PPSSPP + SNES core, Install -> both installed (RetroArch 1.22.2 Flatpak,
 cores in ~/.var/app/org.libretro.RetroArch/config/retroarch/cores), and the built AppImage (APPIMAGE_EXTRACT_AND_RUN=1) lists
 Flatpaks fine. Not tested: the owner's Mint laptop (owner to check), a system-wide update needing a polkit prompt.
+Owner confirmed 0.36.0 (Nov 6) on his Mint laptop: installing and updating both work, and the games open in Spine.
+The emulator installer plan (claude/EMULATOR-INSTALLER.md) is complete.
 
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
