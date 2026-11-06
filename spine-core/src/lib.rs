@@ -11,6 +11,7 @@ pub mod config;
 pub mod covers;
 pub mod emus;
 pub mod extras;
+pub mod flathub;
 pub mod hostenv;
 pub mod launch;
 pub mod meta;

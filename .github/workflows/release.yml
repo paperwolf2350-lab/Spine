@@ -96,13 +96,17 @@ jobs:
           SPINE_SS_DEVID: ${{ secrets.SCREENSCRAPER_DEVID }}
           SPINE_SS_DEVPASSWORD: ${{ secrets.SCREENSCRAPER_DEVPASSWORD }}
         run: npx --yes @tauri-apps/cli@2.12.4 build --bundles appimage,deb
+      - name: Build the Spine Emulators AppImage (installs emulators from Flathub)
+        working-directory: spine-emus
+        run: npx --yes @tauri-apps/cli@2.12.4 build --bundles appimage
       - name: Package
         run: |
           mkdir dist
           cp spine-app/target/release/bundle/appimage/*.AppImage dist/Spine-x86_64.AppImage
           cp spine-app/target/release/bundle/deb/*.deb dist/Spine-amd64.deb
-          chmod +x dist/Spine-x86_64.AppImage
-          cd dist && for f in Spine-x86_64.AppImage Spine-amd64.deb; do printf '%s  %s' "$(sha256sum "$f" | cut -d' ' -f1)" "$f" > "$f.sha256"; done
+          cp spine-emus/target/release/bundle/appimage/*.AppImage dist/Spine-Emulators-x86_64.AppImage
+          chmod +x dist/Spine-x86_64.AppImage dist/Spine-Emulators-x86_64.AppImage
+          cd dist && for f in Spine-x86_64.AppImage Spine-amd64.deb Spine-Emulators-x86_64.AppImage; do printf '%s  %s' "$(sha256sum "$f" | cut -d' ' -f1)" "$f" > "$f.sha256"; done
       - uses: actions/upload-artifact@v4
         with:
           name: linux

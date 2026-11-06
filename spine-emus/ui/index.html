@@ -19,6 +19,8 @@
   .row { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center; background: var(--s1); border-radius: 10px; padding: 11px 14px; margin-bottom: 6px; border: 1px solid transparent; cursor: pointer; }
   .row:hover { border-color: var(--s2); }
   .row.on { border-color: var(--accent); }
+  .row.off { cursor: default; opacity: .6; }
+  .row.off:hover { border-color: transparent; }
   .row.core { margin-left: 28px; padding: 8px 14px; }
   .corehead { margin: 4px 0 6px 28px; color: var(--muted); font-size: 13px; }
   .row input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
@@ -53,8 +55,8 @@
 <body>
 <header>
   <h1><span>Spine</span> Emulators</h1>
-  <div class="sub">Tick the emulators you want and press Install. Each one comes straight from its official release.</div>
-  <div class="folder">Installs into <code id="dir">…</code><button class="small" id="openDir">Open folder</button></div>
+  <div class="sub" id="sub">Tick the emulators you want and press Install. Each one comes straight from its official release.</div>
+  <div class="folder" id="folder">Installs into <code id="dir">…</code><button class="small" id="openDir">Open folder</button></div>
   <div class="updline" id="upd"></div>
 </header>
 <div id="banner"></div>
@@ -75,6 +77,10 @@ const item = id => items().find(x => x.id === id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // Newer version for an item installed here (from check_updates), or undefined.
 const newer = e => e.ours && S.upd ? S.upd.updates[e.id] : undefined;
+// Linux: an emulator with no Flathub app can't be installed here.
+const blocked = e => S.boot.linux && !e.core && !e.flathub;
+// Linux: anything needs the flatpak program.
+const canWork = () => S.boot.windows || (S.boot.linux && S.boot.flatpak);
 const updIds = () => items().filter(newer).map(e => e.id);
 const ago = at => { const m = Math.max(0, Math.round((Date.now() / 1000 - at) / 60)); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
 const mb = b => (b / 1e6).toFixed(b < 1e7 ? 1 : 0) + ' MB';
@@ -89,32 +95,39 @@ function status(e) {
   }
   let html;
   const nv = newer(e);
-  if (nv) html = `<span class="chip upd">Update · ${esc(nv)}</span><div class="was">You have ${esc(e.version || 'an older version')}</div>`;
+  if (nv !== undefined) html = `<span class="chip upd">${nv ? 'Update · ' + esc(nv) : 'Update available'}</span><div class="was">You have ${esc(e.version || 'an older version')}</div>`;
+  else if (blocked(e) && e.elsewhere) html = `<span class="chip ok" title="${esc(e.elsewhere)}">Already on this PC</span>`;
+  else if (blocked(e)) html = `<span class="chip">Not on Flathub</span>`;
   else if (e.ours) html = `<span class="chip ok">Installed${e.version ? ' · ' + esc(e.version) : ''}</span>`;
   else if (e.elsewhere) html = `<span class="chip ok" title="${esc(e.elsewhere)}">Already on this PC</span>`;
   else html = `<span class="chip">Not installed</span>`;
   if (st && st.phase === 'fail') html = `<span class="chip bad">Didn't install</span><div class="err">${esc(st.msg)}</div>`;
   if (e.core) return html;
   const links = [`<a data-site="${e.id}">Website</a>`];
-  if (e.ours) links.unshift(`<a data-open="${e.id}">Open folder</a>`);
+  if (e.ours && S.boot.windows) links.unshift(`<a data-open="${e.id}">Open folder</a>`);
+  if (e.id === 'retroarch' && e.ours && S.boot.linux && S.boot.cores.some(c => c.installed)) links.unshift(`<a data-open="${e.id}">Cores folder</a>`);
   return html + `<div class="links">${links.join('')}</div>`;
 }
 
 function render() {
   const b = S.boot;
   document.getElementById('dir').textContent = b.dir;
-  document.getElementById('banner').innerHTML = b.windows ? '' : `<div class="banner">This first version installs Windows emulators. On Linux, install them from Flathub (your software center); a Linux version is planned.</div>`;
+  document.getElementById('folder').style.display = b.windows ? '' : 'none';
+  if (b.linux) document.getElementById('sub').textContent = 'Tick the emulators you want and press Install. They come from Flathub and are installed just for you (no password needed). Spine finds them by itself.';
+  document.getElementById('banner').innerHTML = canWork() ? '' : b.linux
+    ? `<div class="banner">Flatpak isn't installed on this computer. Install it first (Ubuntu: <code>sudo apt install flatpak</code>), then open Spine Emulators again. Linux Mint, Fedora, SteamOS and Bazzite already have it.</div>`
+    : `<div class="banner">Spine Emulators works on Windows and Linux.</div>`;
   const groups = [];
   for (const e of b.emus) { let g = groups.find(g => g.name === e.group); if (!g) groups.push(g = { name: e.group, items: [] }); g.items.push(e); }
   const row = e => `
-    <div class="row ${e.core ? 'core' : ''} ${S.picked.has(e.id) ? 'on' : ''}" data-id="${e.id}">
-      <input type="checkbox" ${S.picked.has(e.id) ? 'checked' : ''} ${S.busy ? 'disabled' : ''} aria-label="${esc(e.name)}">
+    <div class="row ${e.core ? 'core' : ''} ${S.picked.has(e.id) ? 'on' : ''} ${blocked(e) ? 'off' : ''}" data-id="${e.id}" ${blocked(e) ? `title="${esc(e.name)} has no Flathub version. Its website has other ways to get it."` : ''}>
+      <input type="checkbox" ${S.picked.has(e.id) ? 'checked' : ''} ${S.busy || blocked(e) ? 'disabled' : ''} aria-label="${esc(e.name)}">
       <div><div class="name">${esc(e.core ? e.consoles : e.name)}</div><div class="cons">${esc(e.core ? e.name + ' core' : e.consoles)}</div></div>
       <div class="side" id="st-${e.id}">${status(e)}</div>
     </div>`;
   const cores = items().filter(e => e.core);
   document.getElementById('list').innerHTML = groups.map(g => `<h2>${esc(g.name)}</h2>` + g.items.map(e => row(e) + (e.id === 'retroarch'
-    ? `<div class="corehead">Cores: tick the consoles you want. They go into this RetroArch's cores folder, where Spine finds them.</div>` + cores.map(row).join('')
+    ? `<div class="corehead">Cores: tick the consoles you want. They go into ${b.linux ? 'the Flathub RetroArch' : 'this RetroArch'}'s cores folder, where Spine finds them.</div>` + cores.map(row).join('')
     : '')).join('')).join('');
   const n = S.picked.size;
   const go = document.getElementById('go');
@@ -122,27 +135,27 @@ function render() {
   const verb = kinds.every(k => k === 'u') ? 'Update' : kinds.some(k => k === 'u') ? 'Install / update' : 'Install';
   go.textContent = S.busy ? 'Working…' : n ? `${verb} ${n} item${n > 1 ? 's' : ''}` : 'Install';
   renderUpd();
-  go.disabled = S.busy || !n || !b.windows;
+  go.disabled = S.busy || !n || !canWork();
   document.getElementById('pickNew').disabled = S.busy;
 }
 
 function renderUpd() {
   const el = document.getElementById('upd');
-  if (!S.boot.windows) { el.innerHTML = ''; return; }
+  if (!canWork()) { el.innerHTML = ''; return; }
   if (S.checking) { el.innerHTML = 'Checking for updates…'; return; }
   if (!S.upd) { el.innerHTML = ''; return; }
   const n = updIds().length;
   const failed = Object.keys(S.upd.errors).filter(id => { const e = item(id); return e && e.ours; });
   const parts = [];
   if (n) parts.push(`<b>${n} update${n > 1 ? 's' : ''} available</b>`, `<button class="small main" id="updAll" ${S.busy ? 'disabled' : ''}>Update all</button>`);
-  else if (items().some(e => e.ours)) parts.push('Everything you installed here is up to date.');
+  else if (items().some(e => e.ours)) parts.push(S.boot.linux ? 'Your Flathub emulators and cores are up to date.' : 'Everything you installed here is up to date.');
   if (failed.length) parts.push(`<span title="${esc(failed.map(id => item(id).name + ': ' + S.upd.errors[id]).join('\n'))}">Couldn't check ${failed.length}.</span>`);
   if (items().some(e => e.ours)) parts.push(`<span>Checked ${ago(S.upd.at)}</span>`, S.busy ? '' : `<a id="recheck">Check again</a>`);
   el.innerHTML = parts.join('');
 }
 
 async function checkUpdates(force) {
-  if (!S.boot.windows || !items().some(e => e.ours)) return;
+  if (!canWork() || !items().some(e => e.ours)) return;
   S.checking = true; renderUpd();
   try { S.upd = await call('check_updates', { force }); } catch (e) { S.upd = null; }
   S.checking = false; render();
@@ -160,7 +173,7 @@ document.addEventListener('click', ev => {
   const open = ev.target.closest('[data-open]');
   if (open) { ev.stopPropagation(); call('open_folder', { id: open.dataset.open }); return; }
   const row = ev.target.closest('.row');
-  if (row && !S.busy) {
+  if (row && !S.busy && !row.classList.contains('off')) {
     const id = row.dataset.id;
     S.picked.has(id) ? S.picked.delete(id) : S.picked.add(id);
     // Cores need our RetroArch: tick it too when it isn't installed here yet.
@@ -175,7 +188,7 @@ document.getElementById('upd').addEventListener('click', ev => {
 });
 document.getElementById('openDir').onclick = () => call('open_folder', { id: null });
 document.getElementById('pickNew').onclick = () => {
-  S.picked = new Set(items().filter(e => !e.ours && (e.core || !e.elsewhere)).map(e => e.id));
+  S.picked = new Set(items().filter(e => !e.ours && !blocked(e) && (e.core || !e.elsewhere)).map(e => e.id));
   const ra = item('retroarch');
   if ([...S.picked].some(id => id.startsWith('core:')) && ra && !ra.ours) S.picked.add('retroarch');
   render();

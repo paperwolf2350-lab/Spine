@@ -5,6 +5,7 @@
 
 use serde::Serialize;
 use spine_core::emus::{self, Step};
+use spine_core::flathub;
 use spine_core::launch::{self, Installed};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -28,6 +29,8 @@ struct EmuView {
     ours: Option<String>,
     /// Program found somewhere else Spine looks (Program Files, EmuDeck...).
     elsewhere: Option<String>,
+    /// Linux: the Flathub app id (None = not on Flathub, can't be installed here).
+    flathub: Option<&'static str>,
 }
 
 /// A RetroArch core (installed into our RetroArch's cores folder).
@@ -45,6 +48,10 @@ struct CoreView {
 struct Boot {
     dir: String,
     windows: bool,
+    /// Linux: emulators come from Flathub.
+    linux: bool,
+    /// Linux: the flatpak program is there.
+    flatpak: bool,
     emus: Vec<EmuView>,
     cores: Vec<CoreView>,
 }
@@ -61,6 +68,9 @@ fn core_views(dir: &PathBuf) -> Vec<CoreView> {
 }
 
 fn views(dir: &PathBuf) -> Vec<EmuView> {
+    if !cfg!(windows) {
+        return flatpak_views();
+    }
     let stamps = emus::read_stamps(dir);
     // Same places Spine looks (a fake ROM folder inside ours, so its parent is searched too).
     let mut search = vec![dir.clone()];
@@ -80,6 +90,33 @@ fn views(dir: &PathBuf) -> Vec<EmuView> {
                 version: ours.as_ref().and_then(|_| stamps.get(e.id).map(|s| s.version.clone())),
                 ours: ours.map(|p| p.display().to_string()),
                 elsewhere,
+                flathub: None,
+            }
+        })
+        .collect()
+}
+
+/// Linux: every emulator with its Flathub app; installed = that Flatpak is on this
+/// computer (for the user or system-wide, whoever installed it). Other copies Spine
+/// would find (AppImages, distribution packages) count as "elsewhere".
+fn flatpak_views() -> Vec<EmuView> {
+    let have = flathub::list();
+    let found = Installed::detect(&launch::default_search_paths(std::path::Path::new("/nonexistent/roms")));
+    emus::EMUS
+        .iter()
+        .map(|e| {
+            let app = flathub::app_id(e.id);
+            let h = app.and_then(|a| have.get(a));
+            EmuView {
+                id: e.id,
+                name: e.name,
+                consoles: e.consoles,
+                group: e.group,
+                site: e.site,
+                version: h.map(|h| h.version.clone()).filter(|v| !v.is_empty()),
+                ours: h.map(|h| format!("Flatpak ({})", h.installation)),
+                elsewhere: found.path(e.id).map(|p| p.display().to_string()),
+                flathub: app,
             }
         })
         .collect()
@@ -87,7 +124,8 @@ fn views(dir: &PathBuf) -> Vec<EmuView> {
 
 #[tauri::command]
 fn boot(app: tauri::State<App>) -> Boot {
-    Boot { dir: app.dir.display().to_string(), windows: cfg!(windows), emus: views(&app.dir), cores: core_views(&app.dir) }
+    let linux = !cfg!(windows);
+    Boot { dir: app.dir.display().to_string(), windows: cfg!(windows), linux, flatpak: linux && flathub::available(), emus: views(&app.dir), cores: core_views(&app.dir) }
 }
 
 #[derive(Clone, Serialize)]
@@ -109,9 +147,6 @@ struct Done {
 /// "emu-progress", "emu-done" and finally "emu-finished" events.
 #[tauri::command]
 fn install(handle: AppHandle, app: tauri::State<App>, ids: Vec<String>) -> Result<(), String> {
-    if !cfg!(windows) {
-        return Err("Spine Emulators installs Windows versions. On Linux, get emulators from Flathub.".into());
-    }
     {
         let mut b = app.busy.lock().unwrap();
         if *b {
@@ -122,8 +157,7 @@ fn install(handle: AppHandle, app: tauri::State<App>, ids: Vec<String>) -> Resul
     let dir = app.dir.clone();
     // Emulators first (RetroArch before its cores), then cores ("core:<id>").
     let (core_ids, mut emu_ids): (Vec<String>, Vec<String>) = ids.into_iter().partition(|i| i.starts_with("core:"));
-    let ra = emus::emu("retroarch").expect("retroarch");
-    if !core_ids.is_empty() && emus::find_exe(&emus::target(&dir, ra), ra).is_none() && !emu_ids.iter().any(|i| i == "retroarch") {
+    if !core_ids.is_empty() && !emus::retroarch_ready(&dir) && !emu_ids.iter().any(|i| i == "retroarch") {
         emu_ids.insert(0, "retroarch".into());
     }
     std::thread::spawn(move || {
@@ -140,8 +174,15 @@ fn install(handle: AppHandle, app: tauri::State<App>, ids: Vec<String>) -> Resul
         };
         for id in emu_ids {
             let Some(def) = emus::emu(&id) else { continue };
-            let done = match emus::install(&dir, def, &progress(&id)) {
-                Ok((_, version)) => Done { id, ok: true, msg: version },
+            // Windows: the official download into our folder. Linux: the Flathub app.
+            let r = if cfg!(windows) {
+                emus::install(&dir, def, &progress(&id)).map(|(_, v)| v)
+            } else {
+                let p = progress(&id);
+                flathub::install(def.id, def.name, &|t| p(Step::Text(t)))
+            };
+            let done = match r {
+                Ok(version) => Done { id, ok: true, msg: version },
                 Err(e) => Done { id, ok: false, msg: e },
             };
             let _ = handle.emit("emu-done", done);
@@ -187,7 +228,25 @@ async fn check_updates(handle: AppHandle, force: bool) -> Result<UpdatesView, St
     let dir = handle.state::<App>().dir.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let l = emus::latest_versions(&dir, force);
-        UpdatesView { at: l.at, updates: emus::updates(&dir, &l), errors: l.errors }
+        let mut v = UpdatesView { at: l.at, updates: emus::updates(&dir, &l), errors: l.errors };
+        // Linux: Flathub says which Flatpaks have an update (no limit on asking, so every time).
+        if !cfg!(windows) {
+            match flathub::updates() {
+                Ok(u) => {
+                    v.updates.extend(u);
+                    v.at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(v.at);
+                }
+                Err(e) => {
+                    let have = flathub::list();
+                    for (emu, app) in flathub::APPS {
+                        if have.contains_key(*app) {
+                            v.errors.insert(emu.to_string(), e.clone());
+                        }
+                    }
+                }
+            }
+        }
+        v
     })
     .await
     .map_err(|e| e.to_string())
@@ -197,7 +256,8 @@ async fn check_updates(handle: AppHandle, force: bool) -> Result<UpdatesView, St
 #[tauri::command]
 fn open_folder(app: tauri::State<App>, id: Option<String>) -> Result<(), String> {
     let path = match id.as_deref().and_then(emus::emu) {
-        Some(def) => emus::target(&app.dir, def),
+        Some(def) if cfg!(windows) => emus::target(&app.dir, def),
+        Some(_) => emus::cores_dir(&app.dir),
         None => app.dir.clone(),
     };
     std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
@@ -215,7 +275,7 @@ fn open_site(id: String) -> Result<(), String> {
 }
 
 fn main() {
-    let dir = emus::default_dir().unwrap_or_else(|| PathBuf::from("Emulators"));
+    let dir = emus::notes_dir().unwrap_or_else(|| PathBuf::from("Emulators"));
     tauri::Builder::default()
         .manage(App { dir, busy: Mutex::new(false) })
         .invoke_handler(tauri::generate_handler![boot, install, check_updates, open_folder, open_site])

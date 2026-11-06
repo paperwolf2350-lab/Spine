@@ -1,14 +1,17 @@
 ## What's new
-- **Spine Emulators: updates.** When you open Spine Emulators it checks whether the emulators and RetroArch cores it installed have a newer version. Those get an amber "Update" label (with the version you have underneath), and **Update all** installs them in one go. You can still tick single ones. RetroArch keeps your settings, saves and cores when it updates.
-- The check is saved for an hour, so opening the window often doesn't hit GitHub's limit. "Check again" asks right away.
+- **Spine Emulators for Linux.** Download **Spine-Emulators-x86_64.AppImage**, allow it to run as a program, and open it. Tick the emulators you want and press Install: they come from Flathub and are installed just for you, no password or terminal needed. Spine finds them by itself.
+- 13 emulators are on Flathub (RetroArch, mGBA, Flycast, DuckStation, PCSX2, PPSSPP, RPCS3, melonDS, Azahar, Dolphin, Cemu, Eden, xemu). Mesen, Vita3K and Xenia have no Flathub version, so they're greyed out with a link to their website.
+- RetroArch cores work on Linux too: tick the consoles and they go into the Flathub RetroArch's cores folder.
+- Updates: the window asks Flathub which of your emulators have a newer version; **Update all** works like on Windows.
+- Spine now also starts Eden when it's installed from Flathub.
 
-From 0.34.0:
-- Spine Emulators: RetroArch with cores per console, Dolphin and PPSSPP.
+From 0.35.0:
+- Spine Emulators: Update button and Update all.
 
 ---
 
 **Windows:** download **Spine-Setup.exe** below and run it. No admin rights needed. Want emulators too? Download **Spine-Emulators.exe** and run it.
 
-**Linux:** run `curl -fsSL https://raw.githubusercontent.com/paperwolf2350-lab/spine/main/install.sh | sh`, or download **Spine-x86_64.AppImage**, allow it to run as a program (right-click → Properties → Permissions), and open it. Debian/Ubuntu/Mint: **Spine-amd64.deb**.
+**Linux:** run `curl -fsSL https://raw.githubusercontent.com/paperwolf2350-lab/spine/main/install.sh | sh`, or download **Spine-x86_64.AppImage**, allow it to run as a program (right-click → Properties → Permissions), and open it. Debian/Ubuntu/Mint: **Spine-amd64.deb**. Want emulators too? Download **Spine-Emulators-x86_64.AppImage** and open it the same way (needs Flatpak, which Mint, Fedora, SteamOS and Bazzite already have).
 
 Already have Spine? It updates itself from Settings → Updates.

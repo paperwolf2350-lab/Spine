@@ -442,27 +442,39 @@ pub fn core(id: &str) -> Option<&'static CoreDef> {
 
 /// libretro's nightly Windows cores: the same place RetroArch's own Core Downloader uses.
 pub const CORE_BASE: &str = "https://buildbot.libretro.com/nightly/windows/x86_64/latest/";
+/// The same for Linux (0.36: cores for the Flathub RetroArch).
+pub const CORE_BASE_LINUX: &str = "https://buildbot.libretro.com/nightly/linux/x86_64/latest/";
+
+/// Where this computer's cores come from, and their file ending.
+pub fn core_base() -> &'static str {
+    if cfg!(windows) { CORE_BASE } else { CORE_BASE_LINUX }
+}
+
+pub fn core_ext() -> &'static str {
+    if cfg!(windows) { "dll" } else { "so" }
+}
 
 /// Stamp key for a core in spine-emulators.json.
 pub fn core_key(id: &str) -> String {
     format!("core:{id}")
 }
 
-/// The buildbot's `.index-extended`: "<date> <crc32 of the dll> <file>.dll.zip" per line.
+/// The buildbot's `.index-extended`: "<date> <crc32 of the dll> <file>.dll.zip" per line
+/// (".so.zip" on Linux).
 /// Returns file stem -> (date, crc).
 pub fn parse_core_index(text: &str) -> BTreeMap<String, (String, u32)> {
     text.lines()
         .filter_map(|l| {
             let mut it = l.split_whitespace();
             let (date, crc, file) = (it.next()?, it.next()?, it.next()?);
-            let stem = file.strip_suffix("_libretro.dll.zip")?;
+            let stem = file.strip_suffix("_libretro.dll.zip").or_else(|| file.strip_suffix("_libretro.so.zip"))?;
             Some((stem.to_string(), (date.to_string(), u32::from_str_radix(crc, 16).ok()?)))
         })
         .collect()
 }
 
 pub fn core_index() -> Result<BTreeMap<String, (String, u32)>, String> {
-    let body = crate::covers::curl(&format!("{CORE_BASE}.index-extended"), true, &[]).map_err(|e| format!("Couldn't reach libretro's core list ({e})."))?;
+    let body = crate::covers::curl(&format!("{}.index-extended", core_base()), true, &[]).map_err(|e| format!("Couldn't reach libretro's core list ({e})."))?;
     let idx = parse_core_index(&String::from_utf8_lossy(&body));
     if idx.is_empty() {
         return Err("libretro's core list came back empty. Try again later.".into());
@@ -470,21 +482,35 @@ pub fn core_index() -> Result<BTreeMap<String, (String, u32)>, String> {
     Ok(idx)
 }
 
-/// RetroArch's cores folder in our emulators folder (the portable default, `cores` next to
-/// retroarch.exe; Spine looks there).
+/// RetroArch's cores folder: on Windows, in our emulators folder (the portable default,
+/// `cores` next to retroarch.exe); on Linux, the Flathub RetroArch's own cores folder (or
+/// the one set in its retroarch.cfg). Spine looks in both.
 pub fn cores_dir(dir: &Path) -> PathBuf {
-    dir.join("RetroArch").join("cores")
+    // Tests use the Windows layout on every system (never the real home folder).
+    if cfg!(windows) || cfg!(test) {
+        return dir.join("RetroArch").join("cores");
+    }
+    crate::launch::retroarch_core_dirs(None).into_iter().next().unwrap_or_else(|| dir.join("cores"))
 }
 
 pub fn core_installed(dir: &Path, id: &str) -> bool {
-    cores_dir(dir).join(format!("{id}_libretro.dll")).is_file()
+    cores_dir(dir).join(format!("{id}_libretro.{}", core_ext())).is_file()
+}
+
+/// Is the RetroArch the cores go into there? (Ours on Windows, the Flathub one on Linux.)
+pub fn retroarch_ready(dir: &Path) -> bool {
+    if cfg!(windows) || cfg!(test) {
+        let ra = emu("retroarch").expect("retroarch in EMUS");
+        return find_exe(&target(dir, ra), ra).is_some();
+    }
+    crate::launch::flatpak_roots().iter().any(|r| r.join("org.libretro.RetroArch").join("current").exists())
 }
 
 /// Take `<id>_libretro.dll` out of a downloaded core zip into the cores folder. The zip
 /// reader checks the file against the zip's own CRC while reading. (libretro's list has a
 /// CRC too, but it lags behind fresh nightly builds, so it can't be required to match.)
 pub fn unpack_core(dir: &Path, c: &CoreDef, archive: &Path, date: &str) -> Result<PathBuf, String> {
-    let want = format!("{}_libretro.dll", c.id);
+    let want = format!("{}_libretro.{}", c.id, core_ext());
     let f = fs::File::open(archive).map_err(|e| e.to_string())?;
     let mut z = zip::ZipArchive::new(f).map_err(|_| format!("The {} download wasn't a zip file.", c.name))?;
     let mut file = z.by_name(&want).map_err(|_| format!("The {} download didn't contain {want}.", c.name))?;
@@ -508,16 +534,16 @@ pub fn unpack_core(dir: &Path, c: &CoreDef, archive: &Path, date: &str) -> Resul
 
 /// Download one core into our RetroArch (which must be installed first).
 pub fn install_core(dir: &Path, c: &CoreDef, index: &BTreeMap<String, (String, u32)>, step: &dyn Fn(Step)) -> Result<(PathBuf, String), String> {
-    let ra = emu("retroarch").expect("retroarch in EMUS");
-    if find_exe(&target(dir, ra), ra).is_none() {
+    if !retroarch_ready(dir) {
         return Err("RetroArch needs to be installed first.".into());
     }
-    let (date, _) = index.get(c.id).cloned().ok_or_else(|| format!("libretro doesn't list a Windows {} core right now.", c.name))?;
+    let (date, _) = index.get(c.id).cloned().ok_or_else(|| format!("libretro doesn't list a {} core for this system right now.", c.name))?;
+    fs::create_dir_all(dir).map_err(|e| format!("Couldn't make the emulators folder ({e})."))?;
     let archive = dir.join(format!(".core-{}-download.zip", c.id));
     let _ = fs::remove_file(&archive);
     step(Step::Text("Downloading…".into()));
     let (tx, rx) = std::sync::mpsc::channel();
-    let (url, path) = (format!("{CORE_BASE}{}_libretro.dll.zip", c.id), archive.clone());
+    let (url, path) = (format!("{}{}_libretro.{}.zip", core_base(), c.id, core_ext()), archive.clone());
     std::thread::spawn(move || {
         let _ = tx.send(crate::covers::curl_to_file(&url, &path, 1800));
     });
@@ -584,7 +610,7 @@ pub fn ask_latest(dir: &Path) -> Latest {
                 for c in cores {
                     match ix.get(c.id) {
                         Some((date, _)) => l.versions.insert(core_key(c.id), date.clone()),
-                        None => l.errors.insert(core_key(c.id), format!("libretro doesn't list a Windows {} core right now.", c.name)),
+                        None => l.errors.insert(core_key(c.id), format!("libretro doesn't list a {} core for this system right now.", c.name)),
                     };
                 }
             }
@@ -634,6 +660,17 @@ pub fn updates(dir: &Path, l: &Latest) -> BTreeMap<String, String> {
 /// (Spine searches it).
 pub fn default_dir() -> Option<PathBuf> {
     std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")).map(|h| PathBuf::from(h).join("Emulators"))
+}
+
+/// Where the installer keeps its notes (versions of cores it put in, the last update
+/// check): the emulators folder on Windows; on Linux, where emulators are Flatpaks,
+/// `~/.local/share/spine-emulators`.
+pub fn notes_dir() -> Option<PathBuf> {
+    if cfg!(windows) {
+        return default_dir();
+    }
+    let data = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).filter(|p| p.is_absolute()).or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))?;
+    Some(data.join("spine-emulators"))
 }
 
 #[cfg(test)]
@@ -772,20 +809,23 @@ mod tests {
         let idx = parse_core_index("2026-11-05 8185512c gambatte_libretro.dll.zip\nbad line\n2026-11-06 435c59b0 snes9x_libretro.dll.zip\n");
         assert_eq!(idx["gambatte"], ("2026-11-05".to_string(), 0x8185512c));
         assert_eq!(idx.len(), 2);
+        // Linux's list names .so files.
+        assert_eq!(parse_core_index("2026-11-06 e09352e9 gambatte_libretro.so.zip\n")["gambatte"].0, "2026-11-06");
         let d = tmp("core");
         let c = core("gambatte").unwrap();
         let ix = parse_core_index("x 0 y");
         assert!(install_core(&d, c, &ix, &|_| {}).unwrap_err().contains("RetroArch needs"));
         let z = d.join("g.zip");
-        make_zip(&z, &[("gambatte_libretro.dll", b"MZcore")]);
+        let dll = |id: &str| format!("{id}_libretro.{}", core_ext());
+        make_zip(&z, &[(dll("gambatte").as_str(), b"MZcore")]);
         let other = d.join("o.zip");
-        make_zip(&other, &[("snes9x_libretro.dll", b"MZ")]);
+        make_zip(&other, &[(dll("snes9x").as_str(), b"MZ")]);
         assert!(unpack_core(&d, c, &other, "d").unwrap_err().contains("didn't contain"));
         fs::write(&other, b"<html>").unwrap();
         assert!(unpack_core(&d, c, &other, "d").unwrap_err().contains("wasn't a zip"));
         assert!(!core_installed(&d, "gambatte"));
         let out = unpack_core(&d, c, &z, "2026-11-05").unwrap();
-        assert_eq!(out, d.join("RetroArch").join("cores").join("gambatte_libretro.dll"));
+        assert_eq!(out, d.join("RetroArch").join("cores").join(dll("gambatte")));
         assert!(core_installed(&d, "gambatte"));
         assert_eq!(read_stamps(&d)["core:gambatte"].version, "2026-11-05");
         // Spine finds the core next to our RetroArch.
@@ -805,7 +845,7 @@ mod tests {
             fs::write(d.join(dir).join(exe), "MZ").unwrap();
         }
         fs::create_dir_all(cores_dir(&d)).unwrap();
-        fs::write(cores_dir(&d).join("snes9x_libretro.dll"), "MZ").unwrap();
+        fs::write(cores_dir(&d).join(format!("snes9x_libretro.{}", core_ext())), "MZ").unwrap();
         let st = |v: &str| Stamp { version: v.into(), file: String::new(), at: 1 };
         write_stamp(&d, "mgba", st("0.10.4"));
         write_stamp(&d, "retroarch", st("1.22.2"));
@@ -843,7 +883,7 @@ mod tests {
             fs::write(target(&d, e).join(e.exes[0]), "MZ").unwrap();
         }
         fs::create_dir_all(cores_dir(&d)).unwrap();
-        fs::write(cores_dir(&d).join("gambatte_libretro.dll"), "MZ").unwrap();
+        fs::write(cores_dir(&d).join(format!("gambatte_libretro.{}", core_ext())), "MZ").unwrap();
         let l = ask_latest(&d);
         assert!(l.errors.is_empty(), "{:?}", l.errors);
         assert_eq!(l.versions.len(), 4, "{:?}", l.versions);

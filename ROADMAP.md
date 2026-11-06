@@ -7,13 +7,15 @@
   3. TV-sized game and movie pages, start in TV mode full-screen (done, 0.30.0; soft sounds dropped, owner likes the current ones).
 - On hold (owner, Nov 4): hide by age rating, only if people ask for it (needs TMDB lookups per title, cached).
 - **Cube redesign** (agreed Nov 5, plan in claude/CUBE-REDESIGN.md): 1. new look (done, 0.31.0); 2. feel: instant turns, warp streaks, console strip, games row sliding up (done, 0.32.0).
-- **Spine Emulators** (agreed Nov 6, plan in claude/EMULATOR-INSTALLER.md): a separate installer next to Spine. 1. Windows app with 13 emulators from official releases (done, 0.33.0); 2. RetroArch with cores per console, Dolphin, PPSSPP (done, 0.34.0; standalone MAME and Snes9x only if wanted: RetroArch cores cover them); 3. Update button; 4. Linux (Flathub).
+- **Spine Emulators** (agreed Nov 6, plan in claude/EMULATOR-INSTALLER.md): a separate installer next to Spine. 1. Windows app with 13 emulators from official releases (done, 0.33.0); 2. RetroArch with cores per console, Dolphin, PPSSPP (done, 0.34.0; standalone MAME and Snes9x only if wanted: RetroArch cores cover them); 3. Update button (done, 0.35.0); 4. Linux from Flathub (done, 0.36.0).
 - Later look ideas: matching sounds per style.
 
 ## Later
 - Nothing planned. (macOS skipped Nov 1: no Mac to test on.)
 
 ## Done
+
+- Spine Emulators for Linux: emulators from Flathub with one click, RetroArch cores, updates (0.36.0).
 
 - Spine Emulators shows which emulators and cores have updates, with Update all (0.35.0).
 

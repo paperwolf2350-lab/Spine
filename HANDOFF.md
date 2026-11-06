@@ -821,6 +821,30 @@ UI in Playwright with a mock. Not testable here: GitHub API sources (blocked fro
 Owner confirmed 0.35.0 (Nov 6): the check ran on Windows and said everything is up to date (no errors).
 Next (release 4): Linux via Flathub Flatpaks.
 
+**0.36.0** (Nov 6): release 4, Linux via Flathub. `spine-core/src/flathub.rs`: `APPS` (emus id -> Flathub app id, checked on
+flathub.org Nov 6; test: each equals `launch::flatpak_id`, so Spine finds/launches it; Eden added to `launch::FLATPAKS` and
+`flathub_pages`, DuckStation to `flathub_pages`). Not on Flathub: Mesen, Vita3K (Spine's old `org.vita3k.Vita3K` id 404s on
+Flathub, left in launch.rs, harmless), Xenia. Everything goes through the `flatpak` program (`hostenv::command`, LC_ALL=C):
+`available()`, `list()` (`flatpak list --app --columns=application,version,installation`), `install()` = if installed anywhere
+`flatpak update --noninteractive -y <app>`, else `remote-add --user --if-not-exists flathub <flatpakrepo>` + `install --user
+--noninteractive -y flathub <app>` (no password). Non-tty output has no percentages, only "Installing runtime/<id>/..." lines:
+`friendly()` turns them into "Getting shared parts (org.kde.Platform)…" / "Installing mGBA…". `updates()` = `flatpak remote-ls
+--updates --app --columns=application,version` (version can be empty -> UI says "Update available").
+Cores on Linux: `core_base()`/`core_ext()` (buildbot nightly/linux/x86_64/latest, `.so`), `cores_dir` = first of
+`launch::retroarch_core_dirs(None)` (Flatpak RetroArch's config cores folder or its retroarch.cfg libretro_directory),
+`retroarch_ready` = RetroArch Flatpak on disk. Under `cfg!(test)` both use the Windows layout so tests never touch the real home.
+Installer notes on Linux live in `emus::notes_dir()` = ~/.local/share/spine-emulators (stamps for cores, latest check).
+App (spine-emus/src/main.rs): Linux views from `flatpak_views()` (ours = "Flatpak (user|system)", version from flatpak list,
+elsewhere = AppImage/native Spine would find, `flathub` app id); Boot `linux`, `flatpak`; install: emulators via
+`flathub::install`, cores as on Windows; check_updates adds Flathub's answer (every time, no rate limit). UI: rows without a
+Flathub app greyed ("Not on Flathub", website link), banner when flatpak is missing, folder line hidden, "Cores folder" link.
+CI: linux job also builds `spine-emus` with `--bundles appimage` (tauri.conf.json bundle active, targets appimage; Windows
+still `--no-bundle`) -> `Spine-Emulators-x86_64.AppImage` + .sha256.
+Tested in the workspace (flatpak 1.14 installed with apt): live `cargo test --lib -- --ignored live_flathub` (installs Flycast,
+second run = update), real app under Xvfb: ticked PPSSPP + SNES core, Install -> both installed (RetroArch 1.22.2 Flatpak,
+cores in ~/.var/app/org.libretro.RetroArch/config/retroarch/cores), and the built AppImage (APPIMAGE_EXTRACT_AND_RUN=1) lists
+Flatpaks fine. Not tested: the owner's Mint laptop (owner to check), a system-wide update needing a polkit prompt.
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).

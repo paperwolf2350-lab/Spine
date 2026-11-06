@@ -44,7 +44,8 @@ Both update themselves: when a new version is out, Settings → Updates offers i
 
 Need emulators? On Windows, download **Spine-Emulators.exe** from the same release: tick the ones
 you want and it installs them from their official releases into an `Emulators` folder that Spine
-finds. It never downloads BIOS files, keys or firmware.
+finds. On Linux, download **Spine-Emulators-x86_64.AppImage**: it installs them from Flathub, just
+for you (no password), and Spine finds them too. It never downloads BIOS files, keys or firmware.
 
 Your emulators can be anywhere common: an `Emulators` folder next to your ROMs,
 Program Files or AppData on Windows; Flatpaks (Flathub), your distribution's
