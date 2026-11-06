@@ -1,9 +1,10 @@
 ## What's new
-- **New: Spine Emulators (Windows).** A separate little program, **Spine-Emulators.exe**, sits next to Spine in every release. Tick the emulators you want, press Install, and it downloads each one from its official release, checks the file and unpacks it into an `Emulators` folder in your user folder, where Spine finds it. First list: Mesen, mGBA, Flycast, DuckStation, PCSX2, RPCS3, Vita3K, melonDS, Azahar, Cemu, Eden, xemu and Xenia Canary. Install again later to update. BIOS files, keys and firmware are never included.
-- **Flycast and Mesen** can now start games in Spine too (Dreamcast; NES, SNES, Game Boy and GBA), as choices next to RetroArch.
+- **Spine Emulators: RetroArch with cores.** RetroArch is now in the list, with a tick per console for its cores: NES, SNES, Game Boy / Color, GBA, Nintendo 64, Genesis / Master System / Game Gear / Sega CD, Dreamcast, Arcade (FinalBurn Neo) and the full MAME. Cores go straight into RetroArch's cores folder, so Spine can start those games right away. Installing RetroArch again later keeps your settings, saves and cores.
+- **Spine Emulators: Dolphin (GameCube, Wii) and PPSSPP (PSP)** from their official websites.
+- Spine now always picks PPSSPP's 64-bit program when both versions are in its folder.
 
-From 0.32.0:
-- The Cube home feels snappier, with a console strip under the cube.
+From 0.33.0:
+- Spine Emulators, a separate program that installs emulators from their official releases.
 
 ---
 

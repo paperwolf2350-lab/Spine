@@ -30,11 +30,34 @@ struct EmuView {
     elsewhere: Option<String>,
 }
 
+/// A RetroArch core (installed into our RetroArch's cores folder).
+#[derive(Serialize)]
+struct CoreView {
+    id: &'static str,
+    name: &'static str,
+    consoles: &'static str,
+    installed: bool,
+    /// Build date of the copy this installer put there.
+    version: Option<String>,
+}
+
 #[derive(Serialize)]
 struct Boot {
     dir: String,
     windows: bool,
     emus: Vec<EmuView>,
+    cores: Vec<CoreView>,
+}
+
+fn core_views(dir: &PathBuf) -> Vec<CoreView> {
+    let stamps = emus::read_stamps(dir);
+    emus::CORES
+        .iter()
+        .map(|c| {
+            let installed = emus::core_installed(dir, c.id);
+            CoreView { id: c.id, name: c.name, consoles: c.consoles, installed, version: installed.then(|| stamps.get(&emus::core_key(c.id)).map(|s| s.version.clone())).flatten() }
+        })
+        .collect()
 }
 
 fn views(dir: &PathBuf) -> Vec<EmuView> {
@@ -64,7 +87,7 @@ fn views(dir: &PathBuf) -> Vec<EmuView> {
 
 #[tauri::command]
 fn boot(app: tauri::State<App>) -> Boot {
-    Boot { dir: app.dir.display().to_string(), windows: cfg!(windows), emus: views(&app.dir) }
+    Boot { dir: app.dir.display().to_string(), windows: cfg!(windows), emus: views(&app.dir), cores: core_views(&app.dir) }
 }
 
 #[derive(Clone, Serialize)]
@@ -97,19 +120,45 @@ fn install(handle: AppHandle, app: tauri::State<App>, ids: Vec<String>) -> Resul
         *b = true;
     }
     let dir = app.dir.clone();
+    // Emulators first (RetroArch before its cores), then cores ("core:<id>").
+    let (core_ids, mut emu_ids): (Vec<String>, Vec<String>) = ids.into_iter().partition(|i| i.starts_with("core:"));
+    let ra = emus::emu("retroarch").expect("retroarch");
+    if !core_ids.is_empty() && emus::find_exe(&emus::target(&dir, ra), ra).is_none() && !emu_ids.iter().any(|i| i == "retroarch") {
+        emu_ids.insert(0, "retroarch".into());
+    }
     std::thread::spawn(move || {
-        for id in ids {
-            let Some(def) = emus::emu(&id) else { continue };
+        let progress = |id: &str| {
             let h = handle.clone();
-            let id2 = id.clone();
-            let step = move |s: Step| {
+            let id = id.to_string();
+            move |s: Step| {
                 let p = match s {
-                    Step::Text(t) => Progress { id: id2.clone(), text: t, got: 0, total: 0 },
-                    Step::Bytes(got, total) => Progress { id: id2.clone(), text: String::new(), got, total },
+                    Step::Text(t) => Progress { id: id.clone(), text: t, got: 0, total: 0 },
+                    Step::Bytes(got, total) => Progress { id: id.clone(), text: String::new(), got, total },
                 };
                 let _ = h.emit("emu-progress", p);
+            }
+        };
+        for id in emu_ids {
+            let Some(def) = emus::emu(&id) else { continue };
+            let done = match emus::install(&dir, def, &progress(&id)) {
+                Ok((_, version)) => Done { id, ok: true, msg: version },
+                Err(e) => Done { id, ok: false, msg: e },
             };
-            let done = match emus::install(&dir, def, &step) {
+            let _ = handle.emit("emu-done", done);
+        }
+        // libretro's core list is fetched once for all the cores.
+        let mut index = None;
+        for id in core_ids {
+            let Some(c) = id.strip_prefix("core:").and_then(emus::core) else { continue };
+            if index.is_none() {
+                progress(&id)(Step::Text("Getting libretro's core list…".into()));
+                index = Some(emus::core_index());
+            }
+            let r = match index.as_ref().unwrap() {
+                Ok(ix) => emus::install_core(&dir, c, ix, &progress(&id)),
+                Err(e) => Err(e.clone()),
+            };
+            let done = match r {
                 Ok((_, version)) => Done { id, ok: true, msg: version },
                 Err(e) => Done { id, ok: false, msg: e },
             };

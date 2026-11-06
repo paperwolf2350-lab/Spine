@@ -19,6 +19,8 @@
   .row { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center; background: var(--s1); border-radius: 10px; padding: 11px 14px; margin-bottom: 6px; border: 1px solid transparent; cursor: pointer; }
   .row:hover { border-color: var(--s2); }
   .row.on { border-color: var(--accent); }
+  .row.core { margin-left: 28px; padding: 8px 14px; }
+  .corehead { margin: 4px 0 6px 28px; color: var(--muted); font-size: 13px; }
   .row input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
   .name { font-weight: 600; }
   .cons { color: var(--muted); font-size: 13px; }
@@ -60,6 +62,9 @@ const T = window.__TAURI__;
 const call = (cmd, args) => T ? T.core.invoke(cmd, args) : window.__MOCK__.call(cmd, args);
 const on = (ev, cb) => T ? T.event.listen(ev, e => cb(e.payload)) : window.__MOCK__.on(ev, cb);
 const S = { boot: null, picked: new Set(), state: {}, busy: false };
+// Emulators and RetroArch cores in one list; core ids are "core:<id>".
+const items = () => [...S.boot.emus, ...S.boot.cores.map(c => ({ id: 'core:' + c.id, name: c.name, consoles: c.consoles, ours: c.installed, version: c.version, core: true }))];
+const item = id => items().find(x => x.id === id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const mb = b => (b / 1e6).toFixed(b < 1e7 ? 1 : 0) + ' MB';
 
@@ -76,6 +81,7 @@ function status(e) {
   else if (e.elsewhere) html = `<span class="chip ok" title="${esc(e.elsewhere)}">Already on this PC</span>`;
   else html = `<span class="chip">Not installed</span>`;
   if (st && st.phase === 'fail') html = `<span class="chip bad">Didn't install</span><div class="err">${esc(st.msg)}</div>`;
+  if (e.core) return html;
   const links = [`<a data-site="${e.id}">Website</a>`];
   if (e.ours) links.unshift(`<a data-open="${e.id}">Open folder</a>`);
   return html + `<div class="links">${links.join('')}</div>`;
@@ -87,22 +93,26 @@ function render() {
   document.getElementById('banner').innerHTML = b.windows ? '' : `<div class="banner">This first version installs Windows emulators. On Linux, install them from Flathub (your software center); a Linux version is planned.</div>`;
   const groups = [];
   for (const e of b.emus) { let g = groups.find(g => g.name === e.group); if (!g) groups.push(g = { name: e.group, items: [] }); g.items.push(e); }
-  document.getElementById('list').innerHTML = groups.map(g => `<h2>${esc(g.name)}</h2>` + g.items.map(e => `
-    <div class="row ${S.picked.has(e.id) ? 'on' : ''}" data-id="${e.id}">
+  const row = e => `
+    <div class="row ${e.core ? 'core' : ''} ${S.picked.has(e.id) ? 'on' : ''}" data-id="${e.id}">
       <input type="checkbox" ${S.picked.has(e.id) ? 'checked' : ''} ${S.busy ? 'disabled' : ''} aria-label="${esc(e.name)}">
-      <div><div class="name">${esc(e.name)}</div><div class="cons">${esc(e.consoles)}</div></div>
+      <div><div class="name">${esc(e.core ? e.consoles : e.name)}</div><div class="cons">${esc(e.core ? e.name + ' core' : e.consoles)}</div></div>
       <div class="side" id="st-${e.id}">${status(e)}</div>
-    </div>`).join('')).join('');
+    </div>`;
+  const cores = items().filter(e => e.core);
+  document.getElementById('list').innerHTML = groups.map(g => `<h2>${esc(g.name)}</h2>` + g.items.map(e => row(e) + (e.id === 'retroarch'
+    ? `<div class="corehead">Cores: tick the consoles you want. They go into this RetroArch's cores folder, where Spine finds them.</div>` + cores.map(row).join('')
+    : '')).join('')).join('');
   const n = S.picked.size;
   const go = document.getElementById('go');
-  const anyInstalled = [...S.picked].some(id => { const e = b.emus.find(x => x.id === id); return e && e.ours; });
-  go.textContent = S.busy ? 'Installing…' : n ? `${anyInstalled ? 'Install / update' : 'Install'} ${n} emulator${n > 1 ? 's' : ''}` : 'Install';
+  const anyInstalled = [...S.picked].some(id => { const e = item(id); return e && e.ours; });
+  go.textContent = S.busy ? 'Installing…' : n ? `${anyInstalled ? 'Install / update' : 'Install'} ${n} item${n > 1 ? 's' : ''}` : 'Install';
   go.disabled = S.busy || !n || !b.windows;
   document.getElementById('pickNew').disabled = S.busy;
 }
 
 function paintOne(id) {
-  const e = S.boot.emus.find(x => x.id === id);
+  const e = item(id);
   const el = document.getElementById('st-' + id);
   if (e && el) el.innerHTML = status(e);
 }
@@ -116,16 +126,21 @@ document.addEventListener('click', ev => {
   if (row && !S.busy) {
     const id = row.dataset.id;
     S.picked.has(id) ? S.picked.delete(id) : S.picked.add(id);
+    // Cores need our RetroArch: tick it too when it isn't installed here yet.
+    const ra = item('retroarch');
+    if (id.startsWith('core:') && S.picked.has(id) && ra && !ra.ours) S.picked.add('retroarch');
     render();
   }
 });
 document.getElementById('openDir').onclick = () => call('open_folder', { id: null });
 document.getElementById('pickNew').onclick = () => {
-  S.picked = new Set(S.boot.emus.filter(e => !e.ours && !e.elsewhere).map(e => e.id));
+  S.picked = new Set(items().filter(e => !e.ours && (e.core || !e.elsewhere)).map(e => e.id));
+  const ra = item('retroarch');
+  if ([...S.picked].some(id => id.startsWith('core:')) && ra && !ra.ours) S.picked.add('retroarch');
   render();
 };
 document.getElementById('go').onclick = async () => {
-  const ids = S.boot.emus.map(e => e.id).filter(id => S.picked.has(id));
+  const ids = items().map(e => e.id).filter(id => S.picked.has(id));
   if (!ids.length) return;
   S.busy = true;
   ids.forEach(id => S.state[id] = { phase: 'wait' });
@@ -140,8 +155,13 @@ on('emu-progress', p => {
   paintOne(p.id);
 });
 on('emu-done', d => {
-  const e = S.boot.emus.find(x => x.id === d.id);
-  if (d.ok) { delete S.state[d.id]; S.picked.delete(d.id); if (e) { e.ours = e.ours || '1'; e.version = d.msg; } }
+  if (d.ok) {
+    delete S.state[d.id]; S.picked.delete(d.id);
+    const c = d.id.startsWith('core:') && S.boot.cores.find(x => 'core:' + x.id === d.id);
+    if (c) { c.installed = true; c.version = d.msg; }
+    const e = S.boot.emus.find(x => x.id === d.id);
+    if (e) { e.ours = e.ours || '1'; e.version = d.msg; }
+  }
   else S.state[d.id] = { phase: 'fail', msg: d.msg };
   paintOne(d.id);
 });

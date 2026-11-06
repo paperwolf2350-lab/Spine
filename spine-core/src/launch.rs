@@ -146,8 +146,18 @@ fn visit(dir: &Path, depth: usize, found: &mut BTreeMap<String, PathBuf>) {
             // Exact program names, or any AppImage named after the emulator
             // ("pcsx2-Qt.AppImage", "Cemu-2.6-x86_64.AppImage").
             let appimage = name.ends_with(".appimage") && (name.starts_with(emu.id) || (emu.id == "eden" && (name.starts_with("citron") || name.starts_with("sudachi"))));
-            if emu.exes.contains(&name.as_str()) || appimage {
-                found.entry(emu.id.to_string()).or_insert(p.clone());
+            // When one folder has several of an emulator's programs (PPSSPP ships
+            // PPSSPPWindows.exe and PPSSPPWindows64.exe), the one listed first wins.
+            let rank = emu.exes.iter().position(|x| *x == name).or(appimage.then_some(emu.exes.len()));
+            if let Some(rank) = rank {
+                let better = found.get(emu.id).map_or(true, |old: &PathBuf| {
+                    let old_name = old.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+                    let old_rank = emu.exes.iter().position(|x| *x == old_name).unwrap_or(emu.exes.len());
+                    old.parent() == p.parent() && rank < old_rank
+                });
+                if better {
+                    found.insert(emu.id.to_string(), p.clone());
+                }
             }
         }
     }
@@ -551,6 +561,21 @@ mod player_hint_tests {
             assert_eq!(p.emulator, "mpv", "{id}");
             assert!(p.blocked.as_deref().unwrap().contains("mpv"), "{id}");
         }
+    }
+
+    /// PPSSPP's folder has a 32-bit and a 64-bit program: the 64-bit one (listed first) wins
+    /// whatever order the folder lists them in.
+    #[test]
+    fn prefers_the_first_listed_program() {
+        let d = std::env::temp_dir().join(format!("spine-pref-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(d.join("PPSSPP")).unwrap();
+        for n in ["PPSSPPWindows.exe", "PPSSPPWindows64.exe"] {
+            fs::write(d.join("PPSSPP").join(n), "MZ").unwrap();
+        }
+        let found = Installed::detect(&[d.clone()]);
+        assert_eq!(found.path("ppsspp"), Some(&d.join("PPSSPP").join("PPSSPPWindows64.exe")));
+        let _ = fs::remove_dir_all(&d);
     }
 }
 

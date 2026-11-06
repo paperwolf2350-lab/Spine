@@ -780,6 +780,31 @@ Windows cross-check (`cargo check --target x86_64-pc-windows-gnu`, needs gcc-min
 Playwright with a mock, and the real app under Xvfb (boot lists everything).
 Owner confirmed 0.33.0 (Nov 6): Spine Emulators installed, tested, working on Windows; a Dreamcast game started from Spine with the Flycast launcher works (Mesen not checked yet).
 
+**0.34.0** (Nov 6): release 2, part 1 (owner said "start release 2"; standalone MAME and Snes9x left out: Spine has no
+launchers for them, and the RetroArch mame/fbneo/snes9x cores cover arcade and SNES). New `Source`s in emus.rs:
+`Libretro(stable listing)` -> highest version folder (`parse_libretro`, numeric sort: the h5ai listing sorts 1.9.9 after
+1.22.2) + `<v>/windows/x86_64/RetroArch.7z` (~200 MB, top folder RetroArch-Win64/, BCJ2); `Dolphin(feed)` =
+`dolphin-emu.org/update/latest/beta/` (the "beta" track is the numbered releases, 2609a on Nov 6; `artifacts` [{system, url}];
+dolphin-emu.org/download/ is behind a Bunny bot shield (403 for curl), dl.dolphin-emu.org isn't); `Page(url)` = first same-site
+link whose file name `pick` accepts, version = its folder (PPSSPP `files/1_20_4/ppsspp_win.zip` -> 1.20.4; metadata.ppsspp.org's
+version.json is stale at 1.19.3, so the download page is used). None of these list size or sha256: checked by the archive's CRCs.
+RetroArch keeps user files on reinstall: `keeps_user_files` (retroarch only) -> `carry_over(old, new)` moves everything the new
+download lacks (retroarch.cfg, cores/, saves/Zelda.srm, system/ BIOS...) recursively before the swap; new download's files win.
+Cores: `CORES` (mesen, snes9x, gambatte, mgba, mupen64plus_next, genesis_plus_gx, flycast, fbneo, mame; test: each is a RetroArch
+launcher in systems.rs) from `CORE_BASE` = buildbot nightly/windows/x86_64/latest/<id>_libretro.dll.zip (what RetroArch's own
+Core Downloader uses). `.index-extended` ("date crc file") gives existence + date (stored as version, stamp key `core:<id>`);
+its CRC is of the dll inside but LAGS fresh builds (mesen rebuilt 08:36 still listed with yesterday's CRC), so it is NOT required to
+match: the zip's own CRC is checked while reading. `unpack_core` writes `<data>/RetroArch/cores/<id>_libretro.dll` via `.part`;
+`install_core` needs our RetroArch (`find_exe`). App: Boot `cores` (CoreView), install ids `core:<id>` run after emulators
+(RetroArch added first if cores are picked and it isn't ours), index fetched once. UI: core rows indented under RetroArch
+(title = consoles, sub = "<name> core"), ticking a core ticks RetroArch when it's not installed here; "Select not installed"
+includes cores. Spine fix: `launch::visit` prefers the program listed first in `exes` within one folder (PPSSPP ships
+PPSSPPWindows.exe and PPSSPPWindows64.exe; readdir order picked the 32-bit one). Live: `cargo test --lib -- --ignored live_cores
+live_downloads` (RetroArch, Dolphin, PPSSPP asked live via `latest()`, all cores but mame) passed Nov 6. Not testable here:
+Windows run (owner to check), the MAME core download size (large).
+Remaining release-2 idea (only if the owner wants it): standalone MAME (GitHub mamedev/mame `mame0289b_x64.exe` = 7z SFX with
+SHA256 digests; needs a Spine launcher with -rompath) and Snes9x (`snes9x-1.63-win32-x64.zip` on GitHub).
+
 Age-rating filter: ON HOLD (owner, Nov 4), add only if users ask for it. Agreed shape if it comes back: TMDB
 /find by IMDb id + release_dates / content_ratings (US), cached on disk (ratings rarely change), grid waits for
 the checks on a page's first load rather than titles vanishing; a setting for titles with no rating (Kitsu ids).
