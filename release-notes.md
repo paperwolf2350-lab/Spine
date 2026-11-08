@@ -1,4 +1,7 @@
 ## What's new
+- **Switch 2 games now show up.** Spine finds both kinds of Switch 2 dump: **.nup** files, and decrypted game folders (a folder per game with **exefs** and **romfs** inside; Spine opens `exefs\main`). Put them in your **Switch 2** folder.
+
+From 0.37.0:
 - **Nintendo Switch 2 as its own console.** Put Switch 2 games in a folder called **Switch 2** (or NS2 / NX2) and they get their own tile, separate from your Switch games.
 - Spine finds the new Switch 2 emulators: **Lichii** (tried first), **Eden-NX2** and **Eglantine**. Eden-NX2's program is called eden.exe like normal Eden, so keep it in a folder with "NX2" in its name (for example `Emulators\Eden-NX2`): then Spine knows which is which, and your Switch games keep opening in normal Eden.
 - Switch 2 games need prod.keys and firmware from your own console, in the same folder Eden uses. Spine tells you where if they're missing.

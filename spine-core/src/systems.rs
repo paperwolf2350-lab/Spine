@@ -54,7 +54,7 @@ pub static SYSTEMS: &[System] = &[
     System { id: "gc", name: "GameCube", short: "GC", folders: &["gc", "gamecube", "ngc", "nintendogamecube"], exts: &["rvz", "iso", "gcm", "gcz", "ciso", "wbfs", "dol", "m3u"], launchers: &[Standalone("dolphin"), RetroArch("dolphin")], color: "#5B21B6" },
     System { id: "wii", name: "Wii", short: "Wii", folders: &["wii", "nintendowii"], exts: &["rvz", "wbfs", "iso", "wia", "gcz", "ciso", "wad", "dol"], launchers: &[Standalone("dolphin")], color: "#5D7A8C" },
     System { id: "wiiu", name: "Wii U", short: "Wii U", folders: &["wiiu", "nintendowiiu"], exts: &["wua", "wux", "wud", "rpx"], launchers: &[Standalone("cemu")], color: "#0E7490" },
-    System { id: "switch2", name: "Nintendo Switch 2", short: "Switch 2", folders: &["switch2", "nintendoswitch2", "ns2", "nx2"], exts: &["xci", "nsp", "nca", "nro", "nso"], launchers: &[Standalone("lichii"), Standalone("eden_nx2"), Standalone("eglantine")], color: "#D8344A" },
+    System { id: "switch2", name: "Nintendo Switch 2", short: "Switch 2", folders: &["switch2", "nintendoswitch2", "ns2", "nx2"], exts: &["nup", "xci", "nsp", "nca", "nro", "nso"], launchers: &[Standalone("lichii"), Standalone("eden_nx2"), Standalone("eglantine")], color: "#D8344A" },
     System { id: "switch", name: "Nintendo Switch", short: "Switch", folders: &["switch", "nintendoswitch", "nsw"], exts: &["xci", "nsp", "nca", "nro", "nso"], launchers: &[Standalone("eden"), Standalone("ryujinx")], color: "#C8231F" },
     // ---- Sega
     System { id: "mastersystem", name: "Master System", short: "SMS", folders: &["mastersystem", "sms", "segamastersystem", "mark3"], exts: &["sms", "bin", "zip", "7z"], launchers: &[RetroArch("genesis_plus_gx")], color: "#3B4A8C" },

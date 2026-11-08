@@ -191,6 +191,19 @@ fn walk_system(sys: &System, dir: &Path, depth: usize, extra: Option<ContentKind
         }
     }
 
+    // Switch 2 decrypted dump: a folder with exefs/main (and romfs) is one game; the
+    // emulator loads exefs/main. Never walk into it (romfs holds thousands of files).
+    if sys.id == "switch2" && depth > 0 {
+        let main = dir.join("exefs").join("main");
+        if main.is_file() {
+            let name = dir.file_name().unwrap().to_string_lossy().to_string();
+            let parsed = title::parse_name(&name, false);
+            let kind = if parsed.kind != ContentKind::Game { Some(parsed.kind) } else { extra };
+            out.push(Candidate { path: main, ext: "exefs".into(), parsed, size: 0, extra: kind, warnings: vec![] });
+            return;
+        }
+    }
+
     // Files referenced by a .cue/.gdi/.m3u in this folder are parts, not games.
     let mut referenced: HashSet<String> = HashSet::new();
     for e in &entries {
@@ -640,6 +653,27 @@ mod many_tests {
         assert_eq!(off, vec![b.clone()]);
         assert_eq!(lib.game_count, 3);
         assert!(lib.systems.iter().any(|s| s.id == "snes"));
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// Switch 2 dumps: .nup files and decrypted folders (exefs/main + romfs).
+    #[test]
+    fn switch2_nup_and_folder_dumps() {
+        let base = std::env::temp_dir().join(format!("spine-sw2scan-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        let sw2 = base.join("switch 2");
+        fs::create_dir_all(sw2.join("Mario Kart World [0100000000000000]").join("exefs")).unwrap();
+        fs::create_dir_all(sw2.join("Mario Kart World [0100000000000000]").join("romfs").join("Model")).unwrap();
+        fs::write(sw2.join("Mario Kart World [0100000000000000]").join("exefs").join("main"), b"x").unwrap();
+        fs::write(sw2.join("Mario Kart World [0100000000000000]").join("romfs").join("Model").join("peach.bfres"), b"x").unwrap();
+        fs::write(sw2.join("Donkey Kong Bananza.nup"), b"x").unwrap();
+        let lib = scan(&base).unwrap();
+        let sys = lib.systems.iter().find(|s| s.id == "switch2").expect("switch2 found");
+        let mut titles: Vec<&str> = sys.games.iter().map(|g| g.title.as_str()).collect();
+        titles.sort();
+        assert_eq!(titles, ["Donkey Kong Bananza", "Mario Kart World"]);
+        let mkw = sys.games.iter().find(|g| g.title == "Mario Kart World").unwrap();
+        assert!(mkw.path.ends_with("exefs/main"));
         let _ = fs::remove_dir_all(&base);
     }
 }

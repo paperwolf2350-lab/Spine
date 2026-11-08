@@ -878,6 +878,9 @@ Owner asked after the Nov 2026 Switch 2 jailbreak (ns2jb) brought Eden forks tha
   app → greyed with the GitHub link. Version shown = tag ("build-88").
 - Only official pages: github.com/zortos293/Lichii, git.eden-emu.dev/Takoroka/eden-nx2 (one Windows pre-release,
   2026-10-29), github.com/Djihads80/Eglantine. lichii.org and other look-alikes are not the project (one reported malware).
+- **0.37.1**: owner's "switch 2" folder showed nothing: Switch 2 dumps aren't xci/nsp. Now `.nup` (packed decrypted
+  dumps, Lichii loads them) is first in exts, and `walk_system` treats a switch2 folder holding `exefs/main` as one game
+  (title = folder name, path = exefs/main, ext "exefs"; romfs never walked). Test `switch2_nup_and_folder_dumps`.
 - Not testable here: actually running Switch 2 games (owner's keys/games). Eglantine's exe name (eglantine.exe) is a guess.
 
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
