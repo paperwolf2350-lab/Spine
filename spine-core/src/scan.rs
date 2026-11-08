@@ -370,7 +370,7 @@ fn format_rank(sys: &System, ext: &str) -> usize {
 fn base_title_id(sys: &System, id: &str) -> Option<String> {
     let v = u64::from_str_radix(id, 16).ok()?;
     match sys.id {
-        "switch" if id.len() == 16 => Some(format!("{:016X}", v & !0x1FFF)),
+        "switch" | "switch2" if id.len() == 16 => Some(format!("{:016X}", v & !0x1FFF)),
         "wiiu" => Some(format!("{:08X}", v & 0xFFFF_FFFF)), // low half is shared by game/update/dlc
         _ => None,
     }
@@ -406,7 +406,7 @@ fn build_games(sys: &System, cands: Vec<Candidate>, notes: &mut Vec<String>) -> 
     // Only disc-based systems get re-packed into other formats (iso -> chd,
     // wux -> wua). On cartridge systems different names are different games
     // ("Bubble Bobble" vs "Classic Bubble Bobble").
-    let fuzzy = matches!(sys.id, "wiiu" | "wii" | "gc" | "ps2" | "psx" | "psp" | "switch" | "n3ds" | "ps3" | "segacd" | "saturn" | "dreamcast");
+    let fuzzy = matches!(sys.id, "wiiu" | "wii" | "gc" | "ps2" | "psx" | "psp" | "switch" | "switch2" | "n3ds" | "ps3" | "segacd" | "saturn" | "dreamcast");
     let mut merged = fuzzy;
     while merged {
         merged = false;

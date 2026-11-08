@@ -192,9 +192,10 @@ pub fn check(system: &str, plan: &LaunchPlan) -> Option<BiosIssue> {
         ("segacd", _) => ra(&["bios_cd_u.bin", "bios_cd_e.bin", "bios_cd_j.bin"], "Sega CD", None),
         ("saturn", "retroarch:mednafen_saturn") => ra(&["sega_101.bin", "mpr-17933.bin"], "Sega Saturn", None),
         ("pcenginecd", _) => ra(&["syscard3.pce"], "PC Engine CD", None),
-        ("switch", "eden") => {
+        ("switch", "eden") | ("switch2", "lichii" | "eden_nx2" | "eglantine") => {
             let stem = plan.program.file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_else(|| "eden".into());
-            let name = ["citron", "sudachi"].into_iter().find(|n| stem.starts_with(n)).unwrap_or(if stem.starts_with("eden") { "eden" } else { stem.as_str() }).to_string();
+            // Lichii, Eglantine and Eden-NX2 keep Eden's data folder ("eden").
+            let name = if system == "switch2" { "eden".to_string() } else { ["citron", "sudachi"].into_iter().find(|n| stem.starts_with(n)).unwrap_or(if stem.starts_with("eden") { "eden" } else { stem.as_str() }).to_string() };
             let mut dirs = vec![exe_dir.join("user").join("keys")];
             if linux {
                 dirs.extend(home().map(|h| h.join(".local/share").join(&name).join("keys")));
@@ -205,7 +206,8 @@ pub fn check(system: &str, plan: &LaunchPlan) -> Option<BiosIssue> {
                 return None;
             }
             let shown = if exe_dir.join("user").is_dir() { dirs[0].clone() } else { dirs.last().cloned().unwrap_or(dirs[0].clone()) };
-            issue("Switch games need prod.keys (and firmware) from your own console. Put prod.keys in this folder.".into(), &shown)
+            let what = if system == "switch2" { "Switch 2" } else { "Switch" };
+            issue(format!("{what} games need prod.keys (and firmware) from your own console. Put prod.keys in this folder."), &shown)
         }
         ("switch", "ryujinx") => {
             let mut dirs = vec![exe_dir.join("portable").join("system")];

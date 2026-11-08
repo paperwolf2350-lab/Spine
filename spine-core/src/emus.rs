@@ -21,6 +21,9 @@ pub const STAMP: &str = "spine-emulators.json";
 pub enum Source {
     /// GitHub repository; its "latest release".
     GitHub(&'static str),
+    /// GitHub repository whose builds are all marked pre-release (Lichii): the newest
+    /// release, pre-release or not, that has a matching file.
+    GitHubAny(&'static str),
     /// A Forgejo/Gitea server's releases API (newest non-prerelease).
     Forgejo(&'static str),
     /// libretro's buildbot: the highest version folder under this "stable" listing, then
@@ -67,6 +70,7 @@ pub const EMUS: &[EmuDef] = &[
     EmuDef { id: "dolphin", name: "Dolphin", consoles: "GameCube, Wii", group: "Nintendo", source: Source::Dolphin("https://dolphin-emu.org/update/latest/beta/"), pick: |n| { let n = lc(n); n.starts_with("dolphin-") && n.ends_with("-x64.7z") }, exes: &["dolphin.exe"], site: "https://dolphin-emu.org" },
     EmuDef { id: "cemu", name: "Cemu", consoles: "Wii U", group: "Nintendo", source: Source::GitHub("cemu-project/Cemu"), pick: |n| { let n = lc(n); n.starts_with("cemu-") && n.ends_with("-windows-x64.zip") }, exes: &["cemu.exe"], site: "https://cemu.info" },
     EmuDef { id: "eden", name: "Eden", consoles: "Switch", group: "Nintendo", source: Source::Forgejo("https://git.eden-emu.dev/api/v1/repos/eden-emu/eden/releases"), pick: |n| { let n = lc(n); n.starts_with("eden-windows-") && n.ends_with("-amd64-clang-pgo.zip") }, exes: &["eden.exe"], site: "https://eden-emu.dev" },
+    EmuDef { id: "lichii", name: "Lichii", consoles: "Switch 2 (very experimental test builds)", group: "Nintendo", source: Source::GitHubAny("zortos293/Lichii"), pick: |n| lc(n) == "lichii-windows-x86_64.zip", exes: &["lichii.exe"], site: "https://github.com/zortos293/Lichii" },
     EmuDef { id: "xemu", name: "xemu", consoles: "Xbox", group: "Xbox", source: Source::GitHub("xemu-project/xemu"), pick: |n| lc(n) == "xemu-win-x86_64-release.zip", exes: &["xemu.exe"], site: "https://xemu.app" },
     EmuDef { id: "xenia", name: "Xenia Canary", consoles: "Xbox 360", group: "Xbox", source: Source::GitHub("xenia-canary/xenia-canary-releases"), pick: |n| { let n = lc(n); n.starts_with("xenia_canary_windows") && n.ends_with(".zip") }, exes: &["xenia_canary.exe"], site: "https://xenia.jp" },
 ];
@@ -122,6 +126,13 @@ fn pick_asset(release: &serde_json::Value, pick: fn(&str) -> bool) -> Option<Ass
 pub fn parse_github(body: &[u8], pick: fn(&str) -> bool) -> Option<Asset> {
     let v: serde_json::Value = serde_json::from_slice(body).ok()?;
     pick_asset(&v, pick)
+}
+
+/// A GitHub "list releases" answer (newest first): the newest non-draft release with a
+/// matching file, pre-releases included.
+pub fn parse_github_any(body: &[u8], pick: fn(&str) -> bool) -> Option<Asset> {
+    let v: serde_json::Value = serde_json::from_slice(body).ok()?;
+    v.as_array()?.iter().filter(|r| !r["draft"].as_bool().unwrap_or(false)).find_map(|r| pick_asset(r, pick))
 }
 
 /// A Forgejo "list releases" answer: the newest release that isn't a draft or prerelease
@@ -190,6 +201,7 @@ pub fn parse_page(body: &[u8], page: &str, pick: fn(&str) -> bool) -> Option<Ass
 pub fn latest(def: &EmuDef) -> Result<Asset, String> {
     let (url, gh) = match def.source {
         Source::GitHub(repo) => (format!("https://api.github.com/repos/{repo}/releases/latest"), true),
+        Source::GitHubAny(repo) => (format!("https://api.github.com/repos/{repo}/releases?per_page=10"), true),
         Source::Forgejo(api) => (format!("{api}?limit=10"), false),
         Source::Libretro(u) | Source::Dolphin(u) | Source::Page(u) => (u.to_string(), false),
     };
@@ -203,6 +215,7 @@ pub fn latest(def: &EmuDef) -> Result<Asset, String> {
     })?;
     let a = match def.source {
         Source::GitHub(_) => parse_github(&body, def.pick),
+        Source::GitHubAny(_) => parse_github_any(&body, def.pick),
         Source::Forgejo(_) => parse_forgejo(&body, def.pick),
         Source::Libretro(base) => parse_libretro(&body, base),
         Source::Dolphin(_) => parse_dolphin(&body, def.pick),
@@ -688,6 +701,21 @@ mod tests {
     /// File names seen on the real release pages (Nov 6, 2026): each emulator picks exactly
     /// its 64-bit Windows build.
     #[test]
+    fn github_prereleases_count_for_lichii() {
+        let body = br#"[
+          {"tag_name":"build-90","draft":true,"prerelease":true,"assets":[{"name":"lichii-windows-x86_64.zip","size":5,"browser_download_url":"https://github.com/zortos293/Lichii/releases/download/build-90/lichii-windows-x86_64.zip"}]},
+          {"tag_name":"build-89","draft":false,"prerelease":true,"assets":[{"name":"lichii-linux-x86_64.AppImage","size":5,"browser_download_url":"https://github.com/x/a"}]},
+          {"tag_name":"build-88","draft":false,"prerelease":true,"assets":[
+             {"name":"lichii-windows-x86_64-pgo.zip","size":7,"browser_download_url":"https://github.com/zortos293/Lichii/releases/download/build-88/lichii-windows-x86_64-pgo.zip"},
+             {"name":"lichii-windows-x86_64.zip","size":9,"digest":"sha256:AB12000000000000000000000000000000000000000000000000000000000000","browser_download_url":"https://github.com/zortos293/Lichii/releases/download/build-88/lichii-windows-x86_64.zip"}]}]"#;
+        let a = parse_github_any(body, emu("lichii").unwrap().pick).unwrap();
+        assert_eq!(a.tag, "build-88");
+        assert_eq!(a.size, 9);
+        assert_eq!(a.sha256.as_deref(), Some("ab12000000000000000000000000000000000000000000000000000000000000"));
+        assert_eq!(a.version(), "build-88");
+    }
+
+    #[test]
     fn picks_the_windows_build() {
         let cases: &[(&str, &[&str], &str)] = &[
             ("retroarch", &["RetroArch-Win64-setup.exe", "RetroArch_cores.7z", "RetroArch.7z"], "RetroArch.7z"),
@@ -704,6 +732,7 @@ mod tests {
             ("azahar", &["azahar-libretro-windows-x86_64-2126.2.zip", "azahar-windows-msvc-2126.2-installer.exe", "azahar-windows-msys2-2126.2.zip", "azahar-windows-msvc-2126.2.zip"], "azahar-windows-msvc-2126.2.zip"),
             ("cemu", &["cemu-2.6-ubuntu-22.04-x64.zip", "cemu-2.6-macos-12-x64.dmg", "cemu-2.6-windows-x64.zip"], "cemu-2.6-windows-x64.zip"),
             ("eden", &["Eden-Windows-v0.2.1-amd64-gcc-standard.zip", "Eden-Windows-v0.2.1-arm64-clang-pgo.zip", "Eden-Windows-v0.2.1-rog-ally-clang-pgo.zip", "Eden-Linux-v0.2.1-amd64-clang-pgo.AppImage", "Eden-Windows-v0.2.1-amd64-clang-pgo.zip"], "Eden-Windows-v0.2.1-amd64-clang-pgo.zip"),
+            ("lichii", &["lichii-windows-x86_64-pgo.zip", "lichii-linux-x86_64.AppImage", "lichii-linux-x86_64.tar.gz", "lichii-macos-arm64.zip", "lichii-windows-x86_64.zip"], "lichii-windows-x86_64.zip"),
             ("xemu", &["xemu-0.8.138-dbg-windows-x86_64.zip", "xemu-win-aarch64-release.zip", "xemu-0.8.138-windows-x86_64-pdb.zip", "xemu-win-x86_64-release.zip"], "xemu-win-x86_64-release.zip"),
             ("xenia", &["xenia_canary_linux.tar_.xz", "xenia_canary_windows_.zip"], "xenia_canary_windows_.zip"),
         ];
@@ -878,7 +907,7 @@ mod tests {
     #[ignore]
     fn live_updates() {
         let d = tmp("liveupd");
-        for e in EMUS.iter().filter(|e| !matches!(e.source, Source::GitHub(_) | Source::Forgejo(_))) {
+        for e in EMUS.iter().filter(|e| !matches!(e.source, Source::GitHub(_) | Source::GitHubAny(_) | Source::Forgejo(_))) {
             fs::create_dir_all(target(&d, e)).unwrap();
             fs::write(target(&d, e).join(e.exes[0]), "MZ").unwrap();
         }

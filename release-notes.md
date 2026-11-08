@@ -1,12 +1,9 @@
 ## What's new
-- **Spine Emulators for Linux.** Download **Spine-Emulators-x86_64.AppImage**, allow it to run as a program, and open it. Tick the emulators you want and press Install: they come from Flathub and are installed just for you, no password or terminal needed. Spine finds them by itself.
-- 13 emulators are on Flathub (RetroArch, mGBA, Flycast, DuckStation, PCSX2, PPSSPP, RPCS3, melonDS, Azahar, Dolphin, Cemu, Eden, xemu). Mesen, Vita3K and Xenia have no Flathub version, so they're greyed out with a link to their website.
-- RetroArch cores work on Linux too: tick the consoles and they go into the Flathub RetroArch's cores folder.
-- Updates: the window asks Flathub which of your emulators have a newer version; **Update all** works like on Windows.
-- Spine now also starts Eden when it's installed from Flathub.
-
-From 0.35.0:
-- Spine Emulators: Update button and Update all.
+- **Nintendo Switch 2 as its own console.** Put Switch 2 games in a folder called **Switch 2** (or NS2 / NX2) and they get their own tile, separate from your Switch games.
+- Spine finds the new Switch 2 emulators: **Lichii** (tried first), **Eden-NX2** and **Eglantine**. Eden-NX2's program is called eden.exe like normal Eden, so keep it in a folder with "NX2" in its name (for example `Emulators\Eden-NX2`): then Spine knows which is which, and your Switch games keep opening in normal Eden.
+- Switch 2 games need prod.keys and firmware from your own console, in the same folder Eden uses. Spine tells you where if they're missing.
+- **Spine Emulators can install and update Lichii** on Windows, straight from its GitHub releases. These are very experimental test builds: expect crashes and graphics problems. On Linux it's greyed out with a link (no Flathub version).
+- Get these emulators only from their own pages. Look-alike download sites for Switch 2 emulators exist, and one was reported to spread malware.
 
 ---
 

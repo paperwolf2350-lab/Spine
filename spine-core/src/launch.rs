@@ -25,6 +25,11 @@ pub static EMULATORS: &[EmulatorDef] = &[
     EmulatorDef { id: "azahar", name: "Azahar", exes: &["azahar.exe", "azahar-qt.exe", "lime3ds.exe", "lime3ds-gui.exe", "citra-qt.exe", "azahar", "azahar.appimage"], args: &["-f", "{rom}"] },
     EmulatorDef { id: "vita3k", name: "Vita3K", exes: &["vita3k.exe", "vita3k", "vita3k.appimage"], args: &["-F", "-r", "{title_id}"] },
     EmulatorDef { id: "eden", name: "Eden", exes: &["eden.exe", "citron.exe", "sudachi.exe", "eden", "eden.appimage", "citron.appimage"], args: &["-f", "-g", "{rom}"] },
+    // Switch 2 (Nov 2026): Eden forks with the same command line as Eden.
+    EmulatorDef { id: "lichii", name: "Lichii", exes: &["lichii.exe", "lichii", "lichii.appimage"], args: &["-f", "-g", "{rom}"] },
+    // Eden-NX2 ships eden.exe like Eden: told apart by an "nx2" in its folder's path (see `visit`).
+    EmulatorDef { id: "eden_nx2", name: "Eden-NX2", exes: &["eden.exe", "eden", "eden.appimage"], args: &["-f", "-g", "{rom}"] },
+    EmulatorDef { id: "eglantine", name: "Eglantine", exes: &["eglantine.exe", "eglantine", "eglantine.appimage"], args: &["-f", "-g", "{rom}"] },
     EmulatorDef { id: "ryujinx", name: "Ryujinx", exes: &["ryujinx.exe", "ryujinx", "ryujinx.appimage"], args: &["--fullscreen", "{rom}"] },
     EmulatorDef { id: "rpcs3", name: "RPCS3", exes: &["rpcs3.exe", "rpcs3", "rpcs3.appimage"], args: &["--no-gui", "{rom}"] },
     EmulatorDef { id: "melonds", name: "melonDS", exes: &["melonds.exe", "melonds"], args: &["-f", "{rom}"] },
@@ -143,17 +148,29 @@ fn visit(dir: &Path, depth: usize, found: &mut BTreeMap<String, PathBuf>) {
             continue;
         }
         let name = e.file_name().to_string_lossy().to_lowercase();
+        // Eden forks that keep Eden's program name: Eden-NX2 ("nx2" in the folder path) is its
+        // own emulator; an eden.exe inside a Lichii/Eglantine folder isn't plain Eden.
+        // Only the program's own folder and the one above it count ("Emulators/Eden-NX2/bin").
+        let folder: String = p.parent().into_iter().flat_map(|d| d.components().rev().take(2)).map(|c| c.as_os_str().to_string_lossy().to_lowercase()).collect::<Vec<_>>().join("/");
+        let eden_fork = if folder.contains("nx2") { Some("eden_nx2") } else if folder.contains("lichii") || folder.contains("eglantine") { Some("") } else { None };
         for emu in EMULATORS {
+            let emu = match (emu.id, eden_fork) {
+                ("eden_nx2", _) => continue, // only reached through "eden" below
+                ("eden", Some("")) => continue,
+                ("eden", Some(fork)) => emulator(fork).unwrap(),
+                _ => emu,
+            };
             // Exact program names, or any AppImage named after the emulator
             // ("pcsx2-Qt.AppImage", "Cemu-2.6-x86_64.AppImage").
-            let appimage = name.ends_with(".appimage") && (name.starts_with(emu.id) || (emu.id == "eden" && (name.starts_with("citron") || name.starts_with("sudachi"))));
+            let exes = emu.exes;
+            let appimage = name.ends_with(".appimage") && (name.starts_with(emu.id) || (matches!(emu.id, "eden" | "eden_nx2") && (name.starts_with("eden") || name.starts_with("citron") || name.starts_with("sudachi"))));
             // When one folder has several of an emulator's programs (PPSSPP ships
             // PPSSPPWindows.exe and PPSSPPWindows64.exe), the one listed first wins.
-            let rank = emu.exes.iter().position(|x| *x == name).or(appimage.then_some(emu.exes.len()));
+            let rank = exes.iter().position(|x| *x == name).or(appimage.then_some(exes.len()));
             if let Some(rank) = rank {
                 let better = found.get(emu.id).map_or(true, |old: &PathBuf| {
                     let old_name = old.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
-                    let old_rank = emu.exes.iter().position(|x| *x == old_name).unwrap_or(emu.exes.len());
+                    let old_rank = exes.iter().position(|x| *x == old_name).unwrap_or(exes.len());
                     old.parent() == p.parent() && rank < old_rank
                 });
                 if better {
@@ -502,6 +519,10 @@ pub fn download_pages() -> &'static [(&'static str, &'static str)] {
         ("mgba", "https://mgba.io/downloads.html"),
         ("flycast", "https://github.com/flyinghead/flycast/releases"),
         ("mesen", "https://www.mesen.ca"),
+        // Switch 2: only the projects' own release pages (look-alike download sites spread malware).
+        ("lichii", "https://github.com/zortos293/Lichii/releases"),
+        ("eden_nx2", "https://git.eden-emu.dev/Takoroka/eden-nx2/releases"),
+        ("eglantine", "https://github.com/Djihads80/Eglantine/releases"),
         ("vlc", "https://www.videolan.org/vlc/"),
         ("mpv", "https://mpv.io/installation/"),
     ]
@@ -578,6 +599,36 @@ mod player_hint_tests {
         }
         let found = Installed::detect(&[d.clone()]);
         assert_eq!(found.path("ppsspp"), Some(&d.join("PPSSPP").join("PPSSPPWindows64.exe")));
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    /// Switch 2: Lichii by name; Eden-NX2's eden.exe by its folder; plain Eden stays Eden;
+    /// an eden.exe that came with Lichii isn't taken for Eden. Switch 2 games go to Lichii first.
+    #[test]
+    fn finds_switch2_emulators() {
+        let d = std::env::temp_dir().join(format!("spine-sw2-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        for (dir, exe) in [("Eden", "eden.exe"), ("Eden-NX2", "eden.exe"), ("Eden-NX2", "eden-cli.exe"), ("Lichii", "lichii.exe"), ("Lichii", "eden.exe"), ("Apps/lichii-linux", "lichii-linux-x86_64.AppImage")] {
+            fs::create_dir_all(d.join(dir)).unwrap();
+            fs::write(d.join(dir).join(exe), "MZ").unwrap();
+        }
+        let found = Installed::detect(&[d.clone()]);
+        assert_eq!(found.path("eden"), Some(&d.join("Eden").join("eden.exe")));
+        assert_eq!(found.path("eden_nx2"), Some(&d.join("Eden-NX2").join("eden.exe")));
+        assert!(found.path("lichii").is_some());
+        let sys = system_by_id("switch2").unwrap();
+        let game = Game { id: "switch2/mkw".into(), title: "Mario Kart World".into(), sort_key: "mario kart world".into(), letter: 'M', path: PathBuf::from("Mario Kart World.xci"), format: "xci".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![], episodes: vec![] };
+        let p = plan(sys, &game, &found);
+        assert_eq!(p.emulator, "Lichii");
+        assert!(p.blocked.is_none(), "{:?}", p.blocked);
+        assert_eq!(p.args, vec!["-f".to_string(), "-g".into(), "Mario Kart World.xci".into()]);
+        // Without Lichii, Eden-NX2 is used; never plain Eden.
+        let mut only = found.clone();
+        only.found.remove("lichii");
+        assert_eq!(plan(sys, &game, &only).emulator, "Eden-NX2");
+        only.found.remove("eden_nx2");
+        let p = plan(sys, &game, &only);
+        assert!(p.blocked.is_some());
         let _ = fs::remove_dir_all(&d);
     }
 }

@@ -309,6 +309,7 @@ const SYS_ICON = {
   wii: '<rect x="24" y="4" width="16" height="40" rx="3"/><path d="M27 10h10"/><circle cx="32" cy="38" r="1.5"/>',
   wiiu: '<path d="M8 14c0-3 2-5 5-5h38c3 0 5 2 5 5v20c0 3-2 5-5 5H13c-3 0-5-2-5-5z"/><rect x="18" y="13" width="28" height="22" rx="1"/><circle cx="13" cy="18" r="2"/><circle cx="51" cy="18" r="2"/><path d="M13 27v4M11 29h4"/><circle cx="51" cy="29" r="1.6"/>',
   switch: '<rect x="16" y="11" width="32" height="26" rx="2"/><rect x="19" y="14" width="26" height="20" rx="1"/><path d="M16 11h-4c-4 0-6 3-6 6v14c0 3 2 6 6 6h4z"/><path d="M48 11h4c4 0 6 3 6 6v14c0 3-2 6-6 6h-4z"/><circle cx="11" cy="18" r="2"/><circle cx="53" cy="28" r="2"/>',
+  switch2: '<rect x="16" y="11" width="32" height="26" rx="2"/><rect x="19" y="14" width="26" height="20" rx="1"/><path d="M16 11h-4c-4 0-6 3-6 6v14c0 3 2 6 6 6h4z"/><path d="M48 11h4c4 0 6 3 6 6v14c0 3-2 6-6 6h-4z"/><circle cx="11" cy="18" r="2"/><circle cx="53" cy="28" r="2"/>',
   segacd: '<rect x="8" y="14" width="48" height="24" rx="3"/><circle cx="32" cy="26" r="8"/><circle cx="32" cy="26" r="2"/>',
   saturn: '<path d="M8 20c0-4 3-6 7-6h34c4 0 7 2 7 6v12c0 4-3 6-7 6H15c-4 0-7-2-7-6z"/><circle cx="32" cy="24" r="7"/><path d="M14 33h8M42 33h8"/>',
   dreamcast: '<path d="M10 16h44l2 6v12c0 2-2 4-4 4H12c-2 0-4-2-4-4V22z"/><circle cx="32" cy="27" r="7"/><path d="M32 22a5 5 0 1 0 4 2"/>',
@@ -337,8 +338,8 @@ const SYS_ICON = {
 // Consoles a set doesn't have (PC in Systematic, arcade in Monochrome) and the other tiles
 // (Movies, TV, Streaming, Favorites...) keep the line icons.
 const ICON_SETS = {
-  mono: new Set('atari2600 atarilynx dos dreamcast fds gamegear gb gba gbc gc genesis mastersystem n3ds n64 nds neogeo nes ngpc pc pcengine pcenginecd ps2 ps3 psp psvita psx saturn sega32x segacd snes switch virtualboy wii wiiu wonderswan xbox xbox360'.split(' ')),
-  systematic: new Set('arcade atari2600 atarilynx dos dreamcast fds gamegear gb gba gbc gc genesis mastersystem n3ds n64 nds neogeo nes ngpc pcengine pcenginecd ps2 ps3 psp psvita psx saturn sega32x segacd snes switch virtualboy wii wiiu wonderswan xbox xbox360'.split(' ')),
+  mono: new Set('atari2600 atarilynx dos dreamcast fds gamegear gb gba gbc gc genesis mastersystem n3ds n64 nds neogeo nes ngpc pc pcengine pcenginecd ps2 ps3 psp psvita psx saturn sega32x segacd snes switch switch2 virtualboy wii wiiu wonderswan xbox xbox360'.split(' ')),
+  systematic: new Set('arcade atari2600 atarilynx dos dreamcast fds gamegear gb gba gbc gc genesis mastersystem n3ds n64 nds neogeo nes ngpc pcengine pcenginecd ps2 ps3 psp psvita psx saturn sega32x segacd snes switch switch2 virtualboy wii wiiu wonderswan xbox xbox360'.split(' ')),
 };
 const iconSet = () => { const v = S.boot?.settings?.consoleIcons; return v === 'lines' || v === 'systematic' ? v : 'mono'; };
 const sysIcon = (id, size = 56, set = iconSet()) => {

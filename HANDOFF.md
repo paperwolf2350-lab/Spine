@@ -859,5 +859,26 @@ another source; check the release's sha256 shown on GitHub, unpack into an `mpv`
 UI tests: recreate the Playwright mock (`window.__SPINE_MOCK__`; Chrome is at /usr/bin/google-chrome;
 Cinemeta JSON can be fetched live from the workspace for test data).
 
+## Nintendo Switch 2 (0.37.0, Nov 8)
+
+Owner asked after the Nov 2026 Switch 2 jailbreak (ns2jb) brought Eden forks that boot Switch 2 games.
+- New system `switch2` ("Nintendo Switch 2", folders switch2 / nintendoswitch2 / ns2 / nx2, same exts as switch),
+  launchers Lichii → Eden-NX2 → Eglantine (never plain Eden/Ryujinx). Folder prefix match: "switch2" (7) beats
+  "switch" (6), so "Switch 2" lands right. Scanner treats it like switch (title-id grouping, fuzzy merge, ScreenScraper
+  name). No ScreenScraper/libretro art id yet: add one when ScreenScraper lists Switch 2. Icons reuse switch.png.
+- launch.rs: `lichii` (lichii.exe / lichii-*.AppImage), `eglantine`, `eden_nx2`. All Eden forks: `-f -g {rom}`
+  (Lichii's docs/user/CommandLine.md). Eden-NX2 ships **eden.exe**: in `visit`, an Eden program whose own folder or
+  the one above contains "nx2" is registered as `eden_nx2`; one under a "lichii"/"eglantine" folder is ignored for
+  Eden. `eden_nx2` is skipped in the normal loop (only reached by that remap). Test `finds_switch2_emulators`.
+- bios.rs: switch2 checks prod.keys in Eden's folders (`user/keys` portable, %APPDATA%\eden\keys,
+  ~/.local/share/eden/keys): Lichii keeps Eden's data dir (EDEN_DIR "eden" in its source).
+- Spine Emulators: Lichii via new `Source::GitHubAny` (`/releases?per_page=10`, newest non-draft with a match:
+  every Lichii build is a pre-release, so `/releases/latest` would 404). Picks `lichii-windows-x86_64.zip` (MSVC; there is
+  also -pgo). Checked the real build zip: lichii.exe, eden-cli.exe, lichii-updater.exe at the top level. Linux: no Flathub
+  app → greyed with the GitHub link. Version shown = tag ("build-88").
+- Only official pages: github.com/zortos293/Lichii, git.eden-emu.dev/Takoroka/eden-nx2 (one Windows pre-release,
+  2026-10-29), github.com/Djihads80/Eglantine. lichii.org and other look-alikes are not the project (one reported malware).
+- Not testable here: actually running Switch 2 games (owner's keys/games). Eglantine's exe name (eglantine.exe) is a guess.
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.
