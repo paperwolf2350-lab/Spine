@@ -245,9 +245,29 @@ fn write_stamp(dir: &Path, id: &str, s: Stamp) {
     }
 }
 
-/// Where an emulator goes: `<folder>/<Name>`.
+/// Where an emulator lives in the folder: `<folder>/<Name>`, or any other folder right inside
+/// it that holds the emulator's program (copies the user put there by hand, like
+/// "D:\Emulators\pcsx2-v2.4\pcsx2-qt.exe"), so those get updated in place (0.38).
+/// A new install goes to `<folder>/<Name>`.
 pub fn target(dir: &Path, def: &EmuDef) -> PathBuf {
-    dir.join(def.name)
+    let named = dir.join(def.name);
+    if find_exe(&named, def).is_some() {
+        return named;
+    }
+    let mut others: Vec<PathBuf> = fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .filter(|p| {
+            let n = p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+            !(n.ends_with(".new") || n.ends_with(".old") || n.ends_with(".flat"))
+        })
+        .filter(|p| find_exe(p, def).is_some())
+        .collect();
+    others.sort();
+    others.into_iter().next().unwrap_or(named)
 }
 
 /// The emulator's program inside its folder, if it's there.
@@ -303,10 +323,12 @@ fn flatten(dir: &Path) -> Result<(), String> {
     fs::rename(&tmp, dir).map_err(|e| e.to_string())
 }
 
-/// RetroArch keeps its settings, saves, states, BIOS files ("system") and cores inside its
-/// own folder: when it's replaced, everything the new download doesn't have comes along.
-fn keeps_user_files(def: &EmuDef) -> bool {
-    def.id == "retroarch"
+/// Emulators keep settings, saves, keys ("user" for Eden/Lichii) and BIOS files inside their
+/// own folder when portable: when one is replaced, everything the new download doesn't have
+/// comes along. RetroArch since 0.34, every emulator since 0.38 (folders the user filled by hand
+/// get updated now too).
+fn keeps_user_files(_def: &EmuDef) -> bool {
+    true
 }
 
 /// Move what's in `old` but not in `new` over (folders merged; the new download's files win).
@@ -324,7 +346,7 @@ fn carry_over(old: &Path, new: &Path) {
 
 /// Unpack a checked archive into `<folder>/<Name>`: first into `<Name>.new`, then swap,
 /// so a failed unpack never leaves a broken emulator behind. Files the user added
-/// (settings in a portable folder) in the old copy are not kept: the old folder is
+/// (settings in a portable folder) come along (`carry_over`); the old folder is
 /// moved to `<Name>.old` and only removed after the new one is in place.
 pub fn unpack(dir: &Path, def: &EmuDef, archive: &Path, a: &Asset) -> Result<PathBuf, String> {
     let dest = target(dir, def);
@@ -501,7 +523,8 @@ pub fn core_index() -> Result<BTreeMap<String, (String, u32)>, String> {
 pub fn cores_dir(dir: &Path) -> PathBuf {
     // Tests use the Windows layout on every system (never the real home folder).
     if cfg!(windows) || cfg!(test) {
-        return dir.join("RetroArch").join("cores");
+        // The RetroArch in the folder, whatever its folder is called ("RetroArch-Win64").
+        return target(dir, emu("retroarch").expect("retroarch in EMUS")).join("cores");
     }
     crate::launch::retroarch_core_dirs(None).into_iter().next().unwrap_or_else(|| dir.join("cores"))
 }
@@ -672,7 +695,31 @@ pub fn updates(dir: &Path, l: &Latest) -> BTreeMap<String, String> {
 /// The folder the installer uses by default: `Emulators` in the user's home folder
 /// (Spine searches it).
 pub fn default_dir() -> Option<PathBuf> {
-    std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")).map(|h| PathBuf::from(h).join("Emulators"))
+    chosen_dir().or_else(|| std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")).map(|h| PathBuf::from(h).join("Emulators")))
+}
+
+/// Where the folder the user picked is remembered (Windows: %APPDATA%\Spine Emulators\folder.txt).
+/// Spine reads it too, so it searches that folder.
+pub fn folder_file() -> Option<PathBuf> {
+    let base = std::env::var_os("APPDATA").map(PathBuf::from).filter(|p| p.is_absolute())?;
+    Some(base.join("Spine Emulators").join("folder.txt"))
+}
+
+/// The emulators folder the user picked (Change folder), if any.
+pub fn chosen_dir() -> Option<PathBuf> {
+    let t = fs::read_to_string(folder_file()?).ok()?;
+    let p = PathBuf::from(t.trim());
+    (p.is_absolute()).then_some(p)
+}
+
+/// Remember a new emulators folder (made if missing).
+pub fn set_chosen_dir(p: &Path) -> Result<(), String> {
+    fs::create_dir_all(p).map_err(|e| format!("Couldn't use that folder ({e})."))?;
+    let f = folder_file().ok_or("No settings folder on this computer.")?;
+    if let Some(parent) = f.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(&f, p.to_string_lossy().as_bytes()).map_err(|e| e.to_string())
 }
 
 /// Where the installer keeps its notes (versions of cores it put in, the last update
@@ -713,6 +760,25 @@ mod tests {
         assert_eq!(a.size, 9);
         assert_eq!(a.sha256.as_deref(), Some("ab12000000000000000000000000000000000000000000000000000000000000"));
         assert_eq!(a.version(), "build-88");
+    }
+
+    #[test]
+    fn finds_emulators_the_user_put_in_the_folder() {
+        let d = tmp("byhand");
+        fs::create_dir_all(d.join("pcsx2-v2.4")).unwrap();
+        fs::write(d.join("pcsx2-v2.4").join("pcsx2-qt.exe"), "MZ").unwrap();
+        fs::create_dir_all(d.join("Dolphin.old")).unwrap();
+        fs::write(d.join("Dolphin.old").join("Dolphin.exe"), "MZ").unwrap();
+        let pcsx2 = emu("pcsx2").unwrap();
+        assert_eq!(target(&d, pcsx2), d.join("pcsx2-v2.4"));
+        // Leftovers of an update don't count; a new install goes to <Name>.
+        assert_eq!(target(&d, emu("dolphin").unwrap()), d.join("Dolphin"));
+        // Installed by hand: no stamp, so it's offered an update.
+        let (emus, _) = ours(&d);
+        assert_eq!(emus.iter().map(|e| e.id).collect::<Vec<_>>(), ["pcsx2"]);
+        let l = Latest { at: 1, versions: [("pcsx2".to_string(), "v2.5".to_string())].into(), errors: Default::default() };
+        assert_eq!(updates(&d, &l).get("pcsx2").map(|s| s.as_str()), Some("v2.5"));
+        let _ = fs::remove_dir_all(&d);
     }
 
     #[test]
@@ -949,15 +1015,35 @@ mod tests {
         assert_eq!(exe, d.join("Azahar").join("azahar.exe"));
         assert!(d.join("Azahar").join("Qt6Core.dll").is_file());
         assert_eq!(read_stamps(&d)["azahar"].version, "v1");
-        // Again, as an update: the old copy is replaced, nothing left over.
+        // Again, as an update: new files win, the user's own files (portable "user" folder) stay.
+        fs::create_dir_all(d.join("Azahar").join("user").join("sysdata")).unwrap();
+        fs::write(d.join("Azahar").join("user").join("sysdata").join("aes_keys.txt"), b"k").unwrap();
         make_zip(&z, &[("azahar.exe", b"MZ2")]);
         let mut a2 = asset("azahar-windows-msvc-2127.zip", &z, false);
         a2.tag = "v2".into();
         unpack(&d, def, &z, &a2).unwrap();
         assert_eq!(fs::read(d.join("Azahar").join("azahar.exe")).unwrap(), b"MZ2");
-        assert!(!d.join("Azahar").join("Qt6Core.dll").exists());
+        assert!(d.join("Azahar").join("user").join("sysdata").join("aes_keys.txt").is_file());
         assert!(!d.join("Azahar.old").exists() && !d.join("Azahar.new").exists());
         assert_eq!(read_stamps(&d)["azahar"].version, "v2");
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn updates_a_hand_installed_copy_in_place() {
+        let d = tmp("inplace");
+        let def = emu("eden").unwrap();
+        fs::create_dir_all(d.join("eden-0.1").join("user").join("keys")).unwrap();
+        fs::write(d.join("eden-0.1").join("eden.exe"), b"old").unwrap();
+        fs::write(d.join("eden-0.1").join("user").join("keys").join("prod.keys"), b"k").unwrap();
+        let z = d.join("e.zip");
+        make_zip(&z, &[("eden.exe", b"new")]);
+        let a = asset("Eden-Windows-v0.3.0-amd64-clang-pgo.zip", &z, true);
+        let exe = unpack(&d, def, &z, &a).unwrap();
+        assert_eq!(exe, d.join("eden-0.1").join("eden.exe"));
+        assert_eq!(fs::read(&exe).unwrap(), b"new");
+        assert!(d.join("eden-0.1").join("user").join("keys").join("prod.keys").is_file());
+        assert!(!d.join("Eden").exists());
         let _ = fs::remove_dir_all(&d);
     }
 

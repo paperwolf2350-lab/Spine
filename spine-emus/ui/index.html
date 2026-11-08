@@ -56,7 +56,7 @@
 <header>
   <h1><span>Spine</span> Emulators</h1>
   <div class="sub" id="sub">Tick the emulators you want and press Install. Each one comes straight from its official release.</div>
-  <div class="folder" id="folder">Installs into <code id="dir">…</code><button class="small" id="openDir">Open folder</button></div>
+  <div class="folder" id="folder">Installs into <code id="dir">…</code><button class="small" id="openDir">Open folder</button><button class="small" id="chooseDir">Change folder</button></div>
   <div class="updline" id="upd"></div>
 </header>
 <div id="banner"></div>
@@ -187,6 +187,15 @@ document.getElementById('upd').addEventListener('click', ev => {
   if (ev.target.id === 'updAll' && !S.busy) { S.picked = new Set(updIds()); start(); }
 });
 document.getElementById('openDir').onclick = () => call('open_folder', { id: null });
+// Another emulators folder (an external drive...): emulators already in it count as installed.
+document.getElementById('chooseDir').onclick = async () => {
+  if (S.busy) return;
+  try {
+    const b = await call('choose_folder');
+    if (!b) return;
+    S.boot = b; S.picked = new Set(); S.upd = null; render(); checkUpdates(false);
+  } catch (e) { document.getElementById('banner').innerHTML = `<div class="banner">${esc(String(e))}</div>`; }
+};
 document.getElementById('pickNew').onclick = () => {
   S.picked = new Set(items().filter(e => !e.ours && !blocked(e) && (e.core || !e.elsewhere)).map(e => e.id));
   const ra = item('retroarch');

@@ -12,7 +12,8 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
 struct App {
-    dir: PathBuf,
+    /// The emulators folder (Change folder can swap it).
+    dir: Mutex<PathBuf>,
     busy: Mutex<bool>,
 }
 
@@ -125,7 +126,8 @@ fn flatpak_views() -> Vec<EmuView> {
 #[tauri::command]
 fn boot(app: tauri::State<App>) -> Boot {
     let linux = !cfg!(windows);
-    Boot { dir: app.dir.display().to_string(), windows: cfg!(windows), linux, flatpak: linux && flathub::available(), emus: views(&app.dir), cores: core_views(&app.dir) }
+    let dir = app.dir.lock().unwrap().clone();
+    Boot { dir: dir.display().to_string(), windows: cfg!(windows), linux, flatpak: linux && flathub::available(), emus: views(&dir), cores: core_views(&dir) }
 }
 
 #[derive(Clone, Serialize)]
@@ -154,7 +156,7 @@ fn install(handle: AppHandle, app: tauri::State<App>, ids: Vec<String>) -> Resul
         }
         *b = true;
     }
-    let dir = app.dir.clone();
+    let dir = app.dir.lock().unwrap().clone();
     // Emulators first (RetroArch before its cores), then cores ("core:<id>").
     let (core_ids, mut emu_ids): (Vec<String>, Vec<String>) = ids.into_iter().partition(|i| i.starts_with("core:"));
     if !core_ids.is_empty() && !emus::retroarch_ready(&dir) && !emu_ids.iter().any(|i| i == "retroarch") {
@@ -225,7 +227,7 @@ struct UpdatesView {
 /// it's under an hour old, unless `force` (the "Check again" link).
 #[tauri::command]
 async fn check_updates(handle: AppHandle, force: bool) -> Result<UpdatesView, String> {
-    let dir = handle.state::<App>().dir.clone();
+    let dir = handle.state::<App>().dir.lock().unwrap().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let l = emus::latest_versions(&dir, force);
         let mut v = UpdatesView { at: l.at, updates: emus::updates(&dir, &l), errors: l.errors };
@@ -255,14 +257,29 @@ async fn check_updates(handle: AppHandle, force: bool) -> Result<UpdatesView, St
 /// Show a folder in Explorer (our emulators folder, or one emulator's).
 #[tauri::command]
 fn open_folder(app: tauri::State<App>, id: Option<String>) -> Result<(), String> {
+    let dir = app.dir.lock().unwrap().clone();
     let path = match id.as_deref().and_then(emus::emu) {
-        Some(def) if cfg!(windows) => emus::target(&app.dir, def),
-        Some(_) => emus::cores_dir(&app.dir),
-        None => app.dir.clone(),
+        Some(def) if cfg!(windows) => emus::target(&dir, def),
+        Some(_) => emus::cores_dir(&dir),
+        None => dir,
     };
     std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
     let opener = if cfg!(windows) { "explorer" } else { "xdg-open" };
     spine_core::hostenv::command(opener).arg(&path).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// Windows: pick another emulators folder (e.g. one on an external drive). Emulators already
+/// in it are recognised and updated there; Spine searches it too. Returns the new Boot.
+#[tauri::command]
+async fn choose_folder(handle: AppHandle) -> Result<Option<Boot>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    if *handle.state::<App>().busy.lock().unwrap() {
+        return Err("Wait until the installs are done.".into());
+    }
+    let Some(p) = handle.dialog().file().set_title("Choose your emulators folder").blocking_pick_folder().and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    emus::set_chosen_dir(&p)?;
+    *handle.state::<App>().dir.lock().unwrap() = p;
+    Ok(Some(boot(handle.state::<App>())))
 }
 
 /// Open an emulator's website in the browser (only the addresses in our own list).
@@ -277,8 +294,9 @@ fn open_site(id: String) -> Result<(), String> {
 fn main() {
     let dir = emus::notes_dir().unwrap_or_else(|| PathBuf::from("Emulators"));
     tauri::Builder::default()
-        .manage(App { dir, busy: Mutex::new(false) })
-        .invoke_handler(tauri::generate_handler![boot, install, check_updates, open_folder, open_site])
+        .plugin(tauri_plugin_dialog::init())
+        .manage(App { dir: Mutex::new(dir), busy: Mutex::new(false) })
+        .invoke_handler(tauri::generate_handler![boot, install, check_updates, open_folder, open_site, choose_folder])
         .run(tauri::generate_context!())
         .expect("error while running Spine Emulators");
 }

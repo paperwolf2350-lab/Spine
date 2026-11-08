@@ -883,5 +883,19 @@ Owner asked after the Nov 2026 Switch 2 jailbreak (ns2jb) brought Eden forks tha
   (title = folder name, path = exefs/main, ext "exefs"; romfs never walked). Test `switch2_nup_and_folder_dumps`.
 - Not testable here: actually running Switch 2 games (owner's keys/games). Eglantine's exe name (eglantine.exe) is a guess.
 
+## Spine Emulators: Change folder (0.38.0, Nov 8)
+
+Owner keeps emulators on an external drive (D:\Emulators) and wanted one place for both.
+- `emus::chosen_dir()` / `set_chosen_dir()`: %APPDATA%\Spine Emulators\folder.txt; `default_dir()` (and so `notes_dir()` on
+  Windows: stamps + latest.json) uses it. `launch::default_search_paths` adds it, so Spine searches it too.
+- `emus::target(dir, def)` = `<dir>/<Name>` if the program is there, else the first other folder right inside `dir` holding
+  one of `def.exes` (skips *.new/*.old/*.flat), else `<dir>/<Name>` for a new install. So hand-installed copies are
+  "ours" (`ours()`), get "Update available" once (no stamp), and update in place. `cores_dir` on Windows follows
+  RetroArch's real folder.
+- `keeps_user_files` is now true for every emulator: `carry_over` moves anything the new download lacks (user/, portable
+  configs, keys) into the new copy; new files win. Old DLLs no longer shipped stay behind (harmless).
+- spine-emus: `App.dir` is a Mutex; `choose_folder` (tauri-plugin-dialog, Rust side only, no capability needed) returns a
+  new Boot; UI button `#chooseDir` next to Open folder. Not testable here: the real Windows folder picker.
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

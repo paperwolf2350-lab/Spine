@@ -1,12 +1,10 @@
 ## What's new
-- **Switch 2 games now show up.** Spine finds both kinds of Switch 2 dump: **.nup** files, and decrypted game folders (a folder per game with **exefs** and **romfs** inside; Spine opens `exefs\main`). Put them in your **Switch 2** folder.
+- **Spine Emulators: Change folder.** Keep your emulators somewhere else, like `D:\Emulators` on an external drive: press **Change folder** and pick it. Spine Emulators installs and updates there from then on, and Spine searches that folder too.
+- **Emulators you put there yourself count.** Any emulator in its own folder inside the emulators folder (for example `D:\Emulators\pcsx2-v2.4\pcsx2-qt.exe`) shows as installed, and its updates go into that same folder. Spine Emulators can't tell which version you installed by hand, so it offers each one an update once; after that it keeps track.
+- **Updates keep your files.** Settings, saves, keys and BIOS files inside an emulator's folder now stay when it updates (before, only RetroArch's did).
 
-From 0.37.0:
-- **Nintendo Switch 2 as its own console.** Put Switch 2 games in a folder called **Switch 2** (or NS2 / NX2) and they get their own tile, separate from your Switch games.
-- Spine finds the new Switch 2 emulators: **Lichii** (tried first), **Eden-NX2** and **Eglantine**. Eden-NX2's program is called eden.exe like normal Eden, so keep it in a folder with "NX2" in its name (for example `Emulators\Eden-NX2`): then Spine knows which is which, and your Switch games keep opening in normal Eden.
-- Switch 2 games need prod.keys and firmware from your own console, in the same folder Eden uses. Spine tells you where if they're missing.
-- **Spine Emulators can install and update Lichii** on Windows, straight from its GitHub releases. These are very experimental test builds: expect crashes and graphics problems. On Linux it's greyed out with a link (no Flathub version).
-- Get these emulators only from their own pages. Look-alike download sites for Switch 2 emulators exist, and one was reported to spread malware.
+From 0.37.x:
+- Nintendo Switch 2 console: Lichii, Eden-NX2 and Eglantine; .nup files and exefs/romfs game folders; Lichii in Spine Emulators.
 
 ---
 

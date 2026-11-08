@@ -198,6 +198,9 @@ pub fn default_search_paths(rom_root: &Path) -> Vec<PathBuf> {
     if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
         let home = PathBuf::from(home);
         v.push(home.join("Emulators")); // Spine Emulators puts them here
+        if let Some(d) = crate::emus::chosen_dir() {
+            v.push(d); // ...or in the folder picked there (Change folder)
+        }
         v.push(home.join("EmuDeck").join("Emulators"));
         v.push(home.join("Emulation").join("tools"));
         v.push(home.join("Applications"));
