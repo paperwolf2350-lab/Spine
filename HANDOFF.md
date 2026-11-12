@@ -897,5 +897,35 @@ Owner keeps emulators on an external drive (D:\Emulators) and wanted one place f
 - spine-emus: `App.dir` is a Mutex; `choose_folder` (tauri-plugin-dialog, Rust side only, no capability needed) returns a
   new Boot; UI button `#chooseDir` next to Open folder. Not testable here: the real Windows folder picker.
 
+## Mascot (0.39.0, Nov 11)
+
+Owner made a mascot with Ideogram (connected as an MCP connector in claude.ai) and wanted her "brought to life, not a
+last-minute addition": she appears now and then with small lines ("Welcome back", "You played X for Y") and visually
+uses the UI. Art: `spine-app/ui/mascot/<pose>.webp` (max 1024 px, transparent), 15 poses (sit_wave, peek, point, think,
+cheer, doze, surprise, hang, flustered, lean, lie, bye, thumbs_up, peek_side, read) + `_blink` frames for sit_wave, peek,
+point, think (same picture, only eyes changed, so swapping is seamless). Ideogram reference image: her sheet "4"
+(burgundy round glasses, one cream flower clip, beige cable cardigan, green tartan midi skirt); poses made with
+edit_ideogram_4_5 + background transparent, blinks with precise_edit_ideogram_4_5. `bye` isn't used yet (no hook before
+the window closes).
+- `mascot.js` (MASCOT, loaded before app.js) / `mascot.css`. Own layer `#mascot` in body (z 25, pointer-events none
+  except the bubble), so render() never wipes her and she never takes focus. Positions use the layer's CSS px:
+  rect / (layer rect width / offsetWidth), same zoom fix as jumpletter.
+- Spots (`place`): `tile-sit` (seat line 0.55 on `.console.sel` top, height 1.38x tile), `tile-lean` (right side of the
+  selected tile, mirrored to the left side near the screen edge), `card-lie` / `card-point` (first `.recent .item`),
+  `hang` (under the top bar), `side` (peek_side from the right edge), else the hint bar (`.hints`/`.tv-hints`; window
+  bottom if none): stand, sit, lie on it or rise from behind it (`rise` clips at the bar line). A spot that isn't fully
+  visible falls back to the bar, so every screen and Home style works (Classic gets the anchored spots).
+- Moments: `boot` (first Home: welcome with last session from memo, first-meeting line, late-night doze), `played(p,
+  prev)` from game-exited (counted games only; first go, milestones 5/10/25/50/100/250/500 h once per game, 2 h+
+  session, otherwise thumbs up), `spun(id)` from ACT.random, `ambient()` drop-ins on Home every 8-14 min (Sometimes) or
+  3-6 (Often), idle on Home: read after 150 s, doze after 480 s. `force` replaces whatever's showing (played/spun).
+- Any press (press() calls MASCOT.input), click or wheel sends her off (not within 700 ms of arriving). render() calls
+  MASCOT.sync() to follow the anchor or leave if it's gone; she never shows with a panel, the player or search open.
+- Settings: `mascot` = off | moments | sometimes (default) | often (Settings → Look, chips `msc-*`, Say hi `mascothi`).
+  `mascotMemo` = { seen, last: {id, sec, at}, ms: {id: hours} }, saved with set_setting directly (no re-render).
+- Tested in Playwright with a mock (Cream, Midnight; 1920x1080 and 1536x807@1.25): every pose/spot, blink swaps,
+  dismiss on input with focus kept, game-exited reaction, Settings chips, Say hi, Off removes her.
+Ideas next: put the real cover into the blank game case of the surprise pose, use `bye` on exit, a name for her.
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

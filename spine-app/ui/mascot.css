@@ -1,0 +1,49 @@
+/* The mascot's layer (mascot.js). Never takes clicks except on her speech bubble. */
+#mascot { position: fixed; inset: 0; z-index: 25; pointer-events: none; overflow: hidden; }
+#mascot .msc-clip { position: absolute; left: 0; top: 0; width: 100%; overflow: hidden; }
+.msc-fig { position: absolute; opacity: 0; transition: transform .5s cubic-bezier(.2,1.3,.4,1), opacity .3s ease; will-change: transform, opacity; }
+.msc-fig .msc-bob { width: 100%; height: 100%; animation: msc-bob 3.4s ease-in-out infinite; transform-origin: 50% 100%; }
+.msc-fig img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 10px 14px rgba(0,0,0,.28)); user-select: none; }
+.msc-fig.mirror img { transform: scaleX(-1); }
+
+/* Ways in (the .here class lands them). */
+.msc-fig.in-drop { transform: translateY(-46px); }
+.msc-fig.in-pop { transform: translateY(18px) scale(.94); transform-origin: 50% 100%; }
+.msc-fig.in-rise { transform: translateY(100%); opacity: 1; transition: transform .55s cubic-bezier(.2,1.1,.4,1); }
+.msc-fig.in-side { transform: translateX(100%); opacity: 1; transition: transform .55s cubic-bezier(.2,1.1,.4,1); }
+.msc-fig.here { transform: none; opacity: 1; }
+.msc-fig.away { opacity: 0; transition: transform .4s ease-in, opacity .35s ease-in; }
+.msc-fig.in-rise.away { transform: translateY(100%); opacity: 1; }
+.msc-fig.in-side.away { transform: translateX(100%); opacity: 1; }
+.msc-fig.in-drop.away, .msc-fig.in-pop.away { transform: translateY(14px); }
+
+/* Little life: a slow bob, swinging while she hangs, breathing while she dozes. */
+@keyframes msc-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.msc-fig.swing .msc-bob { animation: msc-swing 2.8s ease-in-out infinite; transform-origin: 50% 0; }
+@keyframes msc-swing { 0%, 100% { transform: rotate(-2.2deg); } 50% { transform: rotate(2.2deg); } }
+.msc-fig.breathe .msc-bob { animation: msc-breathe 4.2s ease-in-out infinite; }
+@keyframes msc-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.012, .988); } }
+.msc-z { position: absolute; left: 62%; top: -4%; font-family: var(--display); font-weight: 700; color: var(--text); }
+.msc-z i { position: absolute; font-style: normal; opacity: 0; animation: msc-z 3.6s ease-out infinite; }
+.msc-z i:nth-child(1) { font-size: 16px; }
+.msc-z i:nth-child(2) { font-size: 20px; animation-delay: 1.2s; }
+.msc-z i:nth-child(3) { font-size: 26px; animation-delay: 2.4s; }
+@keyframes msc-z { 0% { opacity: 0; transform: translate(0, 0); } 20% { opacity: .85; } 100% { opacity: 0; transform: translate(26px, -54px); } }
+
+/* Speech bubble. */
+.msc-bub { position: absolute; pointer-events: auto; cursor: pointer; padding: 12px 16px; border-radius: 16px; background: var(--surface, #fff); color: var(--text);
+  border: 1px solid var(--line); box-shadow: 0 10px 28px rgba(0,0,0,.22); font-size: 16px; font-weight: 600; line-height: 1.35;
+  opacity: 0; transform: translateY(6px) scale(.96); transition: opacity .22s ease, transform .22s ease; }
+.msc-bub:empty { display: none; }
+.msc-bub.here { opacity: 1; transform: none; }
+.msc-bub::after { content: ''; position: absolute; top: 26px; width: 14px; height: 14px; background: inherit; border: inherit; border-width: 0 0 1px 1px; }
+.msc-bub.tail-r::after { right: -8px; transform: rotate(-135deg); }
+.msc-bub.tail-l::after { left: -8px; transform: rotate(45deg); }
+:root[data-theme="tv"] .msc-bub { font-size: 19px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .msc-fig, .msc-fig.in-rise, .msc-fig.in-side { transition: opacity .3s ease; }
+  .msc-fig.in-drop, .msc-fig.in-pop, .msc-fig.in-rise, .msc-fig.in-side { transform: none; opacity: 0; }
+  .msc-fig.here { opacity: 1; }
+  .msc-fig .msc-bob, .msc-z i { animation: none; }
+}

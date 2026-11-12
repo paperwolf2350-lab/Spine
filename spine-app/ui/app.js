@@ -756,6 +756,8 @@ function settingsPanel() {
       <button class="chip ${st.theme === 'crt' ? 'on' : ''}" data-nav data-key="th-crt" data-act="theme" data-t="crt">Retro CRT</button></div>`)
       + grp('Home style', tvOn() ? 'Used when TV mode is off.' : 'How Home is laid out.', `<div class="opts">${['classic', 'wave', 'channels', 'blades', 'cube'].map((v) =>
         `<button class="chip ${style === v ? 'on' : ''}" data-nav data-key="hs-${v}" data-act="homestyle" data-s="${v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div>`)
+      + grp('Mascot', 'She drops by now and then: welcome back, play recaps, milestones, little tips, and she reads while you decide.', `<div class="opts">${chips('msc', 'mascot', [['off', 'Off'], ['moments', 'Big moments only'], ['sometimes', 'Sometimes'], ['often', 'Often']], st.mascot || 'sometimes')}
+        ${(st.mascot || 'sometimes') !== 'off' ? '<button class="btn small" data-nav data-key="mschi" data-act="mascothi">Say hi</button>' : ''}</div>`)
       + grp('Console icons', 'Monochrome and Systematic are RetroArch\'s icons (libretro, CC BY 4.0).', `<div class="opts">${[['mono', 'Monochrome'], ['systematic', 'Systematic'], ['lines', 'Lines']].map(([v, l]) =>
         `<button class="chip ${iconSet() === v ? 'on' : ''}" data-nav data-key="ci-${v}" data-act="consoleicons" data-v="${v}">${sysIcon('ps2', 26, v)} ${l}</button>`).join('')}</div>`)
       + grp('Accent', '', `<div class="opts">${sw}</div>`)
@@ -1213,6 +1215,7 @@ function render() {
   const q = document.getElementById('q');
   if (q) { q.oninput = () => { S.query = q.value; S.focusKey = 'q'; renderSearchOnly(); }; }
   renderToast();
+  MASCOT.sync();
 }
 
 // Game page video: fades in over the cover after a moment, like a TV menu.
@@ -1449,6 +1452,7 @@ const ACT = {
     if (S.screen !== 'detail') S.from = S.screen;
     S.spun = g.id; S.spinScope = scope; S.game = g.id; S.panel = null; S.screen = 'detail'; S.focusKey = 'play';
     render();
+    MASCOT.spun(g.id);
   },
   async emu(d) {
     const r = await api.call('launch_options', { id: d.id });
@@ -1764,6 +1768,8 @@ const ACT = {
     S.chPage = p; S.focusKey = `con-${T[p * CH_PER_PAGE].id}`; render();
   },
   homestyle(d) { S.focusKey = `hs-${d.s}`; setSetting('home_style', d.s); },
+  async mascot(d) { S.focusKey = `msc-${d.v}`; await setSetting('mascot', d.v); MASCOT.setLevel(); },
+  mascothi() { S.panel = null; S.screen = S.screen === 'detail' || S.screen === 'games' ? S.screen : 'home'; render(); MASCOT.demo(); },
   wavecat(d) { const c = waveCats()[+d.i]; if (!c) return; S.wave.cat = c.id; waveSync(true); },
   async autostart(d) {
     S.focusKey = `as-${d.v}`;
@@ -1996,6 +2002,7 @@ function actSound(act) {
 // ---------------------------------------------------------------------------
 function press(btn) {
   document.body.classList.add('kb');
+  MASCOT.input();
   BGM.wake(); // a controller press counts as the first input for starting music
   const cur = document.activeElement;
   const typing = cur && cur.tagName === 'INPUT';
@@ -2166,12 +2173,14 @@ api.on('game-exited', (p) => {
   padMute = true; // buttons still held from the exit combo shouldn't press anything here
   if (p.progress) S.boot.progress = { ...(S.boot.progress || {}), [p.key]: p.progress };
   if (p.progress && typeof sWatchedAfterPlay === 'function') sWatchedAfterPlay(p.key, p.progress);
-  S.boot.playtime = { ...(S.boot.playtime || {}), [p.id]: ((S.boot.playtime || {})[p.id] || 0) + (S.playing?.emulator === 'system' ? 0 : p.seconds) };
+  const before = (S.boot.playtime || {})[p.id] || 0, counted = S.playing?.emulator !== 'system';
+  S.boot.playtime = { ...(S.boot.playtime || {}), [p.id]: before + (counted ? p.seconds : 0) };
   S.playing = null;
   if (upNext) return upNext.stream ? ACT.snext(upNext) : ACT.play({ id: upNext.id, ep: upNext.ep });
   setTimeout(() => SFX.play('welcome'), 250);
   S.focusKey = 'play';
   render();
+  if (counted) MASCOT.played(p, before);
   if (p.seconds > 60) toast(`${/^(movies|tv|stream)\//.test(String(p.id)) ? 'Watched' : 'Played'} ${fmtTime(p.seconds)}`);
 });
 
@@ -2185,6 +2194,7 @@ api.on('game-exited', (p) => {
   if (!hasLibrary) S.screen = 'welcome';
   else { S.screen = 'home'; S.sel = Math.max(0, tiles().findIndex((t) => t.kind === 'sys')); }
   render();
+  if (S.screen === 'home') MASCOT.boot();
   // TV mode can open full-screen on its own (Settings → Look → Open TV mode full-screen).
   if (settings().fullscreen || (tvOn() && settings().tvFullscreen)) { api.call('set_fullscreen', { on: true }); S.boot.settings.fullscreen = true; }
   if (hasLibrary) api.call('fetch_media');

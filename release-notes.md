@@ -1,10 +1,14 @@
 ## What's new
-- **Spine Emulators: Change folder.** Keep your emulators somewhere else, like `D:\Emulators` on an external drive: press **Change folder** and pick it. Spine Emulators installs and updates there from then on, and Spine searches that folder too.
-- **Emulators you put there yourself count.** Any emulator in its own folder inside the emulators folder (for example `D:\Emulators\pcsx2-v2.4\pcsx2-qt.exe`) shows as installed, and its updates go into that same folder. Spine Emulators can't tell which version you installed by hand, so it offers each one an update once; after that it keeps track.
-- **Updates keep your files.** Settings, saves, keys and BIOS files inside an emulator's folder now stay when it updates (before, only RetroArch's did).
+- **Meet Spine's mascot.** She drops by now and then and sits on, leans against or lies on parts of the screen:
+  - **Welcome back:** when you open Spine she sits on the selected console and tells you what you played last time and for how long.
+  - **After you play:** a quick word on your session, a cheer for your first go at a game, a little shock at 25, 50 or 100 hours, and a nudge to stretch after long sessions.
+  - **Surprise me:** sometimes she presents the pick herself.
+  - **Little tips on Home:** your most played game, games you added but haven't tried, favorites you haven't touched in a while, consoles you haven't visited lately.
+  - **While you decide:** leave Home alone for a few minutes and she sits down with a book, and after a while she nods off.
+- She never gets in the way: the controller keeps working while she's there, and any button sends her off. Choose how often she shows up in **Settings → Look → Mascot** (Off, Big moments only, Sometimes, Often), or press **Say hi** to see her right away.
 
-From 0.37.x:
-- Nintendo Switch 2 console: Lichii, Eden-NX2 and Eglantine; .nup files and exefs/romfs game folders; Lichii in Spine Emulators.
+From 0.38.x:
+- Spine Emulators: Change folder, emulators you installed yourself count, updates keep your files.
 
 ---
 
