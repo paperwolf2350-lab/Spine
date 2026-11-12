@@ -3033,7 +3033,7 @@ dependencies = [
 
 [[package]]
 name = "spine"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3047,7 +3047,7 @@ dependencies = [
 
 [[package]]
 name = "spine-core"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "percent-encoding",
  "regex",

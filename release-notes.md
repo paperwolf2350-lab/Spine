@@ -1,9 +1,9 @@
 ## What's new
-- **Paige shows new users around.** The first time you open Spine she stands next to **Choose your ROM folder** and explains what Spine does. Click her speech bubble to move on faster. She reads along while Spine sorts your games, then shows you your new library.
-- **Surprise me, with the real cover.** When Paige presents her pick, the game's actual cover is in the case she's holding up.
-- **She waves goodbye.** Closing Spine (the window's close button or Quit Spine) gets a little wave as she walks off. Spine closes a moment later either way, and with Paige turned off it closes right away like before.
+- **Paige visits every Home style.** She used to perch on things only in Classic; now each style has its own spots. In **Wave** she sits on the highlighted console's icon; in **Channels** she sits or lies on the bottom bar next to the clock and leans on the channel you're on; in **Blades** she sits on the preview picture; in **Cube** she sits on the cube's corner, leans against it and points at it; in **TV mode** she sits on the consoles row and leans beside the game you picked.
+- In Channels she no longer stands on top of the Search button.
 
-From 0.39.x:
+From 0.40.x:
+- Paige shows new users around, holds the real cover for Surprise me, and waves goodbye when Spine closes.
 - Meet Paige, Spine's mascot: welcome-back recaps, reactions after you play, milestones, tips on Home, reading while you decide. Settings → Look → Paige.
 
 ---

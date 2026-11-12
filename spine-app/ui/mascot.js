@@ -95,8 +95,99 @@ const MASCOT = (() => {
   function barLine(which) {
     const v = view();
     if (which === 'top') { const t = document.querySelector('#app .topbar, #app .tv-top'); return t ? rectOf(t).b : 0; }
-    const b = [...document.querySelectorAll('#app .hints, #app .tv-hints')].pop();
+    // Channels has no hint bar: its curved bottom bar (clock, Settings, Search) is her floor there.
+    const b = [...document.querySelectorAll('#app .hints, #app .tv-hints, #app .ch-bar')].pop();
     return b ? rectOf(b).t : v.h;
+  }
+
+  // Which Home style is on screen (TV mode counts as one), so each style gets its own perches.
+  function style() {
+    if (S.screen !== 'home') return 'classic';
+    const has = (s) => document.querySelector(`#app ${s}`);
+    return has('.tvm') ? 'tv' : has('#wave') ? 'wave' : has('#channels') ? 'channels' : has('#blades') ? 'blades' : has('#cubehome') ? 'cube' : 'classic';
+  }
+  // The cube's wireframe is drawn on a canvas: its front square is CG.geo.fs wide, centred on the stage.
+  function cubeFrame() {
+    const st = visible(document.querySelector('#app #cbstage'));
+    const fs = typeof CG !== 'undefined' && CG.geo?.fs;
+    if (!st || !fs) return null;
+    const cx = st.l + st.w / 2, cy = st.t + st.h / 2;
+    return { l: cx - fs / 2, r: cx + fs / 2, t: cy - fs / 2, b: cy + fs / 2, w: fs, h: fs };
+  }
+
+  // Perches per Home style: sit on / lean against the "selected thing", lie on or point at a card.
+  // Each returns a box, or null (then she uses the hint bar). Classic keeps its own code in place().
+  function perch(st, at, P, box, v) {
+    const top = barLine('top'), bar = barLine('bottom');
+    const fits = (b) => b && b.y >= top - 4 && b.y + b.h <= v.h && b.x >= 0 && b.x + b.w <= v.w ? b : null;
+    // Sitting shrinks (down to 75%) when there's too little room above r under the top bar.
+    const sitOn = (r, h0, fx = 0.5) => { const h = Math.max(h0 * 0.75, Math.min(h0, (r.t - top) / P.seat)); return fits(box(r.l + r.w * fx - (h * P.ar) / 2, r.t - h * P.seat, h, { enter: 'drop' })); };
+    // Stand on r's bottom line, right of it (mirrored to its left near the screen edge).
+    const beside = (r, h, extra = {}) => {
+      const w = h * P.ar;
+      if (r.r + w - 6 <= v.w) return fits(box(r.r - 6, r.b - h, h, { enter: 'pop', ...extra }));
+      return fits(box(r.l - w + 6, r.b - h, h, { enter: 'pop', ...extra, mirror: !extra.mirror }));
+    };
+    const lieOn = (r, w, fx = 0.08) => { const h = w / P.ar; return fits(box(r.l + r.w * fx, r.t - h * 0.94, h, { enter: 'drop' })); };
+    const q = (s) => visible(document.querySelector(`#app ${s}`));
+    if (st === 'wave') { // the highlighted console's icon in the top row
+      const c = q('.wv-cat.sel');
+      if (!c) return null;
+      if (at === 'tile-sit') return sitOn(c, Math.min(270, c.h * 1.4));
+      if (at === 'tile-lean') return beside(c, Math.min(300, c.h * 1.3));
+      return null;
+    }
+    if (st === 'channels') { // the focused channel, and the bottom bar beside the clock
+      const t = q('.ch-tile.focused') || q('.ch-tile:not(.empty)');
+      const ce = document.querySelector('#app .ch-clock'), clock = ce && rectOf(ce); // inside the bar, so not visible()
+      const nearClock = (w) => clock ? clock.r + 70 : v.w / 2 + 160; // between the clock and Search
+      if (at === 'tile-sit') { const h = 250; return fits(box(nearClock(), bar - h * P.seat, h, { enter: 'drop' })); }
+      if (at === 'card-lie') { const h = 150, w = h * P.ar; return fits(box(clock ? clock.l - 60 - w : v.w / 2 - 220 - w, bar - h * 0.95, h, { enter: 'drop' })); }
+      if (!t) return null;
+      if (at === 'tile-lean') return beside(t, Math.min(320, t.h * 1.1));
+      if (at === 'card-point') return beside(t, Math.min(280, t.h * 1.05), { mirror: true });
+      return null;
+    }
+    if (st === 'blades') { // the big preview picture of the open blade
+      const a = q('.bl-preview .bl-art');
+      if (!a) return null;
+      if (at === 'tile-sit') { const h = Math.min(300, a.h * 0.55); return sitOn(a, h, 1 - (h * P.ar) / 2 / a.w - 0.06); }
+      if (at === 'tile-lean') return beside(a, Math.min(340, a.h * 0.6));
+      if (at === 'card-lie') return lieOn({ ...a, t: a.b }, Math.min(a.w * 0.4, 300), 0.55);
+      if (at === 'card-point') return beside(a, Math.min(290, a.h * 0.5), { mirror: true });
+      return null;
+    }
+    if (st === 'cube') {
+      const f = cubeFrame();
+      if (at === 'card-lie') { const s = q('.cb-strip'); return s ? lieOn(s, Math.min(s.w * 0.62, 260), 0.19) : null; }
+      if (!f) return null;
+      const H = Math.min(330, f.h * 0.6);
+      if (at === 'tile-sit') return sitOn({ ...f, t: f.b }, H * 0.82, 1); // on the cube's bottom right corner
+      if (at === 'tile-lean') return beside(f, H);
+      // Left of the cube, pointing at it (its top face is Recent).
+      if (at === 'card-point') { const h = H * 0.85; return fits(box(f.l - h * P.ar - 10, f.b - h, h, { enter: 'pop' })); }
+      return null;
+    }
+    if (st === 'tv') {
+      const watch = document.querySelector('#app .tvm.watch');
+      if (watch) {
+        const t = q('.tv-wtiles .tv-wt:last-child') || q('.tv-wt');
+        const c = q('.tv-cwc.sel') || q('.tv-cwc');
+        if (at === 'tile-sit') return t ? sitOn(t, Math.min(260, t.h * 2.1)) : null;
+        if (at === 'tile-lean') return t ? beside(t, Math.min(300, t.h * 2.2)) : null;
+        if (at === 'card-point') return c ? beside(c, Math.min(280, c.h * 1.1), { mirror: true }) : null;
+        return null;
+      }
+      const g = q('.tv-game.sel'), cons = [...document.querySelectorAll('#app .tv-con')];
+      const last = cons.length ? visible(cons[cons.length - 1]) : null;
+      // Sits on the far end of the consoles row, out of the way of the banner's buttons.
+      if (at === 'tile-sit') return last ? sitOn(last, Math.min(260, last.h * 2.1)) : null;
+      if (!g) return null;
+      if (at === 'tile-lean') return beside(g, Math.min(320, g.h * 1.1));
+      if (at === 'card-point') return beside(g, Math.min(280, g.h), { mirror: true });
+      return null;
+    }
+    return null;
   }
 
   // Where (and how big) a pose goes. Returns null when that spot isn't on screen;
@@ -104,6 +195,8 @@ const MASCOT = (() => {
   function place(at, pose) {
     const P = POSE[pose], v = view();
     const box = (x, y, h, extra = {}) => ({ x, y, h, w: h * P.ar, ...extra });
+    const st = style();
+    if (st !== 'classic' && /^(tile|card)-/.test(at)) return perch(st, at, P, box, v);
     if (at === 'tile-sit' || at === 'tile-lean') {
       const t = visible(document.querySelector('#app .console.sel'));
       if (!t) return null;
@@ -140,7 +233,9 @@ const MASCOT = (() => {
     }
     // The hint bar: stand, sit or lie on it, or rise from behind it.
     const bar = barLine('bottom');
-    const right = (w) => v.w - w - 48;
+    // Channels: the right end of its bar is the Search button, so she stays between it and the clock.
+    const ce = st === 'channels' && document.querySelector('#app .ch-clock'), clock = ce && rectOf(ce);
+    const right = (w) => clock ? Math.min(v.w - w - 160, clock.r + 70) : v.w - w - 48;
     const H = { cheer: 240, think: 240, surprise: 360, bye: 240, point: 240, lean: 240, doze: 160, read: 180, peek: 200, flustered: 210, thumbs_up: 215, sit_wave: 250, lie: 140, hang: 220, peek_side: 220 };
     const h = H[pose] || 230, w = h * P.ar;
     if (pose === 'peek' || pose === 'flustered' || pose === 'thumbs_up') return box(right(w), bar - h * 0.97, h, { enter: 'rise', clip: bar });

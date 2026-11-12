@@ -937,5 +937,17 @@ with `MASCOT.bye()` (pose `bye`, walks off via `.walkoff`) then `quit`; a thread
 second close goes straight through. ACT.quit (Quit Spine) waits for bye too. `cargo check --target
 x86_64-pc-windows-gnu` in spine-app needs `apt-get install gcc-mingw-w64-x86-64` here (tauri-winres runs windres).
 
+**0.41.0** (Nov 11, owner: "add Paige to the rest of the themes"): perches for every Home style. `style()` in mascot.js reads the
+DOM (`.tvm` / `#wave` / `#channels` / `#blades` / `#cubehome`, else classic; only on Home). For non-classic styles `place()` hands
+tile-sit / tile-lean / card-lie / card-point to `perch(st, at, ...)` (null = hint bar, as before); helpers `sitOn` (shrinks to 75%
+when there's no room under the top bar), `beside` (stand on r's bottom line, mirrored near the right edge), `lieOn`, `fits`.
+Wave: `.wv-cat.sel` (sit/lean; card spots = bar). Channels: bar line = `.ch-bar` top (no hint bar there); sit/lie on the bar
+beside `.ch-clock` (measured with rectOf: it's inside the bar, so not `visible()`), and every bar pose stands between the clock
+and Search; lean/point on `.ch-tile.focused`. Blades: `.bl-preview .bl-art` (sit top right, lean/point right side, lie on its
+bottom edge). Cube: frame square from `CG.geo.fs` around `#cbstage`'s centre (`cubeFrame`): sit on the bottom-right corner, lean
+right side, point from the left, lie on `.cb-strip`. TV Play: sit on the last `.tv-con`, lean/point beside `.tv-game.sel`; Watch:
+`.tv-wt` tiles and `.tv-cwc` cards. Checked in Playwright (every pose x spot x style, 1920x1080 and 1536x807@1.25, Midnight
+and Cream). Not checked in WebKitGTK.
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.
