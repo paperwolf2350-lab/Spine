@@ -15,6 +15,7 @@
 
 ## Done
 
+- Paige guides first-time users on the welcome screen, holds the real cover for Surprise me, and waves goodbye when Spine closes (0.40.0).
 - Paige, the mascot, is named in her hello and her setting (0.39.1).
 - Mascot: drops by with welcome-back recaps, play-session reactions, milestones, Home tips and idle reading; sits on, leans on or lies on parts of the screen; Settings → Look → Mascot (0.39.0).
 

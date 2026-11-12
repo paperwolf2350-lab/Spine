@@ -2243,6 +2243,23 @@ fn main() {
             watch_folders(app.handle().clone());
             Ok(())
         })
+        .on_window_event(|window, event| {
+            // The close button: let Paige (the mascot) wave goodbye first. The page answers
+            // by calling `quit`; a second close, or no answer within 2.5 s, closes anyway.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                static ASKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+                let off = window.state::<App>().saved.lock().unwrap().settings.get("mascot").and_then(|v| v.as_str()) == Some("off");
+                if !off && !ASKED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                    api.prevent_close();
+                    let _ = window.emit("closing", ());
+                    let handle = window.app_handle().clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(2500));
+                        handle.exit(0);
+                    });
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, set_autostart, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, forget_played, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv])
         .run(tauri::generate_context!())
         .expect("error while running Spine");

@@ -925,7 +925,17 @@ the window closes).
   `mascotMemo` = { seen, last: {id, sec, at}, ms: {id: hours} }, saved with set_setting directly (no re-render).
 - Tested in Playwright with a mock (Cream, Midnight; 1920x1080 and 1536x807@1.25): every pose/spot, blink swaps,
   dismiss on input with focus kept, game-exited reaction, Settings chips, Say hi, Off removes her.
-Her name is **Paige** (owner, Nov 11: librarian archetype + the app is Spine). 0.39.1: setting is labelled Paige, she says her name in the first hello, Surprise me line "Paige's pick". Ideas next: put the real cover into the blank game case of the surprise pose, use `bye` on exit.
+Her name is **Paige** (owner, Nov 11: librarian archetype + the app is Spine). 0.39.1: setting is labelled Paige, she says her name in the first hello, Surprise me line "Paige's pick". 0.40.0 (Nov 11, owner's request): (1) First-run guide: `guide()` (called from sync on `welcome`/`scanning`)
+shows `point` at spot `guide` (beside `.welcome .btn.primary`, mirrored, fingertip at 41% height on the button's middle;
+bubble on her far side, narrowed to fit) with six lines about Spine every 4.8 s (`lineMs`); clicking the bubble moves
+on; `guide: true` appearances ignore input and stay until their `screen` changes; scanning shows `read` on the bar.
+memo.guided makes the first Home say "All done! Here's your library." (2) Surprise me: `cover` (mediaUrl) drawn into
+the case as `img.msc-cover` at 35.33%/0.59%/22.79%/12.21% of surprise.webp, CSS-masked by `mascot/surprise_case.png`
+(the case's own pixels) so her fingers stay in front; surprise is 360 px tall on the bar. (3) Goodbye: main.rs
+`on_window_event` CloseRequested -> prevent_close + emit `closing` (once; skipped when mascot is off); app.js answers
+with `MASCOT.bye()` (pose `bye`, walks off via `.walkoff`) then `quit`; a thread exits after 2.5 s regardless, a
+second close goes straight through. ACT.quit (Quit Spine) waits for bye too. `cargo check --target
+x86_64-pc-windows-gnu` in spine-app needs `apt-get install gcc-mingw-w64-x86-64` here (tauri-winres runs windres).
 
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

@@ -1851,7 +1851,7 @@ const ACT = {
   fetch() { api.call('fetch_media'); },
   creds() { api.call('open_path', { which: 'credentials' }); },
   fullscreen() { const on = !settings().fullscreen; api.call('set_fullscreen', { on }); S.focusKey = 'fs'; setSetting('fullscreen', on); },
-  quit() { api.call('quit'); },
+  async quit() { S.panel = null; render(); await MASCOT.bye(); api.call('quit'); },
 };
 Object.assign(ACT, STREAM_ACT); // streaming addons (stream.js)
 Object.assign(ACT, TV_ACT); // TV mode (tv.js)
@@ -2159,6 +2159,9 @@ api.on('library-changed', (p) => {
   if (msgs.length) toast(msgs.join(' · '), 4000);
 });
 api.on('game-closing', () => { if (S.playing) { S.playing.closing = true; render(); } });
+// The window's close button: Spine waits a moment so Paige can wave goodbye (main.rs closes anyway after 2.5 s).
+api.on('closing', async () => { await MASCOT.bye(); api.call('quit'); });
+
 api.on('game-exited', (p) => {
   if (p.error && S.playing) {
     // The emulator closed right away: keep the overlay up with the reason.

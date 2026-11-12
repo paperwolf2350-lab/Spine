@@ -1,15 +1,10 @@
 ## What's new
-- **Her name is Paige.** She introduces herself the first time you meet, and her setting is now **Settings → Look → Paige**.
-- **Meet Paige, Spine's mascot (0.39.0).** She drops by now and then and sits on, leans against or lies on parts of the screen:
-  - **Welcome back:** when you open Spine she sits on the selected console and tells you what you played last time and for how long.
-  - **After you play:** a quick word on your session, a cheer for your first go at a game, a little shock at 25, 50 or 100 hours, and a nudge to stretch after long sessions.
-  - **Surprise me:** sometimes she presents the pick herself.
-  - **Little tips on Home:** your most played game, games you added but haven't tried, favorites you haven't touched in a while, consoles you haven't visited lately.
-  - **While you decide:** leave Home alone for a few minutes and she sits down with a book, and after a while she nods off.
-- She never gets in the way: the controller keeps working while she's there, and any button sends her off. Choose how often she shows up in **Settings → Look → Paige** (Off, Big moments only, Sometimes, Often), or press **Say hi** to see her right away.
+- **Paige shows new users around.** The first time you open Spine she stands next to **Choose your ROM folder** and explains what Spine does. Click her speech bubble to move on faster. She reads along while Spine sorts your games, then shows you your new library.
+- **Surprise me, with the real cover.** When Paige presents her pick, the game's actual cover is in the case she's holding up.
+- **She waves goodbye.** Closing Spine (the window's close button or Quit Spine) gets a little wave as she walks off. Spine closes a moment later either way, and with Paige turned off it closes right away like before.
 
-From 0.38.x:
-- Spine Emulators: Change folder, emulators you installed yourself count, updates keep your files.
+From 0.39.x:
+- Meet Paige, Spine's mascot: welcome-back recaps, reactions after you play, milestones, tips on Home, reading while you decide. Settings → Look → Paige.
 
 ---
 

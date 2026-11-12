@@ -119,6 +119,17 @@ const MASCOT = (() => {
       const h = 250; // stands just right of the card, pointing back at it
       return box(c.r + 2, c.b - h, h, { enter: 'pop', mirror: true });
     }
+    if (at === 'guide') { // first-run screen: stands beside "Choose your ROM folder", pointing at it
+      const btn = visible(document.querySelector('#app .welcome .btn.primary'));
+      if (!btn) return null;
+      const cy = btn.t + btn.h / 2, fy = 0.41; // fingertip height in point.webp
+      let h = Math.min(520, v.h * 0.62, (v.h - cy) / (1 - fy) - 12, cy / fy - 12);
+      let w = h * P.ar;
+      const room = v.w - btn.r - 36;
+      if (room < w) { h = Math.max(260, room / P.ar); w = h * P.ar; }
+      if (btn.r + 36 + w <= v.w) return box(btn.r + 36, cy - fy * h, h, { enter: 'pop', mirror: true });
+      return box(btn.l - 36 - w, cy - fy * h, h, { enter: 'pop' });
+    }
     if (at === 'hang') {
       const top = barLine('top'), h = 240;
       return box(v.w * 0.64, top - h * 0.03, h, { enter: 'drop', swing: true });
@@ -130,7 +141,7 @@ const MASCOT = (() => {
     // The hint bar: stand, sit or lie on it, or rise from behind it.
     const bar = barLine('bottom');
     const right = (w) => v.w - w - 48;
-    const H = { cheer: 240, think: 240, surprise: 250, bye: 240, point: 240, lean: 240, doze: 160, read: 180, peek: 200, flustered: 210, thumbs_up: 215, sit_wave: 250, lie: 140, hang: 220, peek_side: 220 };
+    const H = { cheer: 240, think: 240, surprise: 360, bye: 240, point: 240, lean: 240, doze: 160, read: 180, peek: 200, flustered: 210, thumbs_up: 215, sit_wave: 250, lie: 140, hang: 220, peek_side: 220 };
     const h = H[pose] || 230, w = h * P.ar;
     if (pose === 'peek' || pose === 'flustered' || pose === 'thumbs_up') return box(right(w), bar - h * 0.97, h, { enter: 'rise', clip: bar });
     if (pose === 'sit_wave') return box(right(w), bar - h * P.seat, h, { enter: 'drop' });
@@ -150,7 +161,10 @@ const MASCOT = (() => {
     const P = POSE[pose];
     const fig = document.createElement('div');
     fig.className = `msc-fig in-${spot.enter}${spot.mirror ? ' mirror' : ''}${spot.swing ? ' swing' : ''}${pose === 'doze' ? ' breathe' : ''}`;
-    fig.innerHTML = `<div class="msc-bob"><img alt="" draggable="false" src="${src(pose)}"></div>${pose === 'doze' ? '<span class="msc-z"><i>z</i><i>z</i><i>Z</i></span>' : ''}`;
+    // Surprise me: the picked game's real cover goes into the blank case she holds up,
+    // masked to the case's own pixels so her fingers stay in front of it.
+    const coverHtml = pose === 'surprise' && o.cover ? `<img class="msc-cover" alt="" draggable="false" src="${o.cover}" onerror="this.remove()">` : '';
+    fig.innerHTML = `<div class="msc-bob"><img alt="" draggable="false" src="${src(pose)}">${coverHtml}</div>${pose === 'doze' ? '<span class="msc-z"><i>z</i><i>z</i><i>Z</i></span>' : ''}`;
     let wrap = fig;
     if (spot.clip != null) { // rising from behind the bar: hide what's below its edge
       wrap = document.createElement('div');
@@ -160,18 +174,20 @@ const MASCOT = (() => {
     }
     const bub = document.createElement('div');
     bub.className = 'msc-bub';
-    bub.onclick = () => leave();
+    bub.onclick = () => { if (cur?.guide && cur.line < cur.lines.length - 1) { clearTimeout(lineT); cur.line++; nextLine(); } else if (!cur?.guide) leave(); };
     root.append(wrap, bub);
     cur = { ...o, pose, spot, fig, wrap, bub, born: performance.now(), line: 0 };
     position();
     if (P.blink) { const pre = new Image(); pre.src = src(pose, true); blinkLoop(); }
     nextLine();
     requestAnimationFrame(() => requestAnimationFrame(() => { fig.classList.add('here'); }));
-    if (!o.idle) stayT = setTimeout(leave, o.stay || 3000 + (o.lines.length - 1) * 3600 + o.lines[o.lines.length - 1].length * 60);
+    if (!o.idle && !o.guide && !o.bye) stayT = setTimeout(leave, o.stay || 3000 + (o.lines.length - 1) * 3600 + o.lines[o.lines.length - 1].length * 60);
     S_last = Date.now();
     return true;
   }
   function canShow(o) {
+    if (o.bye) return true;
+    if (o.screen) return S.screen === o.screen && !S.panel;
     if (S.playing || S.panel || S.shot != null || document.querySelector('#app .search-panel')) return false;
     if (o.homeOnly && S.screen !== 'home') return false;
     return ['home', 'games', 'detail'].includes(S.screen);
@@ -185,11 +201,15 @@ const MASCOT = (() => {
   function placeBubble() {
     const { spot, bub, pose } = cur, P = POSE[pose], v = view();
     const fx = spot.x + spot.w * (spot.mirror ? 1 - P.face[0] : P.face[0]), fy = spot.y + spot.h * P.face[1];
-    const bw = Math.min(300, v.w * 0.3);
+    let bw = Math.min(300, v.w * 0.3);
+    // The guide keeps the welcome text free: bubble on the far side of her, narrowed to fit.
+    const farRoom = v.w - 16 - (fx + spot.w * 0.22);
+    const away = cur.guide && spot.mirror && farRoom >= 190;
+    if (away) bw = Math.min(bw, farRoom);
     bub.style.width = `${bw}px`;
     const bh = bub.offsetHeight || 60;
     let left = fx - spot.w * 0.22 - bw, side = 'r';
-    if (left < 16) { left = fx + spot.w * 0.22; side = 'l'; }
+    if (left < 16 || away) { left = fx + spot.w * 0.22; side = 'l'; }
     left = Math.max(16, Math.min(v.w - bw - 16, left));
     const top = Math.max(barLine('top') + 10, Math.min(v.h - bh - 16, fy - bh * 0.7));
     bub.className = `msc-bub tail-${side}${bub.classList.contains('here') ? ' here' : ''}`;
@@ -205,7 +225,7 @@ const MASCOT = (() => {
       placeBubble();
       cur.bub.classList.add('here');
     }, cur.line ? 180 : 420);
-    if (cur.line < cur.lines.length - 1) lineT = setTimeout(() => { if (cur) { cur.line++; nextLine(); } }, 3600);
+    if (cur.line < cur.lines.length - 1) lineT = setTimeout(() => { if (cur) { cur.line++; nextLine(); } }, cur.lineMs || 3600);
   }
   function blinkLoop() {
     clearTimeout(blinkT);
@@ -244,6 +264,7 @@ const MASCOT = (() => {
     const last = m.last && findGame(m.last.id);
     const recap = last && isGame(last) ? `Last time you played ${last.g.title} for ${say(m.last.sec)}.`
       : (() => { const g = lastGames()[0]; return g && pt()[g.g.id] ? `You've put ${say(pt()[g.g.id])} into ${g.g.title} so far.` : null; })();
+    if (!m.seen && m.guided) return show({ pose: 'sit_wave', at: 'tile-sit', lines: ['All done! Here\'s your library.', 'Pick a console and press A to see its games. Have fun!'], homeOnly: true });
     if (!m.seen) return show({ pose: 'sit_wave', at: 'tile-sit', lines: ['Hi there! I\'m Paige.', 'I\'ll drop by now and then. Have fun!'], homeOnly: true });
     if (hour < 5) return show({ pose: 'doze', at: 'bar', lines: [`Zzz… oh! Welcome back.`, `It's ${clockNow()}. One more level?`] });
     const hi = away > 3 ? `Long time no see! It's been ${Math.floor(away)} days.` : hour < 12 ? 'Good morning! Welcome back.' : hour < 18 ? 'Good afternoon! Welcome back.' : 'Good evening! Welcome back.';
@@ -278,7 +299,7 @@ const MASCOT = (() => {
   function spun(id) {
     const f = findGame(id);
     if (!f || !on() || level() === 'moments' || Math.random() < 0.4) return;
-    setTimeout(() => show({ pose: 'surprise', at: 'bar', force: true, lines: [pick([`Ta-da! How about ${f.g.title}?`, `Paige's pick: ${f.g.title}!`, `${f.g.title}. Trust me on this one.`])] }), 700);
+    setTimeout(() => show({ pose: 'surprise', at: 'bar', force: true, cover: f.g.cover ? mediaUrl(f.g.cover) : null, lines: [pick([`Ta-da! How about ${f.g.title}?`, `Paige's pick: ${f.g.title}!`, `${f.g.title}. Trust me on this one.`])] }), 700);
   }
 
   // Drop-ins on Home: one at a time, a few minutes apart.
@@ -320,7 +341,7 @@ const MASCOT = (() => {
     lastInput = Date.now();
     if (idleStage) { idleStage = 0; if (cur?.idle) leave(); return; }
     // A press right as she arrives (e.g. still holding a button) doesn't count.
-    if (cur && performance.now() - cur.born > 700) leave();
+    if (cur && !cur.guide && !cur.bye && performance.now() - cur.born > 700) leave();
   }
   function tick() {
     if (!on() || !S.boot) return;
@@ -344,11 +365,42 @@ const MASCOT = (() => {
     setTimeout(() => { if (S.screen === 'home') welcome(); }, 1400);
   }
 
+  // First run: she explains Spine on the welcome screen and keeps you company while it scans.
+  function guide() {
+    if (!on() || cur) return;
+    if (S.screen === 'welcome') {
+      remember({ guided: true });
+      show({ pose: 'point', at: 'guide', screen: 'welcome', guide: true, lineMs: 4800, lines: [
+        'Hi! I\'m Paige. Welcome to Spine!',
+        'Spine turns your ROM folder into a game library, sorted by console and A to Z.',
+        'Covers, banners, trailers and descriptions get filled in for you.',
+        'Every game starts with the right emulator. Steam, Epic and GOG games can join in too.',
+        'Mouse, keyboard or controller: use whatever you like.',
+        'Ready? Choose your ROM folder and I\'ll take it from there.'] });
+    } else if (S.screen === 'scanning') {
+      show({ pose: 'read', at: 'bar', screen: 'scanning', guide: true, lineMs: 3600, lines: ['Reading your library…', 'This is my favorite part.'] });
+    }
+  }
+
+  // Closing Spine: a wave goodbye as she walks off, then the caller quits.
+  function bye() {
+    return new Promise((done) => {
+      if (!on()) return done();
+      if (cur) leave(true);
+      const h = new Date().getHours();
+      const ok = show({ pose: 'bye', at: 'bar', bye: true, lines: [h >= 22 || h < 5 ? pick(['Good night!', 'Sleep well!']) : pick(['See you next time!', 'Bye! Come back soon.', 'Thanks for playing. See you!'])] });
+      if (!ok) return done();
+      setTimeout(() => cur?.fig.classList.add('walkoff'), 650);
+      setTimeout(done, 1500);
+    });
+  }
+
   // After every render(): follow the anchor, or leave when it's gone.
   function sync() {
     if (!booted && S.boot && S.screen === 'home') boot();
+    if (!cur && (S.screen === 'welcome' || S.screen === 'scanning')) return guide();
     if (!cur) return;
-    if (!canShow(cur)) return leave(true);
+    if (!canShow(cur)) { leave(true); if (S.screen === 'welcome' || S.screen === 'scanning') guide(); return; }
     const spot = place(cur.at || 'bar', cur.pose) || place('bar', cur.pose);
     if (!spot) return leave(true);
     cur.spot = { ...spot, enter: cur.spot.enter };
@@ -369,5 +421,5 @@ const MASCOT = (() => {
     setTimeout(() => { if (Math.random() < 0.3) welcome(); else ambient(); }, 350);
   }
 
-  return { _show: show, boot, sync, input, played, spun, demo, leave, setLevel: () => { if (!on()) leave(true); planDrop(); }, POSE };
+  return { _show: show, bye, boot, sync, input, played, spun, demo, leave, setLevel: () => { if (!on()) leave(true); planDrop(); }, POSE };
 })();
