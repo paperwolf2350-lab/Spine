@@ -43,7 +43,7 @@ shots, videos, info, lists, cache).
    isn't in the repo; recreate a small mock: `window.__SPINE_MOCK__` with
    `call(cmd,args)` / `on(ev,cb)`, and `window.__BOOT__` = a Boot object).
 3. Write `release-notes.md` (What's new, then `---`, then install text — keep it).
-4. Bump the version in `spine-app/Cargo.toml`, `spine-core/Cargo.toml` (and the
+4. Bump the version in `spine-app/Cargo.toml`, `spine-core/Cargo.toml`, `spine-emus/Cargo.toml` + `spine-emus/tauri.conf.json` (and the
    `spine-core = { version = ... }` dependency line), and `spine-app/tauri.conf.json`.
 5. Push to `main`. GitHub Actions tests on Linux + Windows, builds Spine.exe,
    Spine-Setup.exe (NSIS), Spine-x86_64.AppImage and Spine-amd64.deb, each with a
