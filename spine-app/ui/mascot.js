@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // The mascot. She drops by now and then (welcome back, play recaps, milestones,
 // little tips, reading while you're idle) and sits on, leans against, lies on or
-// peeks over real parts of the screen. Settings → Look → Mascot sets how often.
+// peeks over real parts of the screen. Her name is Paige. Settings → Look → Paige sets how often.
 //
 // She lives in her own layer (#mascot, outside #app) so render() never wipes her
 // and she never takes focus: controller and keyboard keep working while she's
@@ -244,7 +244,7 @@ const MASCOT = (() => {
     const last = m.last && findGame(m.last.id);
     const recap = last && isGame(last) ? `Last time you played ${last.g.title} for ${say(m.last.sec)}.`
       : (() => { const g = lastGames()[0]; return g && pt()[g.g.id] ? `You've put ${say(pt()[g.g.id])} into ${g.g.title} so far.` : null; })();
-    if (!m.seen) return show({ pose: 'sit_wave', at: 'tile-sit', lines: ['Hi there! Nice to meet you.', 'I\'ll drop by now and then. Have fun!'], homeOnly: true });
+    if (!m.seen) return show({ pose: 'sit_wave', at: 'tile-sit', lines: ['Hi there! I\'m Paige.', 'I\'ll drop by now and then. Have fun!'], homeOnly: true });
     if (hour < 5) return show({ pose: 'doze', at: 'bar', lines: [`Zzz… oh! Welcome back.`, `It's ${clockNow()}. One more level?`] });
     const hi = away > 3 ? `Long time no see! It's been ${Math.floor(away)} days.` : hour < 12 ? 'Good morning! Welcome back.' : hour < 18 ? 'Good afternoon! Welcome back.' : 'Good evening! Welcome back.';
     return show({ pose: 'sit_wave', at: 'tile-sit', lines: recap ? [hi, recap] : [hi, 'Pick a console and let\'s play something.'], homeOnly: true });
@@ -278,7 +278,7 @@ const MASCOT = (() => {
   function spun(id) {
     const f = findGame(id);
     if (!f || !on() || level() === 'moments' || Math.random() < 0.4) return;
-    setTimeout(() => show({ pose: 'surprise', at: 'bar', force: true, lines: [pick([`Ta-da! How about ${f.g.title}?`, `My pick: ${f.g.title}!`, `${f.g.title}. Trust me on this one.`])] }), 700);
+    setTimeout(() => show({ pose: 'surprise', at: 'bar', force: true, lines: [pick([`Ta-da! How about ${f.g.title}?`, `Paige's pick: ${f.g.title}!`, `${f.g.title}. Trust me on this one.`])] }), 700);
   }
 
   // Drop-ins on Home: one at a time, a few minutes apart.

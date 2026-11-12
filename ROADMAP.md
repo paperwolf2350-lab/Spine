@@ -15,6 +15,7 @@
 
 ## Done
 
+- Paige, the mascot, is named in her hello and her setting (0.39.1).
 - Mascot: drops by with welcome-back recaps, play-session reactions, milestones, Home tips and idle reading; sits on, leans on or lies on parts of the screen; Settings → Look → Mascot (0.39.0).
 
 - Spine Emulators for Linux: emulators from Flathub with one click, RetroArch cores, updates (0.36.0).

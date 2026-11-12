@@ -925,7 +925,7 @@ the window closes).
   `mascotMemo` = { seen, last: {id, sec, at}, ms: {id: hours} }, saved with set_setting directly (no re-render).
 - Tested in Playwright with a mock (Cream, Midnight; 1920x1080 and 1536x807@1.25): every pose/spot, blink swaps,
   dismiss on input with focus kept, game-exited reaction, Settings chips, Say hi, Off removes her.
-Ideas next: put the real cover into the blank game case of the surprise pose, use `bye` on exit, a name for her.
+Her name is **Paige** (owner, Nov 11: librarian archetype + the app is Spine). 0.39.1: setting is labelled Paige, she says her name in the first hello, Surprise me line "Paige's pick". Ideas next: put the real cover into the blank game case of the surprise pose, use `bye` on exit.
 
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

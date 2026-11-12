@@ -756,7 +756,7 @@ function settingsPanel() {
       <button class="chip ${st.theme === 'crt' ? 'on' : ''}" data-nav data-key="th-crt" data-act="theme" data-t="crt">Retro CRT</button></div>`)
       + grp('Home style', tvOn() ? 'Used when TV mode is off.' : 'How Home is laid out.', `<div class="opts">${['classic', 'wave', 'channels', 'blades', 'cube'].map((v) =>
         `<button class="chip ${style === v ? 'on' : ''}" data-nav data-key="hs-${v}" data-act="homestyle" data-s="${v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div>`)
-      + grp('Mascot', 'She drops by now and then: welcome back, play recaps, milestones, little tips, and she reads while you decide.', `<div class="opts">${chips('msc', 'mascot', [['off', 'Off'], ['moments', 'Big moments only'], ['sometimes', 'Sometimes'], ['often', 'Often']], st.mascot || 'sometimes')}
+      + grp('Paige', 'Spine\'s mascot. She drops by now and then: welcome back, play recaps, milestones, little tips, and she reads while you decide.', `<div class="opts">${chips('msc', 'mascot', [['off', 'Off'], ['moments', 'Big moments only'], ['sometimes', 'Sometimes'], ['often', 'Often']], st.mascot || 'sometimes')}
         ${(st.mascot || 'sometimes') !== 'off' ? '<button class="btn small" data-nav data-key="mschi" data-act="mascothi">Say hi</button>' : ''}</div>`)
       + grp('Console icons', 'Monochrome and Systematic are RetroArch\'s icons (libretro, CC BY 4.0).', `<div class="opts">${[['mono', 'Monochrome'], ['systematic', 'Systematic'], ['lines', 'Lines']].map(([v, l]) =>
         `<button class="chip ${iconSet() === v ? 'on' : ''}" data-nav data-key="ci-${v}" data-act="consoleicons" data-v="${v}">${sysIcon('ps2', 26, v)} ${l}</button>`).join('')}</div>`)
