@@ -1,10 +1,11 @@
 ## What's new
-- **Paige visits every Home style.** She used to perch on things only in Classic; now each style has its own spots. In **Wave** she sits on the highlighted console's icon; in **Channels** she sits or lies on the bottom bar next to the clock and leans on the channel you're on; in **Blades** she sits on the preview picture; in **Cube** she sits on the cube's corner, leans against it and points at it; in **TV mode** she sits on the consoles row and leans beside the game you picked.
-- In Channels she no longer stands on top of the Search button.
+- **A pop-up keyboard for search.** Press X (or the Search button) with your controller and a keyboard slides in next to the results, so you never need to reach for a real keyboard. Move with the D-pad or stick: A types, B deletes (or closes when the box is empty), Y adds a space, START jumps to the results. Letters are in ABC order; the "QWE" key switches to a QWERTY layout and Spine remembers your pick. With a mouse, click the Keyboard button to show or hide it.
+- **Title suggestions as you type.** Type "hyr" and Hyrule Warriors shows up under the keyboard (or above the results when you type on a real keyboard). Pick one to fill it in and jump straight to the game.
+- **Smarter search.** Accents and punctuation don't matter any more ("pokemon" finds Pokémon), words can be in any order ("zelda ocarina" finds The Legend of Zelda: Ocarina of Time), and the best matches come first.
+- Fixed: starting a search by typing on a real keyboard could put the next letters in front of the first one.
 
-From 0.40.x:
-- Paige shows new users around, holds the real cover for Surprise me, and waves goodbye when Spine closes.
-- Meet Paige, Spine's mascot: welcome-back recaps, reactions after you play, milestones, tips on Home, reading while you decide. Settings → Look → Paige.
+From 0.41.x:
+- Paige visits every Home style (Wave, Channels, Blades, Cube and TV mode each have their own spots).
 
 ---
 

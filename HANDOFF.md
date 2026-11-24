@@ -949,5 +949,24 @@ right side, point from the left, lie on `.cb-strip`. TV Play: sit on the last `.
 `.tv-wt` tiles and `.tv-cwc` cards. Checked in Playwright (every pose x spot x style, 1920x1080 and 1536x807@1.25, Midnight
 and Cream). Not checked in WebKitGTK.
 
+**0.42.0** (Nov 24): pop-up search keyboard + title suggestions (owner asked for Spine's own keyboard instead of
+relying on PadDesk inside Spine). Own files `ui/keys.js` + `ui/keys.css`. `INPUT_SRC` ('pad'|'key'|'mouse', set in
+pollPads / keydown / pointerdown) decides: `ACT.search` sets `S.osk` when opened by controller (or setting `osk:
+"always"`, no UI for it yet). The search panel with `S.osk` = `.sbody`: left `.osk-col` (keyboard `oskHTML()` + vertical
+suggestions `oskSugHTML()`), right the usual `.res`, plus `oskHints()`. Without the keyboard, suggestions are a chip row
+at the top of `.res`. Toggle: top-bar Keyboard button (`osktoggle`). Layouts `OSK_LAYOUTS` abc (6 cols, a-z 0-9) /
+qwerty (10 cols), setting `oskLayout`, key "QWE"/"ABC" (`osklayout`). Bottom row Space / Delete / layout / Done.
+Keys move on their own grid (`oskPad` -> `oskMoveKeys`, data-r/c/w, column remembered in `S.oskCol`), never `move()`
+(WebView2 issues seen in TV mode); suggestions are a fixed list; results use `move()`, left past the first column ->
+keyboard. Pad: A type, B delete / close when empty (console convention), X delete, Y space, START done (first result);
+B in suggestions/results -> back to the last key (`S.oskKey`). Physical keys while a key has focus go to `oskKeydown`
+(letters type, Enter = Done, Esc closes). `oskRefresh()` swaps .res/.osk-sug/.osk-hints only (renderSearchOnly too).
+Matching (`srchNorm`/`srchScore`/`srchHits`): no accents/punctuation, 0 = starts with, 1 = every typed word starts a
+title word, 2 = inside; best first. `srchSuggest` = one per title (consoles listed), exact match left out; `srchMark`
+bolds matched letters. `oskFit()` (end of render) adds `.short` under 800px panel height. Also fixed: caret now goes to
+the end when typing starts a search. Tested in Playwright with a simulated gamepad (1440x860 Cream, 1536x807@1.25
+Midnight). Not done: the Streaming addon search box doesn't use the keyboard yet (easy follow-up: same oskHTML aimed
+at its input).
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

@@ -1110,16 +1110,19 @@ const libretroSys = (id) => !['pc', 'switch', 'wiiu', 'ps3', 'psvita', 'xbox'].i
 
 function searchPanel() {
   if (S.panel !== 'search') return '';
-  const q = S.query.trim().toLowerCase();
-  const hits = [];
-  if (q) for (const s of systems()) for (const g of s.games) if (g.title.toLowerCase().includes(q)) { hits.push({ s, g }); if (hits.length >= 60) break; }
-  return `<div class="search-panel" role="dialog" aria-label="Search">
-    <div class="top">${ICON.search}<label class="sr" for="q">Search your library</label><input id="q" data-nav data-key="q" placeholder="Search your library" value="${esc(S.query)}" autocomplete="off" spellcheck="false">
-      <button class="btn" data-nav data-key="qclose" data-act="closepanel">${glyph('B')}Close</button></div>
-    <div class="res">${q ? (() => { const cs = topCats(1).filter((c) => c.name.toLowerCase().includes(q)).slice(0, 10); return cs.length ? `<div class="cats" style="margin-bottom:22px">${cs.map((c) =>
-      `<button class="cat" data-nav data-key="scat-${esc(c.name)}" data-act="category" data-type="tag" data-v="${esc(c.name)}">${esc(c.name)} <span class="n">${c.count}</span></button>`).join('')}</div>` : ''; })() : ''}<div class="tiles">${hits.map(({ s, g }) => `<button class="game" data-nav data-key="h-${g.id}" data-act="open" data-id="${esc(g.id)}" data-from="search">
+  const q = S.query.trim();
+  const hits = q ? srchHits(q) : [];
+  const ql = srchNorm(q);
+  const res = `<div class="res">${q ? (() => { const cs = topCats(1).filter((c) => srchNorm(c.name).includes(ql)).slice(0, 10); return cs.length ? `<div class="cats" style="margin-bottom:22px">${cs.map((c) =>
+      `<button class="cat" data-nav data-key="scat-${esc(c.name)}" data-act="category" data-type="tag" data-v="${esc(c.name)}">${esc(c.name)} <span class="n">${c.count}</span></button>`).join('')}</div>` : ''; })() : ''}${!S.osk ? oskSugHTML() : ''}<div class="tiles">${hits.map(({ s, g }) => `<button class="game" data-nav data-key="h-${g.id}" data-act="open" data-id="${esc(g.id)}" data-from="search">
       ${cover(g, s)}<span class="t">${esc(g.title)}</span><span style="font-size:13px;color:var(--muted)">${esc(s.short)}</span></button>`).join('')}</div>
-      ${q && !hits.length ? '<div class="nofav">Nothing matches that.</div>' : ''}</div>
+      ${q && !hits.length ? '<div class="nofav">Nothing matches that.</div>' : ''}</div>`;
+  const kb = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M9 15.5h6"/></svg>';
+  return `<div class="search-panel${S.osk ? ' osk-on' : ''}" role="dialog" aria-label="Search">
+    <div class="top">${ICON.search}<label class="sr" for="q">Search your library</label><input id="q" data-nav data-key="q" placeholder="${S.osk ? 'Type with the keyboard below' : 'Search your library'}" value="${esc(S.query)}" autocomplete="off" spellcheck="false">
+      <button class="btn${S.osk ? ' on' : ''}" data-nav data-key="qosk" data-act="osktoggle" aria-pressed="${S.osk ? 'true' : 'false'}">${kb}Keyboard</button>
+      <button class="btn" data-nav data-key="qclose" data-act="closepanel">${glyph('B')}Close</button></div>
+    ${S.osk ? `<div class="sbody"><aside class="osk-col">${oskHTML()}${oskSugHTML()}</aside>${res}</div>${oskHints()}` : res}
   </div>`;
 }
 
@@ -1213,9 +1216,13 @@ function render() {
   const gs = document.getElementById('gamesscroll');
   if (gs) { let t = 0; gs.onscroll = () => { cancelAnimationFrame(t); t = requestAnimationFrame(() => markLetter(currentLetter())); }; markLetter(currentLetter()); }
   const q = document.getElementById('q');
-  if (q) { q.oninput = () => { S.query = q.value; S.focusKey = 'q'; renderSearchOnly(); }; }
+  if (q) {
+    q.oninput = () => { S.query = q.value; S.focusKey = 'q'; renderSearchOnly(); };
+    if (document.activeElement === q) q.setSelectionRange(q.value.length, q.value.length); // keep typing after the first letter
+  }
   renderToast();
   MASCOT.sync();
+  oskFit();
 }
 
 // Game page video: fades in over the cover after a moment, like a TV menu.
@@ -1304,7 +1311,7 @@ function renderSearchOnly() {
   const pos = document.getElementById('q').selectionStart;
   const tmp = document.createElement('div');
   tmp.innerHTML = searchPanel();
-  old.querySelector('.res').replaceWith(tmp.querySelector('.res'));
+  for (const sel of ['.res', '.osk-sug', '.osk-hints']) { const a = old.querySelector(sel), b = tmp.querySelector(sel); if (a && b) a.replaceWith(b); }
   const q = document.getElementById('q');
   q.focus(); q.setSelectionRange(pos, pos);
 }
@@ -1331,7 +1338,7 @@ function restoreFocus() {
   const els = navEls();
   let el = S.focusKey && els.find((e) => e.dataset.key === S.focusKey);
   if (!el) {
-    const pref = S.panel === 'settings' ? `stab-${setTab()}` : S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : { home: tvOn() ? tvFocusKey() : waveOn() ? waveFocusKey() : bladesOn() ? bladeFocusKey() : cubeOn() ? cubeFocusKey() : `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
+    const pref = S.panel === 'settings' ? `stab-${setTab()}` : S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : S.panel === 'search' && S.osk ? (S.oskKey || 'k-a') : { home: tvOn() ? tvFocusKey() : waveOn() ? waveFocusKey() : bladesOn() ? bladeFocusKey() : cubeOn() ? cubeFocusKey() : `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
     el = (pref && els.find((e) => e.dataset.key === pref)) || els.find((e) => e.dataset.key?.startsWith('g-')) || els.find((e) => e.dataset.key !== 'brand') || els[0];
   }
   if (el) focusEl(el, false);
@@ -1389,7 +1396,7 @@ const ACT = {
     await doScan(dir);
   },
   home() { S.panel = null; S.screen = 'home'; S.focusKey = null; render(); },
-  search(d) { if (!d || !d.keep) S.query = ''; S.panel = 'search'; S.focusKey = 'q'; render(); },
+  search(d) { if (!d || !d.keep) S.query = ''; S.panel = 'search'; S.osk = INPUT_SRC === 'pad' || settings().osk === 'always'; S.oskCol = null; S.focusKey = S.osk ? (S.oskKey = 'k-a') : 'q'; render(); },
   settings() { const was = S.panel; S.panel = S.panel === 'settings' ? null : 'settings'; S.focusKey = S.panel ? (was === 'addon' ? 'addaddon' : S.accounts && S.focusKey?.startsWith('acc') ? 'scrapers' : null) : 'gear'; render(); },
   async getmpv() {
     if (S.mpvBusy) return;
@@ -1855,6 +1862,7 @@ const ACT = {
 };
 Object.assign(ACT, STREAM_ACT); // streaming addons (stream.js)
 Object.assign(ACT, TV_ACT); // TV mode (tv.js)
+Object.assign(ACT, KEYS_ACT); // search keyboard (keys.js)
 
 async function doScan(dir) {
   S.boot = { ...(S.boot || {}), rom_root: dir };
@@ -1880,6 +1888,7 @@ document.addEventListener('click', (e) => {
   SFX.play(actSound(el.dataset.act));
   ACT[el.dataset.act]?.(el.dataset);
 });
+document.addEventListener('pointerdown', () => { INPUT_SRC = 'mouse'; }, true);
 document.addEventListener('mousedown', (e) => { if (e.target.closest('.rail, .cbar')) e.preventDefault(); });
 document.addEventListener('mousemove', () => document.body.classList.remove('kb'), { passive: true });
 
@@ -1992,7 +2001,7 @@ function actSound(act) {
   if (act === 'play') return 'launch';
   if (act === 'random') return 'spin';
   if (['fav', 'uisounds', 'sfav', 'slater', 'sltoggle'].includes(act)) return null; // they play their own once the result is known
-  if (['jump', 'stepshot', 'sortby', 'filter', 'layout', 'sound', 'videos', 'chpage', 'sfstep', 'sfclear'].includes(act)) return 'tick';
+  if (['jump', 'stepshot', 'sortby', 'filter', 'layout', 'sound', 'videos', 'chpage', 'sfstep', 'sfclear', 'osktype', 'oskspace', 'oskdel', 'osklayout'].includes(act)) return 'tick';
   if (act === 'bladego' || act === 'cubepick' || act === 'cubetilt') return null; // they play their own turn sounds
   return 'select';
 }
@@ -2004,6 +2013,7 @@ function press(btn) {
   document.body.classList.add('kb');
   MASCOT.input();
   BGM.wake(); // a controller press counts as the first input for starting music
+  if (S.panel === 'search' && S.osk && !S.playing && oskPad(btn)) return; // pop-up keyboard (keys.js)
   const cur = document.activeElement;
   const typing = cur && cur.tagName === 'INPUT';
   if (btn === 'A' && cur?.dataset?.act) SFX.play(actSound(cur.dataset.act));
@@ -2069,6 +2079,8 @@ function press(btn) {
 }
 
 document.addEventListener('keydown', (e) => {
+  INPUT_SRC = 'key';
+  if (oskKeydown(e)) return; // typing while the pop-up keyboard has focus (keys.js)
   const typing = e.target.tagName === 'INPUT';
   const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'A', Escape: 'B', PageUp: 'LB', PageDown: 'RB', F2: 'START' };
   if (!typing) Object.assign(map, { ' ': 'A', Backspace: 'B', '/': 'X', f: 'Y', F: 'Y', l: 'SELECT', L: 'SELECT', q: 'LB', e: 'RB', '[': 'LT', ']': 'RT', Home: 'LT', End: 'RT', r: 'RANDOM', R: 'RANDOM' });
@@ -2103,7 +2115,7 @@ function pollPads(t) {
     for (const b of down) {
       const h = held[b];
       const repeat = ['up', 'down', 'left', 'right'].includes(b);
-      if (!h) { held[b] = { next: now + 380 }; press(b); }
+      if (!h) { held[b] = { next: now + 380 }; INPUT_SRC = 'pad'; press(b); }
       else if (repeat && now >= h.next) { h.next = now + 85; press(b); }
     }
   }
