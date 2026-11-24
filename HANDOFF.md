@@ -968,5 +968,16 @@ the end when typing starts a search. Tested in Playwright with a simulated gamep
 Midnight). Not done: the Streaming addon search box doesn't use the keyboard yet (easy follow-up: same oskHTML aimed
 at its input).
 
+**0.42.1** (Nov 24): owner: two search boxes on Streaming (top bar = library, Search tab = addons) was confusing.
+On 'stream'/'sdetail'/'sperson' (when an addon can search: `searchStreamHere()` in keys.js) the top bar box is
+`.searchbox.sstream` "Search movies & shows" and `ACT.search` opens the same panel with `S.searchMode = 'stream'`
+(X there too; typing outside the Search tab as well). Stream mode: `.res` = `streamPanelRes()` (Movies + Shows
+sections from `S_STREAM.search[kind]`, hidden genres dropped), typing runs `streamSearch` for every searchable kind
+after 550 ms (`searchChanged()`, called from oskSet / #q oninput / ACT.search), suggestions = `streamSuggest` over
+`streamSeen()` (recent, lists, watched, loaded catalogs). `streamSearch` redraws via `sRedraw()` (only the panel's
+parts while it's open). Result tiles use `osksopen` (sets kind + Search tab + screen 'stream', then `sopen`), so Back
+lands on the Search tab. Reopening fills in the last addon query. TV Watch → Search (`tvsearch`) = `ACT.search({stream:
+true})`. The Search tab and its inline box are unchanged. Tested in Playwright with a mock addon.
+
 Owner's credit budget is limited: start in a fresh session (cheaper), work in
 small releases, and confirm scope before big steps.

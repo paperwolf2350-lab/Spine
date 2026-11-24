@@ -1,4 +1,9 @@
 ## What's new
+- **One search on the Streaming screens.** The big search box at the top now searches your streaming addons for movies and shows (it used to search your games, which was easy to mix up with the small Search tab). It's in Streaming's color so it stands out. Press X, click it, or just start typing.
+- Streaming search uses the same pop-up keyboard and searches Movies and Shows together as you type. Suggestions come from titles you've watched, saved or browsed. Pick a result and Back takes you to the Search tab with your results still there.
+- TV mode's Watch → Search opens the same search.
+
+From 0.42.0:
 - **A pop-up keyboard for search.** Press X (or the Search button) with your controller and a keyboard slides in next to the results, so you never need to reach for a real keyboard. Move with the D-pad or stick: A types, B deletes (or closes when the box is empty), Y adds a space, START jumps to the results. Letters are in ABC order; the "QWE" key switches to a QWERTY layout and Spine remembers your pick. With a mouse, click the Keyboard button to show or hide it.
 - **Title suggestions as you type.** Type "hyr" and Hyrule Warriors shows up under the keyboard (or above the results when you type on a real keyboard). Pick one to fill it in and jump straight to the game.
 - **Smarter search.** Accents and punctuation don't matter any more ("pokemon" finds Pokémon), words can be in any order ("zelda ocarina" finds The Legend of Zelda: Ocarina of Time), and the best matches come first.

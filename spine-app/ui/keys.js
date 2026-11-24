@@ -39,6 +39,7 @@ function srchHits(q, max = 60) {
 // Title suggestions: one per title (the same game on two consoles shows once).
 function srchSuggest(q, max = 4) {
   if (!srchNorm(q)) return [];
+  if (isStreamSearch()) return streamSuggest(q, max);
   const seen = new Map();
   for (const { s, g, sc } of srchHits(q, 400)) {
     if (sc > 1) continue; // suggestions finish words you're typing; loose matches stay in the results
@@ -130,7 +131,7 @@ function oskRefresh() {
   const el = S.focusKey && panel.querySelector(`[data-key="${CSS.escape(S.focusKey)}"]`);
   if (el) focusEl(el, false); else oskFocusKey();
 }
-function oskSet(q) { S.query = q; oskRefresh(); }
+function oskSet(q) { S.query = q; oskRefresh(); searchChanged(); }
 
 function oskFocusKey(key) {
   const panel = document.querySelector('.search-panel .osk');
@@ -260,3 +261,69 @@ const KEYS_ACT = {
     render();
   },
 };
+
+// --- Streaming search: the same panel, searching your addons instead of your library ------------
+// Opened from the Streaming screens (top bar box, X or typing) and TV mode's Watch → Search.
+const STREAM_SCREENS = ['stream', 'sdetail', 'sperson'];
+function streamSearchKinds() { return streamKinds().map(([k]) => k).filter((k) => streamSearchCats(k).length); }
+const searchStreamHere = () => STREAM_SCREENS.includes(S.screen) && streamAddons().length > 0 && streamSearchKinds().length > 0;
+const isStreamSearch = () => S.panel === 'search' && S.searchMode === 'stream';
+// Redraw after addon results arrive: only the results while the panel is open (keeps your place on the keyboard).
+function sRedraw() { if (isStreamSearch()) oskRefresh(); else render(); }
+
+// Titles Spine has already seen from your addons (continue watching, lists, watched, loaded catalogs): suggestions.
+function streamSeen() {
+  const out = new Map();
+  const add = (name, type) => { const k = srchNorm(name); if (k && !out.has(k)) out.set(k, { title: name, sys: [STREAM_TYPES.tv.includes(type) ? 'Show' : 'Movie'] }); };
+  for (const r of Object.values(S.boot.stream_recent || {})) add(r.name, r.type);
+  for (const l of Object.values(S.boot.stream_lists || {})) for (const r of l) add(r.name, r.type);
+  for (const r of Object.values(S.boot.stream_watched || {})) add(r.name, r.type);
+  for (const d of Object.values(S_STREAM.cache)) for (const it of d.items || []) add(it.name, it.type);
+  return [...out.values()];
+}
+function streamSuggest(q, max) {
+  return streamSeen().map((x) => ({ ...x, sc: srchScore(x.title, q) })).filter((x) => x.sc >= 0 && x.sc <= 1 && srchNorm(x.title) !== srchNorm(q))
+    .sort((a, b) => a.sc - b.sc || a.title.localeCompare(b.title)).slice(0, max);
+}
+
+// Typing searches your addons after a short pause (both Movies and Shows, where an addon can search them).
+let sTypeTimer = 0;
+function searchChanged() {
+  if (!isStreamSearch()) return;
+  clearTimeout(sTypeTimer);
+  sTypeTimer = setTimeout(() => {
+    if (!isStreamSearch()) return;
+    const q = S.query.trim();
+    for (const k of streamSearchKinds()) {
+      if (!q) delete S_STREAM.search[k];
+      else if ((S_STREAM.search[k]?.q || '') !== q) streamSearch(k, q);
+    }
+    if (!q) oskRefresh();
+  }, 550);
+}
+
+function streamPanelRes() {
+  const q = S.query.trim(), kinds = streamSearchKinds();
+  const names = [...new Set(kinds.flatMap((k) => streamSearchCats(k).map((x) => x.addonName)))].join(', ');
+  if (!q) return `<div class="res"><div class="nofav">Searches ${esc(names)} for movies and shows.<br>Your own games, movies and shows are in the search on Home.</div></div>`;
+  const hid = sHidden();
+  const sections = kinds.map((k) => {
+    const st = S_STREAM.search[k];
+    const head = kinds.length > 1 ? `<h3 class="sres-h">${k === 'tv' ? 'Shows' : 'Movies'}</h3>` : '';
+    if (!st || st.q !== q) return `<section class="sgroup">${head}<div class="note">Searching…</div></section>`;
+    const idx = st.groups.flatMap((g) => g.idx).filter((i) => !sHiddenHit(st.items[i], hid));
+    const busy = st.groups.some((g) => g.loading), err = st.groups.find((g) => g.error)?.error;
+    const tiles = idx.map((i) => streamTile(st.items[i], `search:${k}`, i).replace('data-act="sopen"', `data-act="osksopen" data-k="${k}"`)).join('');
+    return `<section class="sgroup">${head}${tiles ? `<div class="tiles stiles">${tiles}</div>` : ''}${busy ? '<div class="note">Searching…</div>' : !tiles ? `<div class="note">${esc(err || 'Nothing found.')}</div>` : ''}</section>`;
+  }).join('');
+  return `<div class="res">${sections}</div>`;
+}
+
+Object.assign(KEYS_ACT, {
+  // A result in the panel: open its page; Back from there lands on Streaming's Search tab with these results.
+  osksopen(d) {
+    S_STREAM.kind = d.k; S_STREAM.tab[d.k] = `search:${d.k}`;
+    S.screen = 'stream';
+    STREAM_ACT.sopen(d);
+  },
+});

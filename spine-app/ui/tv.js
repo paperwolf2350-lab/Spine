@@ -517,10 +517,7 @@ const TV_ACT = {
   },
   // Watch → Search: Streaming opened on its Search tab.
   tvsearch() {
-    const k = streamKind();
-    S_STREAM.kind = k; S_STREAM.tab[k] = `search:${k}`;
-    S.panel = null; S.screen = 'stream'; S.focusKey = 'sq';
-    render();
+    ACT.search({ stream: true }); // the pop-up search panel, searching your addons (keys.js)
   },
   tvmode(d) { S.tv = null; S.focusKey = `tvm-${d.v}`; setSetting('tvMode', d.v === 'on'); },
   // Open TV mode full-screen: also goes full-screen right away when switched on.

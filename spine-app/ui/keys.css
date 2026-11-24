@@ -43,3 +43,10 @@ body.kb .osk-sug .sug.focused, body.kb .osk-sug .sug:focus-visible { background:
 /* (set by oskFit() in keys.js: media queries ignore the interface-size zoom) */
 .search-panel.short .osk { grid-auto-rows: 44px; gap: 6px; padding: 12px; }
 .search-panel.short .osk-sug .sug { min-height: 40px; padding: 8px 12px; font-size: 16px; }
+
+/* On the Streaming screens the top bar box searches your addons: bigger and in Streaming's color, so it's the obvious one. */
+.searchbox.sstream { width: 400px; color: var(--text); background: var(--surface); border: 2px solid #0E6E77; font-weight: 600; }
+.searchbox.sstream svg { color: #0E6E77; }
+:root[data-theme="midnight"] .searchbox.sstream svg, :root[data-theme="tv"] .searchbox.sstream svg { color: #3FB6BF; }
+.search-panel .res .sres-h { font-size: 20px; margin: 4px 0 14px; }
+.search-panel .res .sgroup + .sgroup { margin-top: 28px; }

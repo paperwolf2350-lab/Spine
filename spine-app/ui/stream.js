@@ -321,7 +321,7 @@ async function streamSearch(sys, q) {
   const order = [...new Set(cats.map((x) => x.addon))];
   const st = { q, typed: q, items: [], groups: order.map((a) => ({ addon: a, addonName: cats.find((x) => x.addon === a).addonName, idx: [], loading: true, error: null, pending: cats.filter((x) => x.addon === a).length })) };
   S_STREAM.search[sys] = st;
-  render();
+  sRedraw();
   await Promise.all(cats.map(async (c) => {
     const g = st.groups.find((x) => x.addon === c.addon);
     try {
@@ -333,7 +333,7 @@ async function streamSearch(sys, q) {
       if (!g.idx.length) g.error = String(e || 'Something went wrong.');
     }
     if (--g.pending === 0) g.loading = false;
-    if (S_STREAM.search[sys] === st && S.screen === 'stream') render();
+    if (S_STREAM.search[sys] === st && (S.screen === 'stream' || isStreamSearch())) sRedraw();
   }));
 }
 // Remember what's typed in the addon search box across redraws.

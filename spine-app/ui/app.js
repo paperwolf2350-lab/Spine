@@ -369,7 +369,8 @@ function topbar() {
   return `<header class="topbar">
     <button class="brand" data-nav data-key="brand" data-act="home" aria-label="Spine home">${LOGO(30, 'var(--accent)')}<span>Spine</span></button>
     <div class="spacer"></div>
-    <button class="searchbox" data-nav data-key="searchbtn" data-act="search">${ICON.search}<span>Search ${total.toLocaleString()} ${media ? 'titles' : 'games'}</span><span style="margin-left:auto">${glyph('X')}</span></button>
+    ${searchStreamHere() ? `<button class="searchbox sstream" data-nav data-key="searchbtn" data-act="search">${ICON.search}<span>Search movies &amp; shows</span><span style="margin-left:auto">${glyph('X')}</span></button>`
+    : `<button class="searchbox" data-nav data-key="searchbtn" data-act="search">${ICON.search}<span>Search ${total.toLocaleString()} ${media ? 'titles' : 'games'}</span><span style="margin-left:auto">${glyph('X')}</span></button>`}
     <span class="clock" id="clock">${time}</span>
     <button class="iconbtn" data-nav data-key="gear" data-act="settings" aria-label="Settings">${ICON.gear}</button>
   </header>`;
@@ -1111,15 +1112,16 @@ const libretroSys = (id) => !['pc', 'switch', 'wiiu', 'ps3', 'psvita', 'xbox'].i
 function searchPanel() {
   if (S.panel !== 'search') return '';
   const q = S.query.trim();
-  const hits = q ? srchHits(q) : [];
+  const streamMode = S.searchMode === 'stream';
+  const hits = q && !streamMode ? srchHits(q) : [];
   const ql = srchNorm(q);
-  const res = `<div class="res">${q ? (() => { const cs = topCats(1).filter((c) => srchNorm(c.name).includes(ql)).slice(0, 10); return cs.length ? `<div class="cats" style="margin-bottom:22px">${cs.map((c) =>
+  const res = streamMode ? streamPanelRes().replace('<div class="res">', `<div class="res">${!S.osk ? oskSugHTML() : ''}`) : `<div class="res">${q ? (() => { const cs = topCats(1).filter((c) => srchNorm(c.name).includes(ql)).slice(0, 10); return cs.length ? `<div class="cats" style="margin-bottom:22px">${cs.map((c) =>
       `<button class="cat" data-nav data-key="scat-${esc(c.name)}" data-act="category" data-type="tag" data-v="${esc(c.name)}">${esc(c.name)} <span class="n">${c.count}</span></button>`).join('')}</div>` : ''; })() : ''}${!S.osk ? oskSugHTML() : ''}<div class="tiles">${hits.map(({ s, g }) => `<button class="game" data-nav data-key="h-${g.id}" data-act="open" data-id="${esc(g.id)}" data-from="search">
       ${cover(g, s)}<span class="t">${esc(g.title)}</span><span style="font-size:13px;color:var(--muted)">${esc(s.short)}</span></button>`).join('')}</div>
       ${q && !hits.length ? '<div class="nofav">Nothing matches that.</div>' : ''}</div>`;
   const kb = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M9 15.5h6"/></svg>';
   return `<div class="search-panel${S.osk ? ' osk-on' : ''}" role="dialog" aria-label="Search">
-    <div class="top">${ICON.search}<label class="sr" for="q">Search your library</label><input id="q" data-nav data-key="q" placeholder="${S.osk ? 'Type with the keyboard below' : 'Search your library'}" value="${esc(S.query)}" autocomplete="off" spellcheck="false">
+    <div class="top">${ICON.search}<label class="sr" for="q">${streamMode ? 'Search your streaming addons' : 'Search your library'}</label><input id="q" data-nav data-key="q" placeholder="${S.osk ? 'Type with the keyboard below' : streamMode ? 'Search movies & shows in your addons' : 'Search your library'}" value="${esc(S.query)}" autocomplete="off" spellcheck="false">
       <button class="btn${S.osk ? ' on' : ''}" data-nav data-key="qosk" data-act="osktoggle" aria-pressed="${S.osk ? 'true' : 'false'}">${kb}Keyboard</button>
       <button class="btn" data-nav data-key="qclose" data-act="closepanel">${glyph('B')}Close</button></div>
     ${S.osk ? `<div class="sbody"><aside class="osk-col">${oskHTML()}${oskSugHTML()}</aside>${res}</div>${oskHints()}` : res}
@@ -1217,7 +1219,7 @@ function render() {
   if (gs) { let t = 0; gs.onscroll = () => { cancelAnimationFrame(t); t = requestAnimationFrame(() => markLetter(currentLetter())); }; markLetter(currentLetter()); }
   const q = document.getElementById('q');
   if (q) {
-    q.oninput = () => { S.query = q.value; S.focusKey = 'q'; renderSearchOnly(); };
+    q.oninput = () => { S.query = q.value; S.focusKey = 'q'; renderSearchOnly(); searchChanged(); };
     if (document.activeElement === q) q.setSelectionRange(q.value.length, q.value.length); // keep typing after the first letter
   }
   renderToast();
@@ -1396,7 +1398,9 @@ const ACT = {
     await doScan(dir);
   },
   home() { S.panel = null; S.screen = 'home'; S.focusKey = null; render(); },
-  search(d) { if (!d || !d.keep) S.query = ''; S.panel = 'search'; S.osk = INPUT_SRC === 'pad' || settings().osk === 'always'; S.oskCol = null; S.focusKey = S.osk ? (S.oskKey = 'k-a') : 'q'; render(); },
+  search(d) {
+    S.searchMode = d?.stream || searchStreamHere() ? 'stream' : 'library';
+    if (!d || !d.keep) S.query = S.searchMode === 'stream' ? (S_STREAM.search[streamKind()]?.q || '') : ''; S.panel = 'search'; S.osk = INPUT_SRC === 'pad' || settings().osk === 'always'; S.oskCol = null; S.focusKey = S.osk ? (S.oskKey = 'k-a') : 'q'; render(); searchChanged(); },
   settings() { const was = S.panel; S.panel = S.panel === 'settings' ? null : 'settings'; S.focusKey = S.panel ? (was === 'addon' ? 'addaddon' : S.accounts && S.focusKey?.startsWith('acc') ? 'scrapers' : null) : 'gear'; render(); },
   async getmpv() {
     if (S.mpvBusy) return;
@@ -2040,7 +2044,7 @@ function press(btn) {
       if (S.playing && (S.playing.error || S.playing.emulator === 'system')) return ACT.closeplay();
       if (S.panel === 'scrapers' || S.panel === 'addon') return ACT.settings();
       return ACT.back();
-    case 'X': if (streamSearchFocus()) return; if (!S.panel && S.boot?.systems?.length && !S.playing) ACT.search(); return;
+    case 'X': if (searchStreamHere() && !S.panel && !S.playing) return ACT.search(); if (streamSearchFocus()) return; if (!S.panel && S.boot?.systems?.length && !S.playing) ACT.search(); return;
     case 'Y': {
       if (typing) return;
       if (streamY(cur)) return;
