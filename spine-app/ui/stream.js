@@ -259,7 +259,7 @@ function streamCatalogView(c) {
   if (!d.items.length) return `<div class="nofav">${sGenre(c) ? `Nothing under ${esc(sGenre(c))} in this catalog.` : 'This catalog is empty right now.'}</div>`;
   const list = d.items.map((it, i) => [it, i]).filter(([it]) => !on || sMatch(it, f));
   // A filter or hidden genre left too few: look further (counts toward the 8 extra pages).
-  if (on && !d.loading && !d.done && !d.error && list.length < 24 && (d.auto || 0) < 8) { d.auto = (d.auto || 0) + 1; setTimeout(() => streamLoad(c.ck)); }
+  if (!d.loading && !d.done && !d.error && list.length < sGoal(d, on) && (d.auto || 0) < 8) { d.auto = (d.auto || 0) + 1; setTimeout(() => streamLoad(c.ck)); }
   if (!list.length) {
     return d.done || d.error
       ? (!sFiltOn(f) && !d.error
@@ -351,6 +351,10 @@ function streamSearchFocus() {
   return true;
 }
 
+// How many titles should be showing before we stop asking the addon for more pages:
+// 24 when filters/hidden genres are on, and after "Show more" at least 24 more than before.
+const sGoal = (d, on) => Math.max(on ? 24 : 0, d.want || 0);
+const sShown = (d, f) => (sActive(f) ? d.items.filter((it) => sMatch(it, f)).length : d.items.length);
 async function streamLoad(ck) {
   const c = streamCats('movies').concat(streamCats('tv')).find((x) => x.ck === ck);
   if (!c) return;
@@ -360,7 +364,11 @@ async function streamLoad(ck) {
   d.loading = true; d.error = null;
   if (S.screen === 'stream') render();
   try {
-    const page = await api.call('addon_catalog', { key: c.addon, kind: c.type, id: c.id, skip: d.items.length, genre });
+    // skip counts what the addon has sent so far (repeats included), so a page that
+    // repeats titles doesn't make the next request overlap the last one.
+    const skip = d.skip ?? d.items.length;
+    const page = await api.call('addon_catalog', { key: c.addon, kind: c.type, id: c.id, skip, genre });
+    d.skip = skip + page.length;
     const seen = new Set(d.items.map((x) => x.id));
     const fresh = page.filter((x) => !seen.has(x.id));
     d.items.push(...fresh);
@@ -371,7 +379,7 @@ async function streamLoad(ck) {
   d.loading = false;
   // With filters on, keep loading pages (up to 8 more) until enough titles match.
   const f = sFilt(STREAM_TYPES.tv.includes(c.type) ? 'tv' : 'movies');
-  if (!d.error && !d.done && sActive(f) && d.items.filter((it) => sMatch(it, f)).length < 24 && (d.auto || 0) < 8 && sCacheKey(c) === cache) {
+  if (!d.error && !d.done && sShown(d, f) < sGoal(d, sActive(f)) && (d.auto || 0) < 8 && sCacheKey(c) === cache) {
     d.auto = (d.auto || 0) + 1;
     return streamLoad(ck);
   }
@@ -876,7 +884,11 @@ const STREAM_ACT = {
     const cat = streamCats('movies').concat(streamCats('tv')).find((x) => x.ck === d.ck);
     const key = cat ? sCacheKey(cat) : d.ck;
     const c = S_STREAM.cache[key];
-    if (c) { c.error = null; c.auto = 0; if (!c.items.length) delete S_STREAM.cache[key]; }
+    if (c) {
+      c.error = null; c.auto = 0;
+      if (!c.items.length) delete S_STREAM.cache[key];
+      else if (cat) c.want = sShown(c, sFilt(STREAM_TYPES.tv.includes(cat.type) ? 'tv' : 'movies')) + 24;
+    }
     S.focusKey = 'smore';
     streamLoad(d.ck);
   },

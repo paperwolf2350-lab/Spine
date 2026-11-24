@@ -1,4 +1,7 @@
 ## What's new
+- Fixed: on the Streaming screens, "Show more" sometimes added just one title per press. This happened when you had hidden genres or turned on a filter, because Spine fetched one page from the addon and most of it got filtered out. Now it keeps fetching until a good batch of new titles is actually showing (up to 8 pages per press).
+
+From 0.42.1:
 - **One search on the Streaming screens.** The big search box at the top now searches your streaming addons for movies and shows (it used to search your games, which was easy to mix up with the small Search tab). It's in Streaming's color so it stands out. Press X, click it, or just start typing.
 - Streaming search uses the same pop-up keyboard and searches Movies and Shows together as you type. Suggestions come from titles you've watched, saved or browsed. Pick a result and Back takes you to the Search tab with your results still there.
 - TV mode's Watch → Search opens the same search.
