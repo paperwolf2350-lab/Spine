@@ -1,4 +1,8 @@
 ## What's new
+- **Liquid Glass themes (Light & Dark).** Two new built-in themes under **Settings → Look → Theme** (**Liquid Glass** and **Glass Dark**)—luminous frosted glass panels, glossy rim highlights, translucent colored console lenses, floating pill top and bottom bars, and a gently drifting ambient backdrop. Available on both Desktop and TV mode.
+- **Backup & Restore.** Under **Settings → Updates & window**, save a single `.zip` backup of your settings, favorites, lists, playtime, watch progress, renamed games, custom covers/videos, and installed themes. API keys and streaming addon links are excluded by default (with an optional toggle if you're moving to another PC of your own). Restoring checks the backup first, saves a safety copy of your current settings, and reloads Spine right away.
+
+From 0.43.2:
 - **Import themes directly from a link.** In **Settings → Look → Manage themes & packs…**, paste any **GitHub**, **GitLab**, **`git.es-de.org`**, **Codeberg**, or direct `.zip` link and click **Download & import**—no need to hunt for release zips.
 - **Better ES-DE console artwork importing & display.** Spine now recognizes ES-DE `artwork/`, `art/`, `images/`, `hero/` and `systems/` folders (such as *Art Book Next* and *Artflix Revisited*), picks the highest-resolution art per console, raises the archive limit for large multi-system repos, and lets per-console wallpapers shine cleanly behind Home instead of being covered by the moving cover wall.
 

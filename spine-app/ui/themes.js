@@ -6,7 +6,7 @@
 'use strict';
 
 const THEMES = (() => {
-  const BUILTIN_THEMES = ['cream', 'midnight', 'crt'];
+  const BUILTIN_THEMES = ['cream', 'midnight', 'crt', 'glass-light', 'glass-dark'];
   const sfxCache = new Map(); // url -> AudioBuffer | 'loading' | 'err'
   let appliedOpts = [];
   let wpLayer = null;
@@ -44,10 +44,12 @@ const THEMES = (() => {
 
   // Built-in theme base color defaults (used to derive matching colors in Simple Mode).
   const BASE_COLORS = {
-    cream:    { bg: '#F6F2EA', surface: '#FFFFFF', text: '#1C1A17', accent: '#C8431F' },
-    midnight: { bg: '#121318', surface: '#1C1E25', text: '#F2F0EB', accent: '#C8431F' },
-    crt:      { bg: '#070B07', surface: '#0E160E', text: '#B6FFA6', accent: '#4ADE80' },
-    tv:       { bg: '#101218', surface: '#1A1D26', text: '#F2EFE8', accent: '#E09A3E' },
+    cream:        { bg: '#F6F2EA', surface: '#FFFFFF', text: '#1C1A17', accent: '#C8431F' },
+    midnight:     { bg: '#121318', surface: '#1C1E25', text: '#F2F0EB', accent: '#C8431F' },
+    crt:          { bg: '#070B07', surface: '#0E160E', text: '#B6FFA6', accent: '#4ADE80' },
+    'glass-light': { bg: '#E8F0FC', surface: '#FFFFFF', text: '#101626', accent: '#007AFF' },
+    'glass-dark':  { bg: '#080C16', surface: '#1C243A', text: '#F4F7FF', accent: '#4DA3FF' },
+    tv:           { bg: '#101218', surface: '#1A1D26', text: '#F2EFE8', accent: '#E09A3E' },
   };
 
   const list = () => S.boot?.themes || [];
@@ -318,9 +320,9 @@ const THEMES = (() => {
       customEl.remove();
     }
 
-    // Accent color priority: Simple Mode accent -> Settings accent swatch -> Theme pack accent -> Spine default.
-    const fallbackAccent = tv ? (typeof TV_ACCENT !== 'undefined' ? TV_ACCENT : '#E09A3E') : '#C8431F';
-    const accent = (isHex(c.accent) ? c.accent : '') || st.accent || pack?.colors?.accent || fallbackAccent;
+    // Accent color priority: Simple Mode accent -> Settings accent swatch -> Theme pack accent -> Built-in theme default.
+    const builtinAccent = id === 'glass-light' ? '#007AFF' : id === 'glass-dark' ? '#4DA3FF' : (tv ? (typeof TV_ACCENT !== 'undefined' ? TV_ACCENT : '#E09A3E') : '#C8431F');
+    const accent = (isHex(c.accent) ? c.accent : '') || st.accent || pack?.colors?.accent || builtinAccent;
     style.setProperty('--accent', accent);
     if (tv && typeof tvInk === 'function') style.setProperty('--accent-ink', tvInk(accent));
     else style.removeProperty('--accent-ink');

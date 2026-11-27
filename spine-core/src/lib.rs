@@ -6,6 +6,7 @@
 
 pub mod addons;
 pub mod aniskip;
+pub mod backup;
 pub mod bios;
 pub mod config;
 pub mod covers;

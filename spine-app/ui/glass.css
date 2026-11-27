@@ -1,0 +1,369 @@
+/* Spine — Liquid Glass themes (Light & Dark).
+ * Luminous frosted glass lenses, specular rim highlights, floating pill bars,
+ * and a soft ambient mesh backdrop. Works cleanly on Windows (WebView2) and
+ * Linux (WebKitGTK) and adapts automatically when a custom wallpaper is active.
+ */
+
+/* ---- Palette tokens ------------------------------------------------------- */
+:root[data-theme="glass-light"] {
+  --accent: #007AFF;
+  --accent-ink: #FFFFFF;
+  --bg: #E8F0FC;
+  --surface: rgba(255, 255, 255, 0.56);
+  --surface2: rgba(255, 255, 255, 0.36);
+  --text: #101626;
+  --muted: #4A556E;
+  --line: rgba(255, 255, 255, 0.68);
+  --focus: #101626;
+  --shadow: 0 12px 32px rgba(24, 42, 82, 0.12);
+  --gl-fill: rgba(255, 255, 255, 0.50);
+  --gl-fill-strong: rgba(255, 255, 255, 0.68);
+  --gl-sheen: linear-gradient(155deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.18) 48%, rgba(255, 255, 255, 0.34) 100%);
+  --gl-border: rgba(255, 255, 255, 0.72);
+  --gl-rim: inset 0 1.5px 0 rgba(255, 255, 255, 0.92), inset 0 -1px 0 rgba(16, 28, 56, 0.08);
+  --gl-blur: blur(22px) saturate(190%) brightness(1.04);
+  --gl-blur-deep: blur(32px) saturate(200%) brightness(1.05);
+  --gl-mesh:
+    radial-gradient(ellipse 68% 60% at 12% 16%, rgba(125, 185, 255, 0.58) 0%, transparent 62%),
+    radial-gradient(ellipse 62% 58% at 88% 18%, rgba(196, 165, 255, 0.52) 0%, transparent 60%),
+    radial-gradient(ellipse 64% 62% at 78% 86%, rgba(126, 232, 212, 0.48) 0%, transparent 60%),
+    radial-gradient(ellipse 58% 54% at 18% 84%, rgba(255, 198, 178, 0.45) 0%, transparent 62%),
+    linear-gradient(145deg, #EDF3FF 0%, #E4ECFA 50%, #EAF5F6 100%);
+  --display: 'Lexend', 'Space Grotesk', 'Segoe UI Variable Display', system-ui, sans-serif;
+  --body: 'Inter', 'Segoe UI Variable Text', system-ui, sans-serif;
+}
+
+:root[data-theme="glass-dark"] {
+  --accent: #4DA3FF;
+  --accent-ink: #071222;
+  --bg: #080C16;
+  --surface: rgba(28, 36, 58, 0.52);
+  --surface2: rgba(255, 255, 255, 0.09);
+  --text: #F4F7FF;
+  --muted: #A6B4D0;
+  --line: rgba(255, 255, 255, 0.17);
+  --focus: #F4F7FF;
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  --gl-fill: rgba(24, 32, 52, 0.48);
+  --gl-fill-strong: rgba(22, 29, 48, 0.72);
+  --gl-sheen: linear-gradient(155deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(255, 255, 255, 0.08) 100%);
+  --gl-border: rgba(255, 255, 255, 0.22);
+  --gl-rim: inset 0 1.5px 0 rgba(255, 255, 255, 0.34), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  --gl-blur: blur(24px) saturate(185%) brightness(1.08);
+  --gl-blur-deep: blur(34px) saturate(195%) brightness(1.08);
+  --gl-mesh:
+    radial-gradient(ellipse 68% 60% at 14% 16%, rgba(48, 118, 255, 0.38) 0%, transparent 62%),
+    radial-gradient(ellipse 60% 56% at 86% 20%, rgba(145, 76, 255, 0.34) 0%, transparent 60%),
+    radial-gradient(ellipse 62% 58% at 76% 86%, rgba(22, 184, 178, 0.28) 0%, transparent 60%),
+    radial-gradient(ellipse 56% 52% at 18% 84%, rgba(214, 72, 148, 0.22) 0%, transparent 62%),
+    linear-gradient(145deg, #070B14 0%, #0B1120 50%, #080E1A 100%);
+  --display: 'Lexend', 'Space Grotesk', 'Segoe UI Variable Display', system-ui, sans-serif;
+  --body: 'Inter', 'Segoe UI Variable Text', system-ui, sans-serif;
+}
+
+/* ---- Luminous ambient mesh behind the glass ------------------------------ */
+:root[data-theme="glass-light"] body,
+:root[data-theme="glass-dark"] body {
+  background: var(--bg);
+}
+
+:root[data-theme="glass-light"]:not(.has-theme-wp) body::before,
+:root[data-theme="glass-dark"]:not(.has-theme-wp) body::before {
+  content: '';
+  position: fixed;
+  inset: -8%;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--gl-mesh);
+  animation: glDrift 26s ease-in-out infinite alternate;
+}
+
+@keyframes glDrift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(-1.5%, 1.2%, 0) scale(1.03); }
+  100% { transform: translate3d(1.5%, -1%, 0) scale(1.02); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="glass-light"] body::before,
+  :root[data-theme="glass-dark"] body::before { animation: none; }
+}
+
+/* ---- Floating pill topbar & hint bar ------------------------------------- */
+:root[data-theme="glass-light"] .topbar,
+:root[data-theme="glass-dark"] .topbar {
+  height: 62px;
+  margin: 12px 24px 0;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: var(--gl-fill);
+  background-image: var(--gl-sheen);
+  border: 1px solid var(--gl-border);
+  box-shadow: var(--gl-rim), var(--shadow);
+  backdrop-filter: var(--gl-blur);
+  -webkit-backdrop-filter: var(--gl-blur);
+}
+
+:root[data-theme="glass-light"] .hints,
+:root[data-theme="glass-dark"] .hints {
+  height: 46px;
+  margin: 0 24px 12px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: var(--gl-fill);
+  background-image: var(--gl-sheen);
+  border: 1px solid var(--gl-border);
+  box-shadow: var(--gl-rim), var(--shadow);
+  backdrop-filter: var(--gl-blur);
+  -webkit-backdrop-filter: var(--gl-blur);
+}
+
+:root[data-theme="glass-light"] .searchbox,
+:root[data-theme="glass-dark"] .searchbox,
+:root[data-theme="glass-light"] .iconbtn,
+:root[data-theme="glass-dark"] .iconbtn {
+  border-radius: 999px;
+  background: var(--surface2);
+  border: 1px solid var(--gl-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* ---- Glass buttons, pills, chips & segmented controls -------------------- */
+:root[data-theme="glass-light"] .btn,
+:root[data-theme="glass-dark"] .btn,
+:root[data-theme="glass-light"] .chip,
+:root[data-theme="glass-dark"] .chip {
+  border-radius: 999px;
+  background: var(--gl-fill);
+  background-image: var(--gl-sheen);
+  border: 1px solid var(--gl-border);
+  box-shadow: var(--gl-rim), 0 6px 18px rgba(0, 0, 0, 0.08);
+  backdrop-filter: var(--gl-blur);
+  -webkit-backdrop-filter: var(--gl-blur);
+}
+
+:root[data-theme="glass-light"] .btn.primary,
+:root[data-theme="glass-dark"] .btn.primary {
+  background: color-mix(in srgb, var(--accent) 84%, transparent);
+  background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0.04) 55%, rgba(255, 255, 255, 0.14) 100%);
+  color: var(--accent-ink, #fff);
+  border: 1px solid color-mix(in srgb, #fff 45%, var(--accent));
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.55), 0 10px 26px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+:root[data-theme="glass-light"] .chip.on,
+:root[data-theme="glass-dark"] .chip.on {
+  background: color-mix(in srgb, var(--accent) 82%, transparent);
+  color: var(--accent-ink, #fff);
+  border-color: color-mix(in srgb, #fff 40%, var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 4px 14px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+:root[data-theme="glass-light"] .seg,
+:root[data-theme="glass-dark"] .seg,
+:root[data-theme="glass-light"] .set-seg,
+:root[data-theme="glass-dark"] .set-seg {
+  border-radius: 999px;
+  background: var(--surface2);
+  border: 1px solid var(--gl-border);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+  backdrop-filter: var(--gl-blur);
+  -webkit-backdrop-filter: var(--gl-blur);
+}
+:root[data-theme="glass-light"] .seg button,
+:root[data-theme="glass-dark"] .seg button,
+:root[data-theme="glass-light"] .set-seg button,
+:root[data-theme="glass-dark"] .set-seg button {
+  border-radius: 999px;
+}
+:root[data-theme="glass-light"] .seg button.on,
+:root[data-theme="glass-dark"] .seg button.on,
+:root[data-theme="glass-light"] .set-seg button.on,
+:root[data-theme="glass-dark"] .set-seg button.on {
+  background: var(--gl-fill-strong);
+  box-shadow: var(--gl-rim), 0 2px 8px rgba(0, 0, 0, 0.14);
+}
+
+/* ---- Home hero, translucent colored console lenses & cards --------------- */
+:root[data-theme="glass-light"] .hero,
+:root[data-theme="glass-dark"] .hero {
+  background: transparent !important;
+}
+:root[data-theme="glass-light"] .herowall .strip,
+:root[data-theme="glass-dark"] .herowall .strip {
+  opacity: 0.24;
+  filter: blur(2px) saturate(1.25);
+}
+:root[data-theme="glass-light"] .herowall::after,
+:root[data-theme="glass-dark"] .herowall::after {
+  opacity: 0.55;
+}
+
+:root[data-theme="glass-light"] .console,
+:root[data-theme="glass-dark"] .console {
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--chip) 66%, transparent) !important;
+  background-image: linear-gradient(150deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.06) 46%, rgba(255, 255, 255, 0.16) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.52), inset 0 -1px 0 rgba(0, 0, 0, 0.16), 0 10px 26px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+}
+:root[data-theme="glass-light"] .console.sel,
+:root[data-theme="glass-dark"] .console.sel {
+  background: color-mix(in srgb, var(--chip) 76%, transparent) !important;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.62),
+    0 0 0 2px rgba(255, 255, 255, 0.72),
+    0 18px 38px color-mix(in srgb, var(--chip) 44%, rgba(0, 0, 0, 0.28));
+}
+
+:root[data-theme="glass-light"] .recent .item,
+:root[data-theme="glass-dark"] .recent .item,
+:root[data-theme="glass-light"] .fact,
+:root[data-theme="glass-dark"] .fact,
+:root[data-theme="glass-light"] .ep,
+:root[data-theme="glass-dark"] .ep,
+:root[data-theme="glass-light"] .choice,
+:root[data-theme="glass-dark"] .choice,
+:root[data-theme="glass-light"] .root,
+:root[data-theme="glass-dark"] .root {
+  border-radius: 18px;
+  background: var(--gl-fill);
+  background-image: var(--gl-sheen);
+  border: 1px solid var(--gl-border);
+  box-shadow: var(--gl-rim), 0 8px 24px rgba(0, 0, 0, 0.08);
+  backdrop-filter: var(--gl-blur);
+  -webkit-backdrop-filter: var(--gl-blur);
+}
+
+:root[data-theme="glass-light"] .cover,
+:root[data-theme="glass-dark"] .cover {
+  border-radius: 14px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+/* ---- Settings modal, side drawers & cards in Liquid Glass ---------------- */
+:root[data-theme="glass-light"] .set-win,
+:root[data-theme="glass-dark"] .set-win,
+:root[data-theme="glass-light"] .panel .sheet,
+:root[data-theme="glass-dark"] .panel .sheet {
+  border-radius: 26px;
+  background: var(--gl-fill-strong);
+  background-image: var(--gl-sheen);
+  border: 1px solid var(--gl-border);
+  box-shadow: var(--gl-rim), 0 32px 80px rgba(0, 0, 0, 0.36);
+  backdrop-filter: var(--gl-blur-deep);
+  -webkit-backdrop-filter: var(--gl-blur-deep);
+}
+:root[data-theme="glass-light"] .panel .sheet,
+:root[data-theme="glass-dark"] .panel .sheet {
+  border-radius: 26px 0 0 26px;
+}
+:root[data-theme="glass-light"] .set-nav,
+:root[data-theme="glass-dark"] .set-nav {
+  background: var(--surface2);
+  border-right-color: var(--gl-border);
+}
+:root[data-theme="glass-light"] .set-card,
+:root[data-theme="glass-dark"] .set-card,
+:root[data-theme="glass-light"] .set-scroll > .grp,
+:root[data-theme="glass-dark"] .set-scroll > .grp,
+:root[data-theme="glass-light"] .th-card,
+:root[data-theme="glass-dark"] .th-card,
+:root[data-theme="glass-light"] .mgr-act,
+:root[data-theme="glass-dark"] .mgr-act,
+:root[data-theme="glass-light"] .mgr-url,
+:root[data-theme="glass-dark"] .mgr-url,
+:root[data-theme="glass-light"] .cust-crow,
+:root[data-theme="glass-dark"] .cust-crow,
+:root[data-theme="glass-light"] .cust-pal,
+:root[data-theme="glass-dark"] .cust-pal,
+:root[data-theme="glass-light"] .cust-save,
+:root[data-theme="glass-dark"] .cust-save {
+  border-radius: 18px;
+  background: var(--gl-fill);
+  background-image: var(--gl-sheen);
+  border: 1px solid var(--gl-border);
+  box-shadow: var(--gl-rim);
+}
+:root[data-theme="glass-light"] .set-tab.on,
+:root[data-theme="glass-dark"] .set-tab.on,
+:root[data-theme="glass-light"] .th-tile,
+:root[data-theme="glass-dark"] .th-tile,
+:root[data-theme="glass-light"] .hs-tile,
+:root[data-theme="glass-dark"] .hs-tile {
+  background: var(--gl-fill);
+  border: 1px solid var(--gl-border);
+  box-shadow: var(--gl-rim);
+}
+:root[data-theme="glass-light"] .set-foot,
+:root[data-theme="glass-dark"] .set-foot {
+  background: var(--surface2);
+  border-top-color: var(--gl-border);
+}
+:root[data-theme="glass-light"] .set-close,
+:root[data-theme="glass-dark"] .set-close {
+  border-radius: 999px;
+  background: var(--surface2);
+  border: 1px solid var(--gl-border);
+}
+
+/* ---- Liquid Glass in TV mode --------------------------------------------- */
+:root[data-theme="glass-light"] .tvm,
+:root[data-theme="glass-dark"] .tvm {
+  background: transparent;
+}
+:root[data-theme="glass-light"] .tv-switch,
+:root[data-theme="glass-dark"] .tv-switch,
+:root[data-theme="glass-light"] .tv-gear,
+:root[data-theme="glass-dark"] .tv-gear,
+:root[data-theme="glass-light"] .tv-btn:not(.primary),
+:root[data-theme="glass-dark"] .tv-btn:not(.primary),
+:root[data-theme="glass-light"] .tv-con,
+:root[data-theme="glass-dark"] .tv-con {
+  background: var(--gl-fill) !important;
+  background-image: var(--gl-sheen) !important;
+  border: 1px solid var(--gl-border) !important;
+  box-shadow: var(--gl-rim), 0 8px 22px rgba(0, 0, 0, 0.14);
+  backdrop-filter: var(--gl-blur);
+  -webkit-backdrop-filter: var(--gl-blur);
+}
+:root[data-theme="glass-light"] .tv-con,
+:root[data-theme="glass-light"] .tv-con span { color: var(--text) !important; }
+:root[data-theme="glass-light"] .tv-scrim {
+  background:
+    linear-gradient(180deg, rgba(232, 240, 252, 0.65) 0%, transparent 28%),
+    linear-gradient(90deg, rgba(232, 240, 252, 0.88) 0%, rgba(232, 240, 252, 0.45) 36%, transparent 66%),
+    linear-gradient(0deg, rgba(232, 240, 252, 0.85) 0%, transparent 55%);
+}
+:root[data-theme="glass-dark"] .tv-scrim {
+  background:
+    linear-gradient(180deg, rgba(8, 12, 22, 0.62) 0%, transparent 26%),
+    linear-gradient(90deg, rgba(8, 12, 22, 0.86) 0%, rgba(8, 12, 22, 0.42) 34%, transparent 64%),
+    linear-gradient(0deg, rgba(8, 12, 22, 0.86) 0%, transparent 55%);
+}
+
+/* ---- Luminous focus halo & toast ----------------------------------------- */
+:root[data-theme="glass-light"] body.kb [data-nav]:focus-visible,
+:root[data-theme="glass-light"] body.kb [data-nav].focused,
+:root[data-theme="glass-dark"] body.kb [data-nav]:focus-visible,
+:root[data-theme="glass-dark"] body.kb [data-nav].focused {
+  box-shadow:
+    var(--gl-rim),
+    0 0 0 2px rgba(255, 255, 255, 0.82),
+    0 0 0 5px var(--accent),
+    0 0 22px color-mix(in srgb, var(--accent) 44%, transparent);
+}
+
+:root[data-theme="glass-light"] .toast,
+:root[data-theme="glass-dark"] .toast {
+  border-radius: 999px;
+  background: var(--gl-fill-strong);
+  background-image: var(--gl-sheen);
+  color: var(--text);
+  border: 1px solid var(--gl-border);
+  box-shadow: var(--gl-rim), 0 14px 36px rgba(0, 0, 0, 0.24);
+  backdrop-filter: var(--gl-blur-deep);
+  -webkit-backdrop-filter: var(--gl-blur-deep);
+}

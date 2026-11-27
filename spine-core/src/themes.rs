@@ -22,6 +22,8 @@ const RESERVED_IDS: &[&str] = &[
     "cream",
     "midnight",
     "crt",
+    "glass-light",
+    "glass-dark",
     "tv",
     "default",
     "none",
@@ -507,6 +509,8 @@ pub fn load_theme(theme_dir: &Path) -> Option<ThemePack> {
     let base = match manifest.base.trim().to_ascii_lowercase().as_str() {
         "cream" => "cream",
         "crt" => "crt",
+        "glass-light" => "glass-light",
+        "glass-dark" => "glass-dark",
         "tv" => "tv",
         _ => "midnight",
     }

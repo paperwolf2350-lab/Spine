@@ -1556,6 +1556,77 @@ async fn save_custom_theme(
     Ok(ThemeChange { theme, themes, report: None })
 }
 
+#[derive(Serialize)]
+struct RestoreResult {
+    boot: Boot,
+    report: spine_core::backup::RestoreReport,
+}
+
+/// Save a `.zip` backup of Spine's settings, favorites, lists, playtime, progress, custom covers and themes.
+#[tauri::command]
+async fn create_backup(include_secrets: bool, handle: AppHandle) -> Result<Option<spine_core::backup::BackupReport>, String> {
+    let dest = handle
+        .dialog()
+        .file()
+        .set_title("Save Spine backup")
+        .set_file_name("spine-backup.zip")
+        .add_filter("Spine backup (.zip)", &["zip"])
+        .blocking_save_file()
+        .and_then(|p| p.into_path().ok());
+    let Some(dst) = dest else { return Ok(None) };
+    let app = handle.state::<App>();
+    app.save();
+    let dir = app.dir.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        spine_core::backup::create_backup(&dir, &dst, include_secrets).map(Some)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Restore a Spine `.zip` backup, reload settings/themes/addons/library, and return the refreshed state.
+#[tauri::command]
+async fn restore_backup(handle: AppHandle) -> Result<Option<RestoreResult>, String> {
+    let src = handle
+        .dialog()
+        .file()
+        .set_title("Restore a Spine backup (.zip)")
+        .add_filter("Spine backup (.zip)", &["zip"])
+        .blocking_pick_file()
+        .and_then(|p| p.into_path().ok());
+    let Some(zip_path) = src else { return Ok(None) };
+    let app = handle.state::<App>();
+    if app.running.lock().unwrap().is_some() {
+        return Err("Close your game or video first before restoring a backup.".into());
+    }
+    let dir = app.dir.clone();
+    let report = tauri::async_runtime::spawn_blocking(move || {
+        spine_core::backup::restore_backup(&dir, &zip_path)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    // Reload restored state, addons, and library in memory right away.
+    let mut restored: Saved = fs::read_to_string(app.dir.join("spine-state.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .ok_or("Restored settings file couldn't be read.")?;
+    backfill_watched(&mut restored);
+    let empty = restored.empty();
+    *app.saved.lock().unwrap() = restored;
+    *app.addons.lock().unwrap() = load_addons(&app.dir);
+    if empty {
+        *app.library.lock().unwrap() = None;
+        *app.offline.lock().unwrap() = vec![];
+    } else {
+        reload(&app);
+    }
+    Ok(Some(RestoreResult {
+        boot: view(&app),
+        report,
+    }))
+}
+
 fn find<'a>(lib: &'a Library, id: &str) -> Option<(&'a spine_core::SystemLibrary, &'a spine_core::Game)> {
     lib.systems.iter().find_map(|s| s.games.iter().find(|g| g.id == id).map(|g| (s, g)))
 }
@@ -2494,7 +2565,7 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, set_autostart, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, forget_played, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv, reload_themes, import_theme, import_external_folder, import_theme_url, export_theme, create_starter_theme, delete_theme, pick_custom_asset, clear_custom_asset, save_custom_theme])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, set_autostart, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, forget_played, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv, reload_themes, import_theme, import_external_folder, import_theme_url, export_theme, create_starter_theme, delete_theme, pick_custom_asset, clear_custom_asset, save_custom_theme, create_backup, restore_backup])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

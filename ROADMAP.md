@@ -15,6 +15,7 @@
 
 ## Done
 
+- Liquid Glass built-in themes (Light & Dark) for Desktop and TV mode + Backup & Restore (`.zip` backup of state, custom media & themes with opt-in secrets and automatic pre-restore safety copy) under Settings → Updates & window (0.44.0).
 - Theme Manager "Import from link" (GitHub, GitLab, `git.es-de.org`, Codeberg, or direct `.zip`), larger archive support, ES-DE `artwork/`/`art/` console wallpaper discovery, and cleaner Home wallpaper display (0.43.2).
 - Redesigned Settings menu: centered two-column window with icon sidebar, grouped cards, inline toggle switches, visual theme & Home style tiles, dedicated Theme Manager sub-page, and live-preview Customize look side drawer (0.43.1).
 - Full customization & theme packs: Simple Mode "Customize look" editor (palettes, colors, wallpapers, fonts, corners, glass cards, custom audio, Save & Export `.zip`), Advanced Theme Packs (`themes/` folder with `theme.json`, `theme.css`, fonts, global & per-console wallpapers, console icons, music, UI sounds, creator toggles, custom mascot packs, separate Desktop/TV themes, mix-and-match overrides, `Ctrl+Shift+R` safe reset, `THEMING.md`), and external pack importer for ES-DE themes, Daijishō wallpaper packs and RetroArch icon packs (0.43.0).

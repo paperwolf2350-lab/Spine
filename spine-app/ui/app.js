@@ -766,10 +766,12 @@ const HS_ICON = {
   cube: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>',
 };
 const BUILTIN_THEME_PREVIEW = {
-  cream:    { label: 'Cream',     bg: '#F6F2EA', card: '#FFFFFF', dot: '#C8431F' },
-  midnight: { label: 'Midnight',  bg: '#121318', card: '#1C1E25', dot: '#3B82F6' },
-  crt:      { label: 'Retro CRT', bg: '#070B07', card: '#0E160E', dot: '#6FE86F' },
-  tv:       { label: 'TV Dark',   bg: '#101218', card: '#1A1D26', dot: '#E09A3E' },
+  cream:         { label: 'Cream',        bg: '#F6F2EA', card: '#FFFFFF', dot: '#C8431F' },
+  midnight:      { label: 'Midnight',     bg: '#121318', card: '#1C1E25', dot: '#3B82F6' },
+  crt:           { label: 'Retro CRT',    bg: '#070B07', card: '#0E160E', dot: '#6FE86F' },
+  'glass-light': { label: 'Liquid Glass', bg: 'linear-gradient(135deg, #BFD9FF 0%, #E7D8FF 52%, #BCEEE5 100%)', card: 'rgba(255,255,255,0.68)', dot: '#007AFF' },
+  'glass-dark':  { label: 'Glass Dark',   bg: 'linear-gradient(135deg, #102454 0%, #26164A 52%, #0B3A42 100%)', card: 'rgba(255,255,255,0.18)', dot: '#4DA3FF' },
+  tv:            { label: 'TV Dark',      bg: '#101218', card: '#1A1D26', dot: '#E09A3E' },
 };
 const setTab = () => (SET_TABS.some(([k]) => k === S.setTab) ? S.setTab : 'look');
 
@@ -805,7 +807,7 @@ function settingsPanel() {
       return `<button class="swatch ${on ? 'on' : ''}" style="background:${c}" data-nav data-key="acc-${c}" data-act="accent" data-c="${c}" aria-label="Accent ${c}">${on ? '✓' : ''}</button>`;
     }).join('');
     const style = waveOn() ? 'wave' : channelsOn() ? 'channels' : bladesOn() ? 'blades' : cubeOn() ? 'cube' : 'classic';
-    const builtinIds = tv ? ['tv', 'cream', 'midnight', 'crt'] : ['cream', 'midnight', 'crt'];
+    const builtinIds = tv ? ['tv', 'glass-dark', 'glass-light', 'cream', 'midnight', 'crt'] : ['cream', 'midnight', 'crt', 'glass-light', 'glass-dark'];
     const themeTile = (id, label, bg, card, dot, previewUrl) => {
       const on = activeThemeId === id;
       const mini = previewUrl
@@ -945,6 +947,14 @@ function settingsPanel() {
         `${S.update?.available ? `<button class="btn small primary" data-nav data-key="upd-go" data-act="installupdate">${ICON.download} Update to ${esc(S.update.latest)}</button>` : ''}<button class="btn small" data-nav data-key="upd-check" data-act="checkupdate">Check now</button>`)
       + row('Check automatically', 'Check for new Spine releases when Spine starts.',
         tog('upd-auto', 'autoupdate', st.autoUpdate !== false, '', 'Check for updates automatically'))
+    )
+    + sec('Backup &amp; restore',
+      row('Back up Spine data', 'Saves your settings, favorites, lists, playtime, watch progress, custom covers and installed themes in one .zip.',
+        `<button class="btn small" data-nav data-key="bk-save" data-act="backupdata" ${S.backupBusy ? 'disabled' : ''}>${S.backupBusy ? 'Working…' : 'Back up now'}</button>`)
+      + row('Include API keys &amp; streaming addons', 'Off by default so backups stay safe to share. Turn on when moving to another PC of your own.',
+        tog('bk-sec', 'backupsecrets', !!S.backupSecrets, '', 'Include API keys and streaming addons'))
+      + row('Restore from backup', 'Restores a Spine backup .zip and saves a safety copy of your current settings first.',
+        `<button class="btn small" data-nav data-key="bk-load" data-act="restoredata" ${S.backupBusy ? 'disabled' : ''}>Restore backup…</button>`)
     )
     + sec('Window & startup',
       row('Start with your PC', 'Launch Spine automatically when you sign in.',
@@ -2311,6 +2321,40 @@ const ACT = {
     S.focusKey = 'cust-back';
     await setSetting(THEMES.customKey(), {});
     toast('Customizations cleared');
+  },
+  backupsecrets() { S.backupSecrets = !S.backupSecrets; S.focusKey = 'bk-sec'; render(); },
+  async backupdata() {
+    S.backupBusy = true; S.focusKey = 'bk-save'; render();
+    try {
+      const rep = await api.call('create_backup', { includeSecrets: !!S.backupSecrets });
+      if (!rep) return;
+      const parts = [];
+      if (rep.themes) parts.push(`${rep.themes} theme${rep.themes === 1 ? '' : 's'}`);
+      if (rep.custom_files) parts.push(`${rep.custom_files} custom file${rep.custom_files === 1 ? '' : 's'}`);
+      if (rep.included_secrets) parts.push('API keys & addons');
+      const kb = Math.max(1, Math.round(rep.bytes / 1024));
+      const size = kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`;
+      toast(`Backup saved (${size}${parts.length ? ' · ' + parts.join(', ') : ''})`, 5000);
+    } catch (e) { toast(String(e), 6000); }
+    finally { S.backupBusy = false; render(); }
+  },
+  async restoredata() {
+    S.backupBusy = true; S.focusKey = 'bk-load'; render();
+    try {
+      const res = await api.call('restore_backup');
+      if (!res) return;
+      S.boot = res.boot;
+      THEMES.clearCache();
+      const hasLib = S.boot.rom_root || (S.boot.movie_roots || []).length || (S.boot.tv_roots || []).length;
+      S.screen = hasLib ? 'home' : 'welcome';
+      const r = res.report;
+      const parts = [];
+      if (r.themes) parts.push(`${r.themes} theme${r.themes === 1 ? '' : 's'}`);
+      if (r.custom_files) parts.push(`${r.custom_files} custom file${r.custom_files === 1 ? '' : 's'}`);
+      if (r.restored_secrets) parts.push('API keys & addons');
+      toast(`Backup restored${parts.length ? ' (' + parts.join(', ') + ')' : ''}`, 5000);
+    } catch (e) { toast(String(e), 6000); }
+    finally { S.backupBusy = false; render(); }
   },
   homemusic(d) { S.focusKey = `bgm-${d.v}`; setSetting('homeMusic', d.v); },
   async upnext(d) { S.focusKey = `upn-${d.v}`; if (d.v !== 'off') await setSetting('autoplayWait', Number(d.v)); setSetting('autoplayNext', d.v !== 'off'); },
