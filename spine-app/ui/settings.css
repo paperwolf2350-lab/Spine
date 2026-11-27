@@ -1,0 +1,498 @@
+/* Spine — redesigned Settings modal, inline toggle rows, visual theme tiles,
+   theme manager sub-page, and polished scrollbars. */
+
+/* Subtle custom scrollbars inside panels & sheets */
+.set-scroll,
+.panel .sheet {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text) 24%, transparent) transparent;
+}
+.set-scroll::-webkit-scrollbar,
+.panel .sheet::-webkit-scrollbar { width: 8px; height: 8px; }
+.set-scroll::-webkit-scrollbar-track,
+.panel .sheet::-webkit-scrollbar-track { background: transparent; }
+.set-scroll::-webkit-scrollbar-thumb,
+.panel .sheet::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text) 20%, transparent);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.set-scroll::-webkit-scrollbar-thumb:hover,
+.panel .sheet::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text) 36%, transparent);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+/* Centered two-column Settings modal */
+.panel.set-modal {
+  justify-content: center;
+  align-items: center;
+  padding: 28px;
+  background: rgba(10, 11, 16, .58);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.set-win {
+  width: min(980px, 100%);
+  height: min(720px, 100%);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, .42), 0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent);
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+/* Left sidebar */
+.set-nav {
+  background: color-mix(in srgb, var(--surface2) 55%, var(--bg));
+  border-right: 1px solid var(--line);
+  padding: 22px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+.set-nav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 10px 14px;
+}
+.set-nav-head h2 {
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+.set-nav-hint {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  padding: 3px 7px;
+  border-radius: 6px;
+  letter-spacing: .03em;
+}
+.set-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background .14s ease, color .14s ease;
+}
+.set-tab svg { width: 18px; height: 18px; flex: 0 0 auto; opacity: .82; }
+.set-tab:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
+.set-tab.on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .08), inset 0 0 0 1px var(--line);
+}
+.set-tab.on svg { color: var(--accent); opacity: 1; }
+.set-tab.on::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+.set-nav-foot {
+  margin-top: auto;
+  padding: 12px 10px 2px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Right content pane */
+.set-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.set-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 20px 26px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.set-head-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.set-head h3 { font-size: 20px; font-weight: 700; letter-spacing: -0.015em; }
+.set-head p { margin: 0; font-size: 13px; color: var(--muted); }
+.set-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--surface2);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  transition: background .14s ease, color .14s ease;
+}
+.set-close:hover { background: color-mix(in srgb, var(--text) 12%, var(--surface2)); color: var(--text); }
+
+.set-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 26px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.set-foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  padding: 11px 26px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface2) 35%, var(--bg));
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.set-foot span.h { display: inline-flex; align-items: center; gap: 6px; }
+.set-foot .glyph { width: 20px; height: 20px; font-size: 10px; }
+.set-foot .glyph.wide { padding: 0 6px; border-radius: 6px; }
+
+/* Section headings & grouped cards */
+.set-section { display: flex; flex-direction: column; gap: 8px; }
+.set-sec-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-left: 4px;
+}
+.set-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Individual rows inside a card */
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 18px;
+}
+.set-row + .set-row {
+  border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+.set-row.stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.set-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+.set-t {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.25;
+}
+.set-d {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.set-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+/* Real pill toggle switch */
+.toggle {
+  position: relative;
+  width: 50px;
+  height: 28px;
+  border-radius: 99px;
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  transition: background .16s ease, border-color .16s ease;
+  flex: 0 0 auto;
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform .16s ease, background .16s ease;
+}
+.toggle.on {
+  background: var(--accent);
+  border-color: transparent;
+}
+.toggle.on::after {
+  transform: translateX(22px);
+  background: var(--accent-ink, #fff);
+}
+
+/* Compact segmented control for 2-5 short choices */
+.set-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 11px;
+  background: var(--surface2);
+  border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+}
+.set-seg button {
+  padding: 6px 12px;
+  min-height: 32px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background .12s ease, color .12s ease;
+}
+.set-seg button:hover { color: var(--text); }
+.set-seg button.on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .14);
+}
+
+/* Visual theme preview tiles */
+.th-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(146px, 1fr));
+  gap: 10px;
+}
+.th-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 13px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  text-align: left;
+  transition: border-color .14s ease, transform .14s ease;
+}
+.th-tile:hover { border-color: color-mix(in srgb, var(--text) 30%, var(--line)); }
+.th-tile.on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.th-mini {
+  height: 46px;
+  border-radius: 8px;
+  padding: 7px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px;
+  border: 1px solid rgba(128, 128, 128, .22);
+  overflow: hidden;
+  position: relative;
+}
+.th-mini img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.th-mini-card {
+  width: 58%;
+  height: 20px;
+  border-radius: 5px;
+  position: relative;
+  z-index: 1;
+}
+.th-mini-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  position: relative;
+  z-index: 1;
+}
+.th-tile-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.th-tile-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.th-tile-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink, #fff);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+/* Home style tiles with crisp icons */
+.hs-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.hs-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px 8px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.hs-tile svg { width: 22px; height: 22px; }
+.hs-tile:hover { color: var(--text); border-color: color-mix(in srgb, var(--text) 28%, var(--line)); }
+.hs-tile.on {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-color: var(--accent);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.hs-tile.on svg { color: var(--accent); }
+
+/* Clean accent swatches inside Settings */
+.set-swatches { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.set-swatches .swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+.set-swatches .swatch.on {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text);
+}
+
+/* Make legacy .grp blocks (like addonSettings / hideGenresGroup) blend seamlessly inside the new modal */
+.set-scroll > .grp {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.set-scroll > .grp > .k {
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+}
+
+/* Theme manager sub-page (single-column centered modal) */
+.set-win.subpage {
+  width: min(760px, 100%);
+  height: min(680px, 100%);
+  grid-template-columns: 1fr;
+}
+.mgr-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.mgr-act {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 13px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  text-align: left;
+  transition: border-color .14s ease, background .14s ease;
+}
+.mgr-act:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+.mgr-act .t { font-size: 14px; font-weight: 600; color: var(--text); }
+.mgr-act .d { font-size: 12px; color: var(--muted); line-height: 1.35; }
+
+/* Slim side drawer for Customize look (keeps live Home screen visible!) */
+.panel .sheet.cust-drawer {
+  width: 480px;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+.panel .sheet.cust-drawer .set-head { padding: 18px 22px 14px; }
+.panel .sheet.cust-drawer .set-scroll { padding: 18px 22px 24px; gap: 16px; }
+
+/* Narrow windows: stack sidebar nicely */
+@media (max-width: 780px) {
+  .panel.set-modal { padding: 12px; }
+  .set-win { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .set-nav { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 10px 12px; gap: 6px; }
+  .set-nav-head, .set-nav-foot { display: none; }
+  .set-tab { width: auto; white-space: nowrap; }
+  .set-tab.on::before { display: none; }
+  .hs-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mgr-actions { grid-template-columns: 1fr; }
+}
