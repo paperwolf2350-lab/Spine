@@ -1031,6 +1031,13 @@ function themeManagerPanel() {
         </header>
         <div class="set-scroll scroll" id="tmscroll">
           <section class="set-section">
+            <div class="set-sec-title">Import from link</div>
+            <div class="mgr-url">
+              <input type="text" id="th-url" data-nav data-key="th-url" data-enter="importurl" value="${esc(S.themeUrl || '')}" placeholder="Paste a GitHub, GitLab, git.es-de.org, or .zip link…" autocomplete="off" spellcheck="false" ${S.themeUrlBusy ? 'disabled' : ''}>
+              <button class="btn small primary" data-nav data-key="th-url-go" data-act="importurl" ${S.themeUrlBusy ? 'disabled' : ''}>${S.themeUrlBusy ? 'Downloading…' : 'Download &amp; import'}</button>
+            </div>
+          </section>
+          <section class="set-section">
             <div class="set-sec-title">Import &amp; create</div>
             <div class="mgr-actions">
               <button class="mgr-act" data-nav data-key="th-imp" data-act="importtheme">
@@ -2167,6 +2174,22 @@ const ACT = {
     S.focusKey = 'th-impdir';
     await finishThemeImport(() => api.call('import_external_folder'));
   },
+  async importurl() {
+    const input = document.getElementById('th-url');
+    const url = (input ? input.value : S.themeUrl || '').trim();
+    if (!url) { toast('Paste a GitHub, GitLab, or .zip link first.', 3500); if (input) input.focus(); return; }
+    S.themeUrl = url;
+    S.themeUrlBusy = true;
+    S.focusKey = 'th-url-go';
+    render();
+    try {
+      await finishThemeImport(() => api.call('import_theme_url', { url }));
+      S.themeUrl = '';
+    } finally {
+      S.themeUrlBusy = false;
+      render();
+    }
+  },
   async exporttheme(d) {
     S.focusKey = `thexp-${d.id}`;
     try {
@@ -2653,6 +2676,7 @@ document.addEventListener('input', (e) => {
   const el = e.target;
   if (!el) return;
   if (el.id === 'cust-name') { S.custName = el.value; return; }
+  if (el.id === 'th-url') { S.themeUrl = el.value; return; }
   if (typeof THEMES === 'undefined') return;
   const cslot = el.dataset?.custColor;
   if (cslot && THEMES.isHex(el.value)) {

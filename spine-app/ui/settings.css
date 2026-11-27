@@ -474,6 +474,28 @@
 }
 .mgr-act .t { font-size: 14px; font-weight: 600; color: var(--text); }
 .mgr-act .d { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.mgr-url {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.mgr-url input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 14px;
+}
+.mgr-url input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
 
 /* Slim side drawer for Customize look (keeps live Home screen visible!) */
 .panel .sheet.cust-drawer {

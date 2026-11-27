@@ -22,8 +22,8 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::OnceLock;
 
 const ICON_EXTS: &[&str] = &["png", "svg", "webp", "jpg", "jpeg"];
-const MAX_IMPORT_FILES: usize = 1500;
-const MAX_IMPORT_BYTES: u64 = 250 * 1024 * 1024; // 250 MB
+const MAX_IMPORT_FILES: usize = 12_000;
+const MAX_IMPORT_BYTES: u64 = 500 * 1024 * 1024; // 500 MB
 
 /// Summary returned to the UI so the user knows exactly what was imported.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -494,11 +494,20 @@ pub fn import_external_folder(themes_dir: &Path, src_dir: &Path) -> Result<Impor
         (None, BTreeMap::new())
     };
 
-    let folder_label = root
+    let raw_folder = root
         .file_name()
         .and_then(|n| n.to_str())
-        .unwrap_or("Imported Pack")
-        .replace(['-', '_'], " ");
+        .unwrap_or("Imported Pack");
+    let mut clean_folder = raw_folder.to_string();
+    for suf in ["-main", "-master", "-HEAD", "-head"] {
+        if let Some(rest) = clean_folder.strip_suffix(suf) {
+            if !rest.is_empty() {
+                clean_folder = rest.to_string();
+                break;
+            }
+        }
+    }
+    let folder_label = clean_folder.replace(['-', '_'], " ");
 
     let pack_name = daijisho
         .as_ref()
@@ -599,7 +608,7 @@ pub fn import_external_folder(themes_dir: &Path, src_dir: &Path) -> Result<Impor
             continue;
         }
 
-        // Classify whether this image is an icon/logo or a wallpaper/background.
+        // Classify whether this image is an icon/logo or a wallpaper/background/system artwork.
         let comps: Vec<String> = rel
             .components()
             .filter_map(|c| match c {
@@ -608,14 +617,46 @@ pub fn import_external_folder(themes_dir: &Path, src_dir: &Path) -> Result<Impor
             })
             .collect();
         let parent_dirs = &comps[..comps.len().saturating_sub(1)];
+        let is_ui_junk_dir = parent_dirs.iter().any(|d| {
+            d.contains("controller")
+                || d.contains("badge")
+                || d.contains("flag")
+                || d.contains("rating")
+                || d.contains("help")
+                || d.contains("button")
+                || d.contains("metadata")
+                || d.contains("gamelist")
+                || d.contains("mask")
+                || d.contains("frame")
+                || d.contains("overlay")
+        });
+        if is_ui_junk_dir {
+            continue;
+        }
         let is_logo_dir = parent_dirs.iter().any(|d| {
             d.contains("logo") || d.contains("icon") || d.contains("wheel") || d.contains("marquee") || d == "png" || d == "svg"
         });
-        let is_wp_dir = parent_dirs.iter().any(|d| {
-            d.contains("wallpaper") || d.contains("background") || d.contains("fanart") || d == "bg" || d == "backgrounds"
-        });
+        let is_wp_dir = !is_logo_dir
+            && parent_dirs.iter().any(|d| {
+                d.contains("wallpaper")
+                    || d.contains("background")
+                    || d.contains("fanart")
+                    || d.contains("artwork")
+                    || d == "art"
+                    || d == "bg"
+                    || d == "backgrounds"
+                    || d.contains("image")
+                    || d.contains("hero")
+                    || d.contains("banner")
+                    || d.contains("system")
+                    || d.contains("console")
+            });
         let is_logo_name = stem_low.contains("logo") || stem_low.contains("icon") || ext == "svg";
-        let is_wp_name = stem_low.contains("wallpaper") || stem_low.contains("background") || stem_low.contains("fanart") || stem_low == "bg";
+        let is_wp_name = stem_low.contains("wallpaper")
+            || stem_low.contains("background")
+            || stem_low.contains("fanart")
+            || stem_low.contains("artwork")
+            || stem_low == "bg";
 
         // Try matching console id from filename first, then from parent folder (ES-DE `<sys>/art/background.jpg`)
         let sys_from_file = match_console_id(stem);
@@ -628,10 +669,21 @@ pub fn import_external_folder(themes_dir: &Path, src_dir: &Path) -> Result<Impor
             retroarch_hits += 1;
         }
 
+        let insert_wallpaper = |map: &mut BTreeMap<String, PathBuf>, id: String, cand: &Path| {
+            let cand_size = fs::metadata(cand).map(|m| m.len()).unwrap_or(0);
+            let replace = map.get(&id).map_or(true, |cur| {
+                let cur_size = fs::metadata(cur).map(|m| m.len()).unwrap_or(0);
+                cand_size > cur_size
+            });
+            if replace {
+                map.insert(id, cand.to_path_buf());
+            }
+        };
+
         if is_logo_dir || (is_logo_name && !is_wp_dir) {
             if let Some(id) = sys_from_file.or(sys_from_dir) {
                 if id != "default" && ICON_EXTS.contains(&ext.as_str()) {
-                    // Prefer SVG or PNG over JPG for icons
+                    // Prefer SVG over raster for crisp scalable console logos
                     let replace = icons
                         .get(&id)
                         .map_or(true, |cur| file_ext(cur) != "svg" && ext == "svg");
@@ -641,9 +693,15 @@ pub fn import_external_folder(themes_dir: &Path, src_dir: &Path) -> Result<Impor
                 }
             }
         } else if is_wp_dir || is_wp_name {
-            if let Some(id) = sys_from_dir.or(sys_from_file) {
+            let chosen = sys_from_file
+                .as_ref()
+                .filter(|id| *id != "default")
+                .cloned()
+                .or(sys_from_dir)
+                .or(sys_from_file);
+            if let Some(id) = chosen {
                 if WALLPAPER_EXTS.contains(&ext.as_str()) {
-                    wallpapers.entry(id).or_insert_with(|| p.clone());
+                    insert_wallpaper(&mut wallpapers, id, p);
                 }
             }
         } else if let Some(id) = sys_from_file {
@@ -654,7 +712,7 @@ pub fn import_external_folder(themes_dir: &Path, src_dir: &Path) -> Result<Impor
                 }
             } else if daijisho.is_some() || path_lower.contains("wallpaper") || path_lower.contains("background") || !is_esde {
                 if WALLPAPER_EXTS.contains(&ext.as_str()) {
-                    wallpapers.entry(id).or_insert_with(|| p.clone());
+                    insert_wallpaper(&mut wallpapers, id, p);
                 }
             }
         }
@@ -774,7 +832,7 @@ pub fn import_external_folder(themes_dir: &Path, src_dir: &Path) -> Result<Impor
 
     let style = if !wallpapers.is_empty() {
         Some(ThemeStyle {
-            wallpaper_dim: Some(0.5),
+            wallpaper_dim: Some(0.38),
             ..ThemeStyle::default()
         })
     } else {
@@ -864,6 +922,19 @@ pub fn import_any_zip(themes_dir: &Path, zip_path: &Path) -> Result<ImportReport
 
     let mut written: u64 = 0;
     let extract_res: Result<(), String> = (|| {
+        // Detect if this archive has a Daijisho index.json (in which case filenames are mapped inside index.json).
+        let mut has_daijisho = false;
+        for i in 0..archive.len() {
+            if let Ok(entry) = archive.by_index(i) {
+                if let Some(rel) = entry.enclosed_name() {
+                    if rel.file_name().and_then(|n| n.to_str()) == Some("index.json") {
+                        has_daijisho = true;
+                        break;
+                    }
+                }
+            }
+        }
+
         for i in 0..archive.len() {
             let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
             if entry.is_dir() {
@@ -883,6 +954,21 @@ pub fn import_any_zip(themes_dir: &Path, zip_path: &Path) -> Result<ImportReport
             if !themes::is_safe_asset_ext(&ext) && ext != "xml" {
                 continue;
             }
+            // For huge ES-DE archives (no index.json), skip images belonging to consoles Spine doesn't track
+            // so extracting 4,000+ file repos stays fast and lightweight.
+            if !has_daijisho && (ICON_EXTS.contains(&ext.as_str()) || WALLPAPER_EXTS.contains(&ext.as_str())) {
+                let stem = rel.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                let stem_low = stem.to_ascii_lowercase();
+                let keep = matches!(stem_low.as_str(), "preview" | "screenshot" | "thumbnail" | "cover" | "default" | "_default" | "background" | "bg" | "wallpaper")
+                    || match_console_id(stem).is_some()
+                    || rel.parent().into_iter().flat_map(|p| p.components()).any(|c| match c {
+                        Component::Normal(s) => s.to_str().and_then(match_console_id).is_some(),
+                        _ => false,
+                    });
+                if !keep {
+                    continue;
+                }
+            }
             let dest = stage.join(rel);
             if let Some(parent) = dest.parent() {
                 fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -892,7 +978,7 @@ pub fn import_any_zip(themes_dir: &Path, zip_path: &Path) -> Result<ImportReport
             let n = io::copy(&mut limited, &mut out).map_err(|e| e.to_string())?;
             written = written.saturating_add(n);
             if written > MAX_IMPORT_BYTES {
-                return Err("Archive is too large (max 250 MB extracted).".into());
+                return Err("Archive is too large (max 500 MB extracted).".into());
             }
         }
         Ok(())
@@ -903,6 +989,158 @@ pub fn import_any_zip(themes_dir: &Path, zip_path: &Path) -> Result<ImportReport
         Err(e) => Err(e),
     };
     let _ = fs::remove_dir_all(&stage);
+    res
+}
+
+/// Turn a user-pasted link (GitHub repo, GitLab / git.es-de.org repo, Codeberg repo,
+/// or direct `.zip` link) into an ordered list of candidate `.zip` download URLs.
+pub fn candidate_zip_urls(raw: &str) -> Result<(Vec<String>, String), String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("Paste a GitHub, GitLab, or .zip link first.".into());
+    }
+    if trimmed.contains([' ', '\n', '\r', '"', '\'', '<', '>', '`']) {
+        return Err("That doesn't look like a valid web link.".into());
+    }
+    let normalized = if trimmed.starts_with("https://") || trimmed.starts_with("http://") {
+        trimmed.to_string()
+    } else if trimmed.starts_with("github.com/") || trimmed.starts_with("gitlab.com/") || trimmed.starts_with("git.es-de.org/") || trimmed.starts_with("codeberg.org/") {
+        format!("https://{trimmed}")
+    } else {
+        return Err("Links must start with https:// (for example a GitHub, GitLab, or .zip URL).".into());
+    };
+
+    let without_frag = normalized.split('#').next().unwrap_or(&normalized);
+    let path_no_query = without_frag.split('?').next().unwrap_or(without_frag);
+    let low_no_query = path_no_query.to_ascii_lowercase();
+
+    // Direct .zip URL
+    if low_no_query.ends_with(".zip") {
+        let label = path_no_query
+            .rsplit('/')
+            .next()
+            .unwrap_or("theme.zip")
+            .trim_end_matches(".zip")
+            .to_string();
+        return Ok((vec![without_frag.to_string()], label));
+    }
+
+    let (scheme, rest) = without_frag
+        .split_once("://")
+        .ok_or("Invalid URL.")?;
+    let (host, path_raw) = rest
+        .split_once('/')
+        .ok_or("Paste the full repository link, not just the website home page.")?;
+    let host_low = host.to_ascii_lowercase();
+    let path_clean = path_raw
+        .split('?')
+        .next()
+        .unwrap_or(path_raw)
+        .trim_end_matches('/')
+        .trim_end_matches(".git");
+
+    // GitHub: https://github.com/<owner>/<repo> (or /tree/<branch>)
+    if host_low == "github.com" || host_low == "www.github.com" {
+        let segs: Vec<&str> = path_clean.split('/').filter(|s| !s.is_empty()).collect();
+        if segs.len() < 2 {
+            return Err("Paste a full GitHub repository link (like https://github.com/owner/theme-repo).".into());
+        }
+        let (owner, repo) = (segs[0], segs[1].trim_end_matches(".git"));
+        let mut urls = Vec::new();
+        if segs.len() >= 4 && segs[2] == "tree" {
+            let branch = segs[3..].join("/");
+            urls.push(format!("https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip"));
+        } else {
+            urls.push(format!("https://github.com/{owner}/{repo}/archive/refs/heads/main.zip"));
+            urls.push(format!("https://github.com/{owner}/{repo}/archive/refs/heads/master.zip"));
+            urls.push(format!("https://api.github.com/repos/{owner}/{repo}/zipball"));
+        }
+        return Ok((urls, repo.to_string()));
+    }
+
+    // Codeberg / Forgejo / Gitea: https://codeberg.org/<owner>/<repo>
+    if host_low == "codeberg.org" {
+        let segs: Vec<&str> = path_clean.split('/').filter(|s| !s.is_empty()).collect();
+        if segs.len() < 2 {
+            return Err("Paste a full Codeberg repository link.".into());
+        }
+        let (owner, repo) = (segs[0], segs[1].trim_end_matches(".git"));
+        return Ok((
+            vec![
+                format!("https://codeberg.org/{owner}/{repo}/archive/main.zip"),
+                format!("https://codeberg.org/{owner}/{repo}/archive/master.zip"),
+            ],
+            repo.to_string(),
+        ));
+    }
+
+    // GitLab & git.es-de.org (supports nested groups like gitlab.com/es-de/themes/foo)
+    let (repo_path, explicit_branch) = if let Some((left, right)) = path_clean.split_once("/-/tree/") {
+        (left.trim_end_matches('/'), Some(right.trim_matches('/')))
+    } else if let Some((left, _)) = path_clean.split_once("/-/") {
+        (left.trim_end_matches('/'), None)
+    } else {
+        (path_clean, None)
+    };
+    let segs: Vec<&str> = repo_path.split('/').filter(|s| !s.is_empty()).collect();
+    if segs.len() < 2 {
+        return Err("Paste a full repository link (GitHub, GitLab, git.es-de.org) or a direct .zip link.".into());
+    }
+    let repo_name = segs.last().copied().unwrap_or("theme").trim_end_matches(".git");
+    let clean_repo_path = repo_path.trim_end_matches(".git");
+    let mut urls = Vec::new();
+    if let Some(br) = explicit_branch.filter(|b| !b.is_empty()) {
+        urls.push(format!("{scheme}://{host}/{clean_repo_path}/-/archive/{br}/{repo_name}-{br}.zip"));
+    } else {
+        urls.push(format!("{scheme}://{host}/{clean_repo_path}/-/archive/main/{repo_name}-main.zip"));
+        urls.push(format!("{scheme}://{host}/{clean_repo_path}/-/archive/master/{repo_name}-master.zip"));
+        urls.push(format!("{scheme}://{host}/{clean_repo_path}/-/archive/HEAD/{repo_name}-HEAD.zip"));
+    }
+    Ok((urls, repo_name.to_string()))
+}
+
+/// Download a theme or external pack from a GitHub / GitLab / direct `.zip` link and import it.
+pub fn import_from_url(themes_dir: &Path, raw_url: &str) -> Result<ImportReport, String> {
+    let (urls, label) = candidate_zip_urls(raw_url)?;
+    let slug = themes::sanitize_id(&label);
+    let tmp_zip = std::env::temp_dir().join(format!("spine-dl-{}-{slug}.zip", std::process::id()));
+    let _ = fs::remove_file(&tmp_zip);
+
+    let mut last_err = String::from("Download failed.");
+    let mut downloaded = false;
+    for url in &urls {
+        let _ = fs::remove_file(&tmp_zip);
+        match crate::covers::curl_to_file(url, &tmp_zip, 300) {
+            Ok(()) => {
+                // Verify we actually got a ZIP file (magic bytes PK\x03\x04), not an HTML 404 page.
+                let is_zip = fs::File::open(&tmp_zip)
+                    .ok()
+                    .and_then(|mut f| {
+                        let mut hdr = [0u8; 4];
+                        f.read_exact(&mut hdr).ok().map(|_| hdr == *b"PK\x03\x04")
+                    })
+                    .unwrap_or(false);
+                if is_zip {
+                    downloaded = true;
+                    break;
+                }
+                last_err = "The server didn't return a .zip archive for that branch.".into();
+            }
+            Err(e) => {
+                last_err = e;
+            }
+        }
+    }
+
+    if !downloaded {
+        let _ = fs::remove_file(&tmp_zip);
+        return Err(format!(
+            "Couldn't download a .zip from that link ({last_err}). Check the URL or download the .zip in your browser and use Import theme / pack (.zip)."
+        ));
+    }
+
+    let res = import_any_zip(themes_dir, &tmp_zip);
+    let _ = fs::remove_file(&tmp_zip);
     res
 }
 
@@ -936,7 +1174,7 @@ mod tests {
         let root = tmp("esde");
         let src = root.join("art-book-sample");
         let themes_dir = root.join("themes");
-        for sub in ["_inc/backgrounds", "_inc/logos", "_inc/fonts", "_inc/music", "_inc/sounds", "ps2"] {
+        for sub in ["_inc/systems/artwork", "_inc/systems/logos", "_inc/fonts", "_inc/music", "_inc/sounds", "ps2"] {
             fs::create_dir_all(src.join(sub)).unwrap();
         }
         fs::write(
@@ -949,11 +1187,11 @@ mod tests {
             r#"<theme><variables><backgroundColor>141824FF</backgroundColor><selectedColor>FF5577</selectedColor><textColor>F0F2FA</textColor></variables></theme>"#,
         )
         .unwrap();
-        fs::write(src.join("_inc/backgrounds/default.jpg"), b"bg").unwrap();
-        fs::write(src.join("_inc/backgrounds/snes.png"), b"snesbg").unwrap();
+        fs::write(src.join("_inc/systems/artwork/default.jpg"), b"bg").unwrap();
+        fs::write(src.join("_inc/systems/artwork/snes.png"), b"snesbg").unwrap();
         fs::write(src.join("ps2/background.jpg"), b"ps2bg").unwrap();
-        fs::write(src.join("_inc/logos/snes.svg"), b"<svg/>").unwrap();
-        fs::write(src.join("_inc/logos/gamecube.png"), b"gclogo").unwrap();
+        fs::write(src.join("_inc/systems/logos/snes.svg"), b"<svg/>").unwrap();
+        fs::write(src.join("_inc/systems/logos/gamecube.png"), b"gclogo").unwrap();
         fs::write(src.join("_inc/fonts/Cabinet.ttf"), b"font").unwrap();
         fs::write(src.join("_inc/music/bgm.mp3"), b"music").unwrap();
         fs::write(src.join("_inc/sounds/scroll.wav"), b"wav").unwrap();
@@ -1031,5 +1269,29 @@ mod tests {
         assert!(rep.pack.has_icons);
 
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resolves_github_gitlab_and_direct_zip_urls() {
+        let (u, lbl) = candidate_zip_urls("https://github.com/anthonycaccese/art-book-next-es-de").unwrap();
+        assert_eq!(lbl, "art-book-next-es-de");
+        assert_eq!(u[0], "https://github.com/anthonycaccese/art-book-next-es-de/archive/refs/heads/main.zip");
+        assert_eq!(u[1], "https://github.com/anthonycaccese/art-book-next-es-de/archive/refs/heads/master.zip");
+        assert_eq!(u[2], "https://api.github.com/repos/anthonycaccese/art-book-next-es-de/zipball");
+
+        let (u, lbl) = candidate_zip_urls("https://gitlab.com/es-de/themes/iconic-es-de.git").unwrap();
+        assert_eq!(lbl, "iconic-es-de");
+        assert_eq!(u[0], "https://gitlab.com/es-de/themes/iconic-es-de/-/archive/main/iconic-es-de-main.zip");
+        assert_eq!(u[1], "https://gitlab.com/es-de/themes/iconic-es-de/-/archive/master/iconic-es-de-master.zip");
+
+        let (u, _) = candidate_zip_urls("https://git.es-de.org/themes/modern-de/-/tree/v2").unwrap();
+        assert_eq!(u[0], "https://git.es-de.org/themes/modern-de/-/archive/v2/modern-de-v2.zip");
+
+        let (u, lbl) = candidate_zip_urls("https://example.com/packs/my-pack.zip").unwrap();
+        assert_eq!(u, vec!["https://example.com/packs/my-pack.zip"]);
+        assert_eq!(lbl, "my-pack");
+
+        assert!(candidate_zip_urls("file:///etc/passwd").is_err());
+        assert!(candidate_zip_urls("not a url").is_err());
     }
 }

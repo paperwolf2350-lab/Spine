@@ -1415,6 +1415,20 @@ async fn import_external_folder(handle: AppHandle) -> Result<Option<ThemeChange>
     .map_err(|e| e.to_string())?
 }
 
+/// Download and import a theme or external pack from a GitHub, GitLab, git.es-de.org, or direct `.zip` URL.
+#[tauri::command]
+async fn import_theme_url(url: String, handle: AppHandle) -> Result<ThemeChange, String> {
+    let dir = handle.state::<App>().themes_dir();
+    tauri::async_runtime::spawn_blocking(move || {
+        let report = spine_core::theme_import::import_from_url(&dir, &url)?;
+        let theme = report.pack.clone();
+        let themes = spine_core::themes::scan_themes(&dir);
+        Ok(ThemeChange { theme, themes, report: Some(report) })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Export an installed theme folder as a shareable `.zip` file.
 #[tauri::command]
 async fn export_theme(id: String, handle: AppHandle) -> Result<bool, String> {
@@ -2480,7 +2494,7 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, set_autostart, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, forget_played, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv, reload_themes, import_theme, import_external_folder, export_theme, create_starter_theme, delete_theme, pick_custom_asset, clear_custom_asset, save_custom_theme])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, set_autostart, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, forget_played, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv, reload_themes, import_theme, import_external_folder, import_theme_url, export_theme, create_starter_theme, delete_theme, pick_custom_asset, clear_custom_asset, save_custom_theme])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

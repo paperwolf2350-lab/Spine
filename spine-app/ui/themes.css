@@ -23,15 +23,33 @@
 #theme-bg .tbg-scrim {
   position: absolute;
   inset: 0;
-  background: var(--bg);
-  opacity: var(--theme-wp-dim, .55);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg) 52%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 28%, transparent) 38%,
+    color-mix(in srgb, var(--bg) 82%, transparent) 78%,
+    var(--bg) 100%
+  );
+  opacity: calc(var(--theme-wp-dim, .45) + .45);
 }
 
 #app { z-index: 1; }
 
-/* Let the wallpaper show through main backgrounds when active */
+/* Let custom wallpapers shine cleanly behind Home & library screens instead of being covered by opaque panels */
 :root.has-theme-wp body { background: transparent; }
-:root.has-theme-wp .tvm { background: color-mix(in srgb, var(--tbg) 68%, transparent); }
+:root.has-theme-wp .topbar {
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+:root.has-theme-wp .hints {
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+:root.has-theme-wp .hero { background: transparent !important; }
+:root.has-theme-wp .herowall { display: none; }
+:root.has-theme-wp .tvm { background: color-mix(in srgb, var(--tbg) 62%, transparent); }
 :root.has-theme-wp .tv-scrim {
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--tbg) 70%, transparent) 0%, transparent 24%),

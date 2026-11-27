@@ -213,7 +213,8 @@ You can use `{name}`, `{title}`, `{time}`, `{days}`, and `{hours}` inside custom
 
 You can also bring in compatible art, colors, fonts, icons, music, and sounds from other game launcher ecosystems—no manual renaming needed:
 
-- **`.zip` packs:** Click **Import theme / pack (.zip)** under **Settings → Look → Theme**. Spine automatically detects whether the `.zip` is a native Spine theme, an **ES-DE / EmulationStation theme**, a **Daijishō wallpaper pack**, or a **RetroArch console icon pack**.
+- **Repository or `.zip` links:** Under **Settings → Look → Manage themes & packs…**, paste any **GitHub**, **GitLab**, **`git.es-de.org`**, **Codeberg**, or direct `.zip` link into **Import from link** and click **Download & import**.
+- **`.zip` packs:** Click **Import theme / pack (.zip)**. Spine automatically detects whether the `.zip` is a native Spine theme, an **ES-DE / EmulationStation theme**, a **Daijishō wallpaper pack**, or a **RetroArch console icon pack**.
 - **Unzipped folders:** Click **Import external folder** and select any ES-DE theme folder, Daijishō wallpaper folder, or RetroArch icon folder on your PC.
 
 What Spine imports automatically:

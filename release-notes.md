@@ -1,4 +1,8 @@
 ## What's new
+- **Import themes directly from a link.** In **Settings → Look → Manage themes & packs…**, paste any **GitHub**, **GitLab**, **`git.es-de.org`**, **Codeberg**, or direct `.zip` link and click **Download & import**—no need to hunt for release zips.
+- **Better ES-DE console artwork importing & display.** Spine now recognizes ES-DE `artwork/`, `art/`, `images/`, `hero/` and `systems/` folders (such as *Art Book Next* and *Artflix Revisited*), picks the highest-resolution art per console, raises the archive limit for large multi-system repos, and lets per-console wallpapers shine cleanly behind Home instead of being covered by the moving cover wall.
+
+From 0.43.1:
 - **Redesigned Settings menu.** Settings now opens as a cleaner, centered two-column window with an icon sidebar on the left (`LB / RB` to switch sections), grouped cards with inline toggle switches and compact segmented controls, subtle custom scrollbars, and a controller hint bar along the bottom.
 - **Visual theme & Home style previews.** Built-in and custom themes now show miniature color preview tiles, Home styles show crisp icons, and theme pack import/creator tools live neatly inside a dedicated **Manage themes & packs…** sub-page so the main Look screen stays uncluttered. **Customize look** stays as a slim side drawer so you can still watch your Home screen update live behind it.
 
