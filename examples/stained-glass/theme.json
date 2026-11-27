@@ -1,0 +1,55 @@
+{
+  "name": "Stained Glass",
+  "author": "Spine",
+  "version": "1.0.0",
+  "description": "Cathedral jewel-tone glass panes framed in dark leadwork with warm gold highlights. Also serves as Spine's example theme for creators.",
+  "base": "midnight",
+  "preview": "preview.svg",
+  "iconMode": "color",
+  "colors": {
+    "bg": "#0A0B14",
+    "surface": "#141626",
+    "surface2": "#1D2036",
+    "text": "#F6EFE2",
+    "muted": "#B6AEC4",
+    "line": "#2D304D",
+    "accent": "#E6A83A",
+    "focus": "#F6EFE2",
+    "display": "Georgia, 'Palatino Linotype', 'Book Antiqua', serif",
+    "body": "'Inter', 'Segoe UI', system-ui, sans-serif"
+  },
+  "style": {
+    "radius": "rounded",
+    "wallpaperDim": 0.14,
+    "wallpaperBlur": 1,
+    "coverWall": false
+  },
+  "options": [
+    {
+      "id": "mood",
+      "label": "Color mood",
+      "note": "Changes the jewel-tone lighting across the window and accent color.",
+      "type": "choice",
+      "choices": [
+        { "value": "cathedral", "label": "Cathedral" },
+        { "value": "moonlight", "label": "Moonlight" },
+        { "value": "sunburst", "label": "Sunburst" }
+      ],
+      "default": "cathedral"
+    },
+    {
+      "id": "lead",
+      "label": "Lead framing",
+      "note": "Adds dark cathedral lead-line borders and metallic inner bevels around panels.",
+      "type": "toggle",
+      "default": true
+    },
+    {
+      "id": "glow",
+      "label": "Backlight glow",
+      "note": "Illuminates focused tiles and buttons like sunlight shining through glass.",
+      "type": "toggle",
+      "default": true
+    }
+  ]
+}

@@ -837,7 +837,7 @@ function settingsPanel() {
     const themeOptRows = activePack && (activePack.options || []).length
       ? activePack.options.map((opt) => {
           const val = THEMES.optionValue(activePack, opt);
-          if (opt.kind === 'choice') {
+          if ((opt.type || opt.kind) === 'choice') {
             const ctrl = `<div class="set-seg">${(opt.choices || []).map((c) =>
               `<button class="${String(val) === String(c.value) ? 'on' : ''}" data-nav data-key="topt-${esc(opt.id)}-${esc(c.value)}" data-act="themeopt" data-tid="${esc(activePack.id)}" data-oid="${esc(opt.id)}" data-k="choice" data-v="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>`;
             return row(esc(opt.label), esc(opt.note), ctrl);

@@ -1,4 +1,8 @@
 ## What's new
+- **Fixed custom theme options & accent switching.** Creator-defined Settings controls in custom theme packs (both choice selectors and on/off toggles) now render and apply immediately—and when **Accent color** is set to **Theme's color**, theme options like color moods can update the accent color cleanly too.
+- **Stained Glass example theme & tutorial.** Added a complete, ready-to-import **Stained Glass** example theme (`examples/stained-glass/` & `examples/stained-glass.zip`) with 3 custom Settings controls (*Color mood*, *Lead framing*, and *Backlight glow*), plus an upgraded step-by-step **"How to Make Your Own Spine Theme"** guide and CSS cheat sheet in `THEMING.md`.
+
+From 0.44.0:
 - **Liquid Glass themes (Light & Dark).** Two new built-in themes under **Settings → Look → Theme** (**Liquid Glass** and **Glass Dark**)—luminous frosted glass panels, glossy rim highlights, translucent colored console lenses, floating pill top and bottom bars, and a gently drifting ambient backdrop. Available on both Desktop and TV mode.
 - **Backup & Restore.** Under **Settings → Updates & window**, save a single `.zip` backup of your settings, favorites, lists, playtime, watch progress, renamed games, custom covers/videos, and installed themes. API keys and streaming addon links are excluded by default (with an optional toggle if you're moving to another PC of your own). Restoring checks the backup first, saves a safety copy of your current settings, and reloads Spine right away.
 

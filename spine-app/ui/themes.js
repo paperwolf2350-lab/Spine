@@ -146,11 +146,22 @@ const THEMES = (() => {
     return activePack()?.style?.soundStyle || '';
   }
 
+  // Read the type ("toggle" | "choice") of a creator-defined option (Rust serializes it as `type`).
+  function optionType(opt) {
+    return String(opt?.type || opt?.kind || 'toggle').toLowerCase();
+  }
+
   // Read the current value of a creator-defined option on a theme pack.
   function optionValue(pack, opt) {
+    const kind = optionType(opt);
     const saved = settings().themeOptions?.[pack.id]?.[opt.id];
-    if (saved !== undefined && saved !== null) return saved;
-    if (opt.kind === 'toggle') return opt.default === true || opt.default === 'on' || opt.default === 'true';
+    if (kind === 'toggle') {
+      if (saved !== undefined && saved !== null) return saved === true || saved === 'on' || saved === 'true';
+      return opt.default === true || opt.default === 'on' || opt.default === 'true';
+    }
+    if (typeof saved === 'string' && (!opt.choices?.length || opt.choices.some((c) => String(c.value) === saved))) {
+      return saved;
+    }
     if (typeof opt.default === 'string' && opt.default) return opt.default;
     return opt.choices?.[0]?.value || '';
   }
@@ -233,7 +244,7 @@ const THEMES = (() => {
 
       for (const opt of pack.options || []) {
         const val = optionValue(pack, opt);
-        const attrVal = opt.kind === 'toggle' ? (val ? 'on' : 'off') : String(val);
+        const attrVal = optionType(opt) === 'toggle' ? (val ? 'on' : 'off') : String(val);
         root.setAttribute('data-opt-' + opt.id, attrVal);
         appliedOpts.push(opt.id);
       }
@@ -320,11 +331,18 @@ const THEMES = (() => {
       customEl.remove();
     }
 
-    // Accent color priority: Simple Mode accent -> Settings accent swatch -> Theme pack accent -> Built-in theme default.
+    // Accent color priority: Simple Mode accent -> Settings accent swatch -> Theme pack accent (via #spine-theme-vars / theme.css) -> Built-in theme default.
     const builtinAccent = id === 'glass-light' ? '#007AFF' : id === 'glass-dark' ? '#4DA3FF' : (tv ? (typeof TV_ACCENT !== 'undefined' ? TV_ACCENT : '#E09A3E') : '#C8431F');
-    const accent = (isHex(c.accent) ? c.accent : '') || st.accent || pack?.colors?.accent || builtinAccent;
-    style.setProperty('--accent', accent);
-    if (tv && typeof tvInk === 'function') style.setProperty('--accent-ink', tvInk(accent));
+    const userAccent = (isHex(c.accent) ? c.accent : '') || st.accent || '';
+    if (userAccent) {
+      style.setProperty('--accent', userAccent);
+    } else if (pack?.colors?.accent) {
+      style.removeProperty('--accent');
+    } else {
+      style.setProperty('--accent', builtinAccent);
+    }
+    const effAccent = userAccent || pack?.colors?.accent || builtinAccent;
+    if (tv && typeof tvInk === 'function') style.setProperty('--accent-ink', tvInk(effAccent));
     else style.removeProperty('--accent-ink');
 
     syncWallpaper();

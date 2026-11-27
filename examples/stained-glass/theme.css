@@ -1,0 +1,248 @@
+/* ============================================================================
+ * Spine Example Theme: Stained Glass
+ * ----------------------------------------------------------------------------
+ * This file is written to be easy to read, copy, and learn from!
+ *
+ * How Spine applies this theme:
+ *   1. Colors from theme.json become CSS variables (--bg, --surface, --accent...).
+ *   2. wallpapers/default.svg is placed automatically in #theme-bg behind #app.
+ *   3. Options in theme.json become attributes on :root:
+ *        :root[data-opt-mood="cathedral" | "moonlight" | "sunburst"]
+ *        :root[data-opt-lead="on" | "off"]
+ *        :root[data-opt-glow="on" | "off"]
+ * ============================================================================ */
+
+/* ---- 1. Color moods (Settings -> Look -> Stained Glass options) ------------ */
+:root {
+  --sg-lead: #06070d;
+  --sg-bevel: rgba(246, 206, 120, 0.44);
+  --sg-pane: rgba(18, 22, 46, 0.68);
+  --sg-pane-strong: rgba(14, 17, 36, 0.84);
+  --sg-nav: rgba(10, 12, 28, 0.78);
+  --sg-sheen: linear-gradient(148deg, rgba(255, 236, 184, 0.18) 0%, rgba(114, 70, 198, 0.08) 52%, rgba(230, 168, 58, 0.12) 100%);
+  --sg-glow: rgba(230, 168, 58, 0.56);
+  --sg-glow-soft: rgba(230, 168, 58, 0.24);
+  --sg-tint: rgba(230, 168, 58, 0.14);
+}
+
+:root[data-opt-mood="moonlight"] {
+  --bg: #070d1c;
+  --surface: #101b36;
+  --surface2: #19294f;
+  --line: #33508a;
+  --accent: #6BB6FF;
+  --sg-bevel: rgba(154, 212, 255, 0.48);
+  --sg-pane: rgba(11, 24, 52, 0.70);
+  --sg-pane-strong: rgba(8, 18, 40, 0.86);
+  --sg-nav: rgba(6, 14, 32, 0.82);
+  --sg-sheen: linear-gradient(148deg, rgba(168, 222, 255, 0.22) 0%, rgba(58, 120, 230, 0.10) 52%, rgba(130, 196, 255, 0.14) 100%);
+  --sg-glow: rgba(107, 182, 255, 0.62);
+  --sg-glow-soft: rgba(107, 182, 255, 0.28);
+  --sg-tint: rgba(107, 182, 255, 0.16);
+}
+:root[data-opt-mood="moonlight"] #theme-bg .tbg-img {
+  filter: blur(var(--theme-wp-blur, 1px)) hue-rotate(42deg) saturate(1.1) brightness(0.95);
+}
+
+:root[data-opt-mood="sunburst"] {
+  --bg: #1a0b0c;
+  --surface: #2d1416;
+  --surface2: #411d1f;
+  --line: #7a3b34;
+  --accent: #F59E36;
+  --sg-bevel: rgba(255, 198, 118, 0.52);
+  --sg-pane: rgba(44, 17, 19, 0.70);
+  --sg-pane-strong: rgba(34, 13, 15, 0.86);
+  --sg-nav: rgba(26, 10, 12, 0.82);
+  --sg-sheen: linear-gradient(148deg, rgba(255, 214, 132, 0.24) 0%, rgba(214, 54, 78, 0.12) 52%, rgba(245, 158, 54, 0.16) 100%);
+  --sg-glow: rgba(245, 158, 54, 0.64);
+  --sg-glow-soft: rgba(245, 158, 54, 0.28);
+  --sg-tint: rgba(245, 158, 54, 0.18);
+}
+:root[data-opt-mood="sunburst"] #theme-bg .tbg-img {
+  filter: blur(var(--theme-wp-blur, 1px)) hue-rotate(-32deg) saturate(1.35) brightness(1.06);
+}
+
+/* ---- 2. Typography: warm gothic serif headings ----------------------------- */
+h1, h2, h3, .brand, .console .short {
+  letter-spacing: 0.015em;
+}
+.hero-text h2,
+.detail h2 {
+  text-shadow: 0 4px 22px rgba(0, 0, 0, 0.72);
+}
+
+/* ---- 3. Top bar & bottom hint bar as translucent stained-glass strips ------ */
+.topbar,
+.hints {
+  background: var(--sg-pane);
+  background-image: var(--sg-sheen);
+  backdrop-filter: blur(18px) saturate(155%);
+  -webkit-backdrop-filter: blur(18px) saturate(155%);
+  border-color: var(--sg-bevel);
+}
+
+/* ---- 4. Console tiles: sunlit jewel panes framed in dark leadwork ---------- */
+.console {
+  border-radius: 18px 18px 12px 12px;
+  background: color-mix(in srgb, var(--chip) 76%, #090a14) !important;
+  background-image:
+    linear-gradient(142deg, rgba(255, 250, 232, 0.34) 0%, rgba(255, 255, 255, 0.04) 44%, rgba(0, 0, 0, 0.24) 100%) !important;
+  border: 1px solid rgba(255, 240, 200, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 246, 216, 0.45),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+    0 10px 24px rgba(0, 0, 0, 0.42);
+}
+
+/* Dark cathedral lead-line framing when "Lead framing" is ON */
+:root[data-opt-lead="on"] .console {
+  border: 4px solid var(--sg-lead);
+  box-shadow:
+    inset 0 0 0 1.5px var(--sg-bevel),
+    inset 0 2px 0 rgba(255, 246, 216, 0.48),
+    0 14px 28px rgba(0, 0, 0, 0.56);
+}
+
+/* Selected console tile glows like sunlight pouring through the pane */
+.console.sel {
+  background: color-mix(in srgb, var(--chip) 90%, #10121e) !important;
+  border-color: var(--accent);
+}
+:root[data-opt-glow="on"] .console.sel {
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 248, 224, 0.72),
+    0 0 0 3px var(--sg-lead),
+    0 0 0 5px var(--accent),
+    0 18px 46px color-mix(in srgb, var(--chip) 56%, var(--sg-glow));
+}
+
+/* ---- 5. Buttons, chips & glass cards --------------------------------------- */
+.btn,
+.chip,
+.recent .item,
+.fact,
+.ep,
+.choice,
+.root {
+  background: var(--sg-pane);
+  background-image: var(--sg-sheen);
+  border: 1px solid color-mix(in srgb, var(--sg-bevel) 65%, transparent);
+  backdrop-filter: blur(16px) saturate(145%);
+  -webkit-backdrop-filter: blur(16px) saturate(145%);
+}
+
+/* Heavy cathedral leadwork borders across cards, game tiles & Settings when ON */
+:root[data-opt-lead="on"] .recent .item,
+:root[data-opt-lead="on"] .fact,
+:root[data-opt-lead="on"] .ep,
+:root[data-opt-lead="on"] .set-card,
+:root[data-opt-lead="on"] .set-win,
+:root[data-opt-lead="on"] .th-tile,
+:root[data-opt-lead="on"] .hs-tile,
+:root[data-opt-lead="on"] .cover {
+  border: 3px solid var(--sg-lead) !important;
+  box-shadow:
+    inset 0 0 0 1.5px var(--sg-bevel),
+    0 12px 32px rgba(0, 0, 0, 0.52);
+}
+
+:root[data-opt-lead="on"] .set-win {
+  border-width: 4px !important;
+  box-shadow:
+    inset 0 0 0 2px var(--sg-bevel),
+    0 24px 72px rgba(0, 0, 0, 0.72);
+}
+
+.btn.primary {
+  background: linear-gradient(155deg, color-mix(in srgb, var(--accent) 96%, #fff 16%) 0%, color-mix(in srgb, var(--accent) 78%, #2b1400) 100%);
+  color: #140e05;
+  border: 1px solid rgba(255, 242, 204, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255, 250, 232, 0.65);
+}
+.btn.primary .glyph.a {
+  background: #140e05;
+  color: var(--accent);
+}
+
+.chip.on,
+.set-seg button.on {
+  background: var(--accent);
+  color: #140e05;
+  border-color: rgba(255, 242, 204, 0.55);
+}
+
+/* ---- 6. Backlight glow across focused & active elements -------------------- */
+:root[data-opt-glow="on"] .btn.primary,
+:root[data-opt-glow="on"] .th-tile.on,
+:root[data-opt-glow="on"] .hs-tile.on,
+:root[data-opt-glow="on"] .toggle.on,
+:root[data-opt-glow="on"] .set-seg button.on {
+  box-shadow:
+    0 0 0 1.5px rgba(255, 248, 224, 0.55),
+    0 0 24px var(--sg-glow),
+    0 0 42px var(--sg-glow-soft) !important;
+}
+
+:root[data-opt-glow="on"] .set-win {
+  box-shadow:
+    inset 0 0 0 1.5px var(--sg-bevel),
+    0 0 56px var(--sg-glow-soft),
+    0 24px 72px rgba(0, 0, 0, 0.72);
+}
+
+:root[data-opt-glow="on"] body.kb [data-nav]:focus-visible,
+:root[data-opt-glow="on"] body.kb [data-nav].focused {
+  box-shadow:
+    0 0 0 2px var(--sg-lead),
+    0 0 0 4px var(--accent),
+    0 0 26px var(--sg-glow) !important;
+}
+
+/* ---- 7. Settings modal & Customize look drawer ----------------------------- */
+.set-win,
+.panel .sheet {
+  background: var(--sg-pane-strong);
+  background-image: var(--sg-sheen);
+  border: 1px solid var(--sg-bevel);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+}
+.set-nav {
+  background: var(--sg-nav);
+  border-right-color: color-mix(in srgb, var(--sg-bevel) 55%, transparent);
+}
+.set-tab.on {
+  background: var(--sg-tint);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--sg-bevel) 65%, transparent);
+}
+.set-card,
+.set-scroll > .grp,
+.th-card,
+.mgr-act,
+.mgr-url {
+  background: var(--sg-pane);
+  background-image: var(--sg-sheen);
+  border-color: color-mix(in srgb, var(--sg-bevel) 55%, transparent);
+}
+
+/* ---- 8. TV mode support (:root[data-tv="on"]) ------------------------------ */
+:root[data-tv="on"] .tv-con,
+:root[data-tv="on"] .tv-btn:not(.primary),
+:root[data-tv="on"] .tv-switch {
+  background: var(--sg-pane) !important;
+  background-image: var(--sg-sheen) !important;
+  border: 1px solid var(--sg-bevel) !important;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+:root[data-tv="on"][data-opt-lead="on"] .tv-con,
+:root[data-tv="on"][data-opt-lead="on"] .tv-game {
+  border: 3px solid var(--sg-lead) !important;
+  box-shadow: inset 0 0 0 1.5px var(--sg-bevel), 0 12px 26px rgba(0, 0, 0, 0.52);
+}
+:root[data-tv="on"][data-opt-glow="on"] .tv-con.on,
+:root[data-tv="on"][data-opt-glow="on"] .tv-btn.primary {
+  box-shadow: 0 0 28px var(--sg-glow), 0 0 46px var(--sg-glow-soft) !important;
+}

@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <radialGradient id="sun" cx="52%" cy="28%" r="70%">
+      <stop offset="0%" stop-color="#FFE39E" stop-opacity="0.28"/>
+      <stop offset="48%" stop-color="#1E1838" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#06070E" stop-opacity="0.82"/>
+    </radialGradient>
+    <linearGradient id="pRuby" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#C92E59"/>
+      <stop offset="100%" stop-color="#5B1028"/>
+    </linearGradient>
+    <linearGradient id="pSapphire" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2D67DE"/>
+      <stop offset="100%" stop-color="#0E2059"/>
+    </linearGradient>
+    <linearGradient id="pEmerald" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1A946B"/>
+      <stop offset="100%" stop-color="#0A3B2D"/>
+    </linearGradient>
+    <linearGradient id="pAmethyst" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7F3BD6"/>
+      <stop offset="100%" stop-color="#2B1154"/>
+    </linearGradient>
+    <linearGradient id="pGold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E8A938"/>
+      <stop offset="100%" stop-color="#7A490C"/>
+    </linearGradient>
+    <linearGradient id="pTeal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1E8BA8"/>
+      <stop offset="100%" stop-color="#0A3446"/>
+    </linearGradient>
+    <linearGradient id="pIndigo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3C3B9E"/>
+      <stop offset="100%" stop-color="#151544"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="#080912"/>
+
+  <!-- Geometric cathedral stained-glass facets with dark lead lines -->
+  <g stroke="#080910" stroke-width="8" stroke-linejoin="round">
+    <!-- Top band -->
+    <polygon points="0,0 250,0 180,210 0,170" fill="url(#pSapphire)"/>
+    <polygon points="250,0 510,0 430,220 180,210" fill="url(#pAmethyst)"/>
+    <polygon points="510,0 800,0 740,190 430,220" fill="url(#pRuby)"/>
+    <polygon points="800,0 1090,0 1030,210 740,190" fill="url(#pGold)"/>
+    <polygon points="1090,0 1350,0 1280,225 1030,210" fill="url(#pSapphire)"/>
+    <polygon points="1350,0 1600,0 1600,190 1280,225" fill="url(#pEmerald)"/>
+
+    <!-- Upper-mid band -->
+    <polygon points="0,170 180,210 130,450 0,420" fill="url(#pEmerald)"/>
+    <polygon points="180,210 430,220 350,430 130,450" fill="url(#pTeal)"/>
+    <polygon points="430,220 740,190 650,440 350,430" fill="url(#pIndigo)"/>
+    <polygon points="740,190 1030,210 950,430 650,440" fill="url(#pAmethyst)"/>
+    <polygon points="1030,210 1280,225 1210,460 950,430" fill="url(#pRuby)"/>
+    <polygon points="1280,225 1600,190 1600,440 1210,460" fill="url(#pSapphire)"/>
+
+    <!-- Lower-mid band -->
+    <polygon points="0,420 130,450 210,690 0,660" fill="url(#pAmethyst)"/>
+    <polygon points="130,450 350,430 460,680 210,690" fill="url(#pRuby)"/>
+    <polygon points="350,430 650,440 720,690 460,680" fill="url(#pSapphire)"/>
+    <polygon points="650,440 950,430 1020,670 720,690" fill="url(#pEmerald)"/>
+    <polygon points="950,430 1210,460 1300,700 1020,670" fill="url(#pIndigo)"/>
+    <polygon points="1210,460 1600,440 1600,680 1300,700" fill="url(#pTeal)"/>
+
+    <!-- Bottom band -->
+    <polygon points="0,660 210,690 290,900 0,900" fill="url(#pIndigo)"/>
+    <polygon points="210,690 460,680 540,900 290,900" fill="url(#pGold)"/>
+    <polygon points="460,680 720,690 830,900 540,900" fill="url(#pAmethyst)"/>
+    <polygon points="720,690 1020,670 1120,900 830,900" fill="url(#pSapphire)"/>
+    <polygon points="1020,670 1300,700 1390,900 1120,900" fill="url(#pRuby)"/>
+    <polygon points="1300,700 1600,680 1600,900 1390,900" fill="url(#pEmerald)"/>
+
+    <!-- Subtle central rose-window medallion -->
+    <circle cx="800" cy="310" r="145" fill="rgba(20, 22, 42, 0.25)" stroke="#080910" stroke-width="10"/>
+    <circle cx="800" cy="310" r="82" fill="rgba(230, 168, 58, 0.22)" stroke="#080910" stroke-width="8"/>
+    <line x1="800" y1="165" x2="800" y2="455" stroke="#080910" stroke-width="7"/>
+    <line x1="655" y1="310" x2="945" y2="310" stroke="#080910" stroke-width="7"/>
+    <line x1="697" y1="207" x2="903" y2="413" stroke="#080910" stroke-width="6"/>
+    <line x1="903" y1="207" x2="697" y2="413" stroke="#080910" stroke-width="6"/>
+  </g>
+
+  <!-- Soft inner light highlights along facets -->
+  <g stroke="rgba(255, 240, 200, 0.14)" stroke-width="2" fill="none">
+    <circle cx="800" cy="310" r="140"/>
+    <circle cx="800" cy="310" r="77"/>
+  </g>
+
+  <!-- Backlit cathedral sunbeam vignette -->
+  <rect width="1600" height="900" fill="url(#sun)"/>
+</svg>

@@ -57,8 +57,10 @@ packages, or AppImages in `~/Applications` (EmuDeck's layout) on Linux.
   merged, updates and DLC attached, several ROM folders and drives, unplugged
   drives remembered. Steam, Epic and GOG games join in (on Linux through Steam and Heroic).
 - **Looks good:** covers from libretro, Steam, SteamGridDB and ScreenScraper,
-  trailers on game pages, four layouts, themes (including a retro CRT look), a moving
-  cover wall per console.
+  trailers on game pages, four layouts, built-in themes (Cream, Midnight, Retro CRT,
+  Liquid Glass and Glass Dark), a visual **Customize look** editor, shareable custom
+  theme packs (see [THEMING.md](THEMING.md) and the [Stained Glass example](examples/stained-glass/)),
+  and one-click imports from ES-DE, Daijishō and RetroArch packs.
 - **TV mode:** turn your PC into a living-room console: a Play section with your consoles and
   games as big covers, a Watch section for movies, shows and streaming, big text for the couch.
 - **Five Home styles:** Classic, Wave, Channels, Blades and Cube, each with its own

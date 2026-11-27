@@ -1389,4 +1389,32 @@ mod tests {
 
         let _ = fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn example_stained_glass_loads_and_imports() {
+        let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let folder = repo_root.join("examples").join("stained-glass");
+        let zip_path = repo_root.join("examples").join("stained-glass.zip");
+
+        let from_dir = load_theme(&folder).expect("examples/stained-glass should load");
+        assert_eq!(from_dir.name, "Stained Glass");
+        assert_eq!(from_dir.base, "midnight");
+        assert!(from_dir.has_visual);
+        assert!(from_dir.css.is_some());
+        assert!(from_dir.preview.is_some());
+        assert!(from_dir.wallpapers.contains_key("default"));
+        assert_eq!(from_dir.options.len(), 3);
+
+        let root = temp_dir("stained-glass-import");
+        let from_zip = import_zip(&root, &zip_path).expect("examples/stained-glass.zip should import");
+        assert_eq!(from_zip.id, "stained-glass");
+        assert_eq!(from_zip.name, "Stained Glass");
+        assert!(from_zip.has_visual);
+        assert!(from_zip.css.is_some());
+        assert!(from_zip.preview.is_some());
+        assert!(from_zip.wallpapers.contains_key("default"));
+        assert_eq!(from_zip.options.len(), 3);
+
+        let _ = fs::remove_dir_all(&root);
+    }
 }

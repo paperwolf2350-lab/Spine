@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" width="320" height="180">
+  <defs>
+    <radialGradient id="gGlow" cx="50%" cy="45%" r="65%">
+      <stop offset="0%" stop-color="#FFE29A" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#070810" stop-opacity="0.72"/>
+    </radialGradient>
+    <linearGradient id="ruby" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#D93860"/>
+      <stop offset="100%" stop-color="#74132F"/>
+    </linearGradient>
+    <linearGradient id="sapphire" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3B7CF5"/>
+      <stop offset="100%" stop-color="#132B78"/>
+    </linearGradient>
+    <linearGradient id="emerald" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22B07D"/>
+      <stop offset="100%" stop-color="#0D4F3B"/>
+    </linearGradient>
+    <linearGradient id="amethyst" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9A4DF2"/>
+      <stop offset="100%" stop-color="#3D176E"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFD166"/>
+      <stop offset="100%" stop-color="#B06C12"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="180" fill="#090A12"/>
+  <g stroke="#080910" stroke-width="4" stroke-linejoin="round">
+    <polygon points="0,0 92,0 64,74 0,58" fill="url(#sapphire)"/>
+    <polygon points="92,0 188,0 160,64 64,74" fill="url(#amethyst)"/>
+    <polygon points="188,0 264,0 244,72 160,64" fill="url(#ruby)"/>
+    <polygon points="264,0 320,0 320,66 244,72" fill="url(#emerald)"/>
+    <polygon points="0,58 64,74 44,140 0,132" fill="url(#emerald)"/>
+    <polygon points="64,74 160,64 134,126 44,140" fill="url(#gold)"/>
+    <polygon points="160,64 244,72 222,134 134,126" fill="url(#sapphire)"/>
+    <polygon points="244,72 320,66 320,138 222,134" fill="url(#amethyst)"/>
+    <polygon points="0,132 44,140 96,180 0,180" fill="url(#ruby)"/>
+    <polygon points="44,140 134,126 168,180 96,180" fill="url(#sapphire)"/>
+    <polygon points="134,126 222,134 252,180 168,180" fill="url(#ruby)"/>
+    <polygon points="222,134 320,138 320,180 252,180" fill="url(#gold)"/>
+  </g>
+  <rect width="320" height="180" fill="url(#gGlow)"/>
+  <!-- Miniature cathedral arch highlight -->
+  <path d="M126,154 L126,88 Q126,42 160,30 Q194,42 194,88 L194,154 Z" fill="rgba(16,18,32,0.52)" stroke="#E6A83A" stroke-width="2.5"/>
+  <circle cx="160" cy="68" r="14" fill="url(#gold)" stroke="#080910" stroke-width="2.5"/>
+</svg>
