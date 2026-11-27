@@ -332,6 +332,7 @@ function tvSync() {
   const { cons, i, con, at } = tvState();
   const track = document.getElementById('tvtrack');
   if (!con || !track) return;
+  if (typeof THEMES !== 'undefined') THEMES.syncWallpaper(con.id);
   const step = TVSTEP.game;
   track.style.transform = `translateX(${-Math.max(0, at - 1) * step}px)`;
   const cards = track.children;

@@ -15,6 +15,7 @@
 
 ## Done
 
+- Full customization & theme packs: Simple Mode "Customize look" editor (palettes, colors, wallpapers, fonts, corners, glass cards, custom audio, Save & Export `.zip`), Advanced Theme Packs (`themes/` folder with `theme.json`, `theme.css`, fonts, global & per-console wallpapers, console icons, music, UI sounds, creator toggles, custom mascot packs, separate Desktop/TV themes, mix-and-match overrides, `Ctrl+Shift+R` safe reset, `THEMING.md`), and external pack importer for ES-DE themes, Daijishō wallpaper packs and RetroArch icon packs (0.43.0).
 - Paige has her own spots in every Home style: Wave, Channels, Blades, Cube and TV mode (0.41.0).
 - Paige guides first-time users on the welcome screen, holds the real cover for Surprise me, and waves goodbye when Spine closes (0.40.0).
 - Paige, the mascot, is named in her hello and her setting (0.39.1).

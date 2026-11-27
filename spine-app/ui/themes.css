@@ -1,0 +1,235 @@
+/* Theme pack runtime styles: background wallpaper layer, Simple Mode helpers,
+   and Settings -> Look theme pack cards & controls. */
+
+/* Full-window wallpaper layer behind #app when a theme provides wallpapers/ */
+#theme-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .35s ease;
+  overflow: hidden;
+}
+#theme-bg.on { opacity: 1; }
+#theme-bg .tbg-img {
+  position: absolute;
+  inset: -24px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(var(--theme-wp-blur, 0px));
+  transition: background-image .35s ease;
+}
+#theme-bg .tbg-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  opacity: var(--theme-wp-dim, .55);
+}
+
+#app { z-index: 1; }
+
+/* Let the wallpaper show through main backgrounds when active */
+:root.has-theme-wp body { background: transparent; }
+:root.has-theme-wp .tvm { background: color-mix(in srgb, var(--tbg) 68%, transparent); }
+:root.has-theme-wp .tv-scrim {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tbg) 70%, transparent) 0%, transparent 24%),
+    linear-gradient(90deg, color-mix(in srgb, var(--tbg) 82%, transparent) 0%, color-mix(in srgb, var(--tbg) 45%, transparent) 30%, transparent 60%),
+    linear-gradient(0deg, color-mix(in srgb, var(--tbg) 86%, transparent) 0%, transparent 55%);
+}
+
+/* Optional Simple Mode style flags applied via theme.json style */
+:root[data-theme-coverwall="off"] .herowall { display: none; }
+:root[data-theme-radius="sharp"] .console,
+:root[data-theme-radius="sharp"] .cover,
+:root[data-theme-radius="sharp"] .btn,
+:root[data-theme-radius="sharp"] .chip,
+:root[data-theme-radius="sharp"] .recent .item,
+:root[data-theme-radius="sharp"] .sheet { border-radius: 5px; }
+:root[data-theme-radius="soft"] .console,
+:root[data-theme-radius="soft"] .cover,
+:root[data-theme-radius="soft"] .btn,
+:root[data-theme-radius="soft"] .recent .item,
+:root[data-theme-radius="soft"] .sheet { border-radius: 22px; }
+:root[data-theme-glass="on"] .recent .item,
+:root[data-theme-glass="on"] .btn:not(.primary),
+:root[data-theme-glass="on"] .sheet,
+:root[data-theme-glass="on"] .ep,
+:root[data-theme-glass="on"] .fact {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* Custom console icon packs: color keeps the image's own colors; mono tints with currentColor */
+.sysimg.theme-color {
+  background: var(--ii) center / contain no-repeat;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .25));
+}
+.sysimg.theme-mono {
+  background-color: currentColor;
+  -webkit-mask: var(--ii) center / contain no-repeat;
+  mask: var(--ii) center / contain no-repeat;
+}
+
+/* Settings -> Look: installed theme pack cards & meta */
+.th-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+.th-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+.th-card.on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.th-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.th-thumb {
+  width: 48px;
+  height: 36px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--muted);
+}
+.th-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.th-meta { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.th-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.th-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.th-desc { font-size: 12px; color: var(--muted); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.th-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.th-badge {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: var(--surface2);
+  color: var(--muted);
+}
+.th-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.th-acts .btn.small { padding: 6px 10px; min-height: 32px; font-size: 13px; }
+.th-opts { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.th-opt-row { display: flex; flex-direction: column; gap: 6px; }
+.th-opt-row .k { font-size: 13px; font-weight: 600; }
+
+/* Phase 2: Simple Mode ("Customize look") panel */
+.cust-pals {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.cust-pal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+.cust-pal.on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.cust-pal-dots { display: flex; gap: 5px; align-items: center; }
+.cust-pal-dots i {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 1px solid rgba(128, 128, 128, .35);
+  display: inline-block;
+}
+.cust-pal-name { font-size: 13px; font-weight: 600; }
+
+.cust-crows { display: flex; flex-direction: column; gap: 10px; }
+.cust-crow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.cust-crow-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cust-crow-label { font-size: 14px; font-weight: 600; min-width: 96px; }
+.cust-picker {
+  width: 36px;
+  height: 32px;
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface2);
+  cursor: pointer;
+}
+.cust-hex {
+  width: 96px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface2);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+.cust-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.cust-sw {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 2px solid rgba(128, 128, 128, .35);
+}
+.cust-sw.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+.cust-file {
+  font-size: 13px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.cust-save {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.cust-save input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface2);
+  font-size: 15px;
+}
+

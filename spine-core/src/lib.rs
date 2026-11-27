@@ -24,6 +24,8 @@ pub mod stores;
 pub mod retroachievements;
 pub mod screenscraper;
 pub mod systems;
+pub mod theme_import;
+pub mod themes;
 pub mod title;
 pub mod tv;
 

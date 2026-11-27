@@ -85,10 +85,12 @@ const BGM = (() => {
   return {
     // Called after every render.
     sync() {
-      const next = SONGS[settings().home_style] || null;
-      want = !!next && !tvOn() && S.screen === 'home' && !S.playing && !document.hidden && level() > 0 && systems().length > 0;
+      const styleName = tvOn() ? 'tv' : (settings().home_style || 'classic');
+      const custom = typeof THEMES !== 'undefined' ? THEMES.musicFor(styleName) : null;
+      const next = custom || (!tvOn() ? (SONGS[styleName] || null) : null);
+      want = !!next && S.screen === 'home' && !S.playing && !document.hidden && level() > 0 && systems().length > 0;
       if (!want) { if (player.playing()) player.fade(0, 0.8); return; }
-      if (next !== song) { song = next; player.load(next); } // switched style: new song from the top
+      if (next !== song) { song = next; player.load(next); } // switched style or theme: new song from the top
       if (!player.playing()) player.play();
       player.fade(level(), 1.5);
     },

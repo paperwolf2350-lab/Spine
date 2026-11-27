@@ -97,6 +97,7 @@ function waveSync(catChanged) {
   const { cats, i, cat } = waveState();
   const box = document.getElementById('waveitems'), row = document.getElementById('wavecats'), wave = document.getElementById('wave');
   if (!box || !row) return render();
+  if (typeof THEMES !== 'undefined') THEMES.syncWallpaper(cat.id);
   const at = S.wave.at[cat.id] || 0;
   row.style.transform = `translateX(${-i * WV.col}px)`;
   row.querySelectorAll('.wv-cat').forEach((el, k) => el.classList.toggle('sel', k === i));

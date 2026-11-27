@@ -340,6 +340,7 @@ function cubeSync(catChanged) {
   const { belt, cat } = cubeState();
   const home = document.getElementById('cubehome'), shelf = document.getElementById('cbshelf'), holo = document.getElementById('cbholo');
   if (!home || !shelf || !holo) return render();
+  if (typeof THEMES !== 'undefined') THEMES.syncWallpaper(cat.id);
   const fromY = CG.y, fromX = CG.x;
   if (S.cube.shown !== cat.id) {
     S.cube.shown = cat.id;

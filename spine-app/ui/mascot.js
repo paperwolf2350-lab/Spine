@@ -28,7 +28,52 @@ const MASCOT = (() => {
     peek_side: { ar: 0.791, face: [0.42, 0.45] },
     read: { ar: 0.788, face: [0.5, 0.15] },
   };
-  const src = (p, blink) => `mascot/${p}${blink ? '_blink' : ''}.webp`;
+  const customPack = () => (typeof THEMES !== 'undefined' ? THEMES.mascot() : null);
+  const mascotName = () => customPack()?.name || 'Paige';
+  // Resolve a pose against the active custom mascot pack (full replacement: never mixes Paige in)
+  // or Paige's built-in POSE table.
+  function poseDef(p) {
+    const pack = customPack();
+    if (!pack) {
+      const d = POSE[p] || POSE.sit_wave;
+      return { key: POSE[p] ? p : 'sit_wave', ar: d.ar, face: d.face, seat: d.seat || 0.55, blink: !!d.blink, path: `mascot/${POSE[p] ? p : 'sit_wave'}.webp`, blinkPath: d.blink ? `mascot/${p}_blink.webp` : null, custom: false };
+    }
+    const keys = Object.keys(pack.poses || {});
+    const chosen = pack.poses[p] ? p : (pack.poses.sit_wave ? 'sit_wave' : pack.poses.cheer ? 'cheer' : keys[0]);
+    const d = pack.poses[chosen];
+    if (!d) return null;
+    return { key: chosen, ar: d.ar || 0.6, face: d.face || [0.5, 0.15], seat: d.seat || 0.55, blink: !!d.blink, path: mediaUrl(d.path), blinkPath: d.blink ? mediaUrl(d.blink) : null, custom: true };
+  }
+  const src = (p, blink) => {
+    const d = poseDef(p);
+    if (!d) return '';
+    return blink && d.blinkPath ? d.blinkPath : d.path;
+  };
+  // Custom dialogue helper: uses pack.lines[key] if defined, substituting {name}, {title}, {time}, {days}, {hours}.
+  function customLines(key, fallback, vars = {}) {
+    const pack = customPack();
+    const list = pack?.lines?.[key];
+    const fmt = (s) => String(s)
+      .replace(/\{name\}/g, mascotName())
+      .replace(/\{title\}/g, vars.title ?? '')
+      .replace(/\{time\}/g, vars.time ?? clockNow())
+      .replace(/\{days\}/g, vars.days ?? '')
+      .replace(/\{hours\}/g, vars.hours ?? '');
+    if (Array.isArray(list) && list.length) return list.map(fmt);
+    return fallback.map(fmt);
+  }
+  function customPick(key, fallback, vars = {}) {
+    const pack = customPack();
+    const list = pack?.lines?.[key];
+    const arr = Array.isArray(list) && list.length ? list : fallback;
+    const raw = pick(arr);
+    return String(raw)
+      .replace(/\{name\}/g, mascotName())
+      .replace(/\{title\}/g, vars.title ?? '')
+      .replace(/\{time\}/g, vars.time ?? clockNow())
+      .replace(/\{days\}/g, vars.days ?? '')
+      .replace(/\{hours\}/g, vars.hours ?? '');
+  }
 
   // How often: off · moments (welcome + after you play) · sometimes (+ tips and idle) · often.
   const level = () => settings().mascot || 'sometimes';
@@ -193,7 +238,9 @@ const MASCOT = (() => {
   // Where (and how big) a pose goes. Returns null when that spot isn't on screen;
   // the caller then falls back to the hint bar, which every screen has.
   function place(at, pose) {
-    const P = POSE[pose], v = view();
+    const P = poseDef(pose);
+    if (!P) return null;
+    const v = view();
     const box = (x, y, h, extra = {}) => ({ x, y, h, w: h * P.ar, ...extra });
     const st = style();
     if (st !== 'classic' && /^(tile|card)-/.test(at)) return perch(st, at, P, box, v);
@@ -253,13 +300,13 @@ const MASCOT = (() => {
     if (!spot) spot = place('bar', pose);
     if (!spot) return false;
     layer();
-    const P = POSE[pose];
+    const P = poseDef(pose);
+    if (!P) return false;
     const fig = document.createElement('div');
     fig.className = `msc-fig in-${spot.enter}${spot.mirror ? ' mirror' : ''}${spot.swing ? ' swing' : ''}${pose === 'doze' ? ' breathe' : ''}`;
-    // Surprise me: the picked game's real cover goes into the blank case she holds up,
-    // masked to the case's own pixels so her fingers stay in front of it.
-    const coverHtml = pose === 'surprise' && o.cover ? `<img class="msc-cover" alt="" draggable="false" src="${o.cover}" onerror="this.remove()">` : '';
-    fig.innerHTML = `<div class="msc-bob"><img alt="" draggable="false" src="${src(pose)}">${coverHtml}</div>${pose === 'doze' ? '<span class="msc-z"><i>z</i><i>z</i><i>Z</i></span>' : ''}`;
+    // Surprise me: the picked game's real cover goes into Paige's blank case (only for built-in Paige).
+    const coverHtml = !P.custom && pose === 'surprise' && o.cover ? `<img class="msc-cover" alt="" draggable="false" src="${o.cover}" onerror="this.remove()">` : '';
+    fig.innerHTML = `<div class="msc-bob"><img alt="" draggable="false" src="${P.path}">${coverHtml}</div>${pose === 'doze' ? '<span class="msc-z"><i>z</i><i>z</i><i>Z</i></span>' : ''}`;
     let wrap = fig;
     if (spot.clip != null) { // rising from behind the bar: hide what's below its edge
       wrap = document.createElement('div');
@@ -294,7 +341,7 @@ const MASCOT = (() => {
     placeBubble();
   }
   function placeBubble() {
-    const { spot, bub, pose } = cur, P = POSE[pose], v = view();
+    const { spot, bub, pose } = cur, P = poseDef(pose) || { face: [0.5, 0.15] }, v = view();
     const fx = spot.x + spot.w * (spot.mirror ? 1 - P.face[0] : P.face[0]), fy = spot.y + spot.h * P.face[1];
     let bw = Math.min(300, v.w * 0.3);
     // The guide keeps the welcome text free: bubble on the far side of her, narrowed to fit.
@@ -326,7 +373,8 @@ const MASCOT = (() => {
     clearTimeout(blinkT);
     blinkT = setTimeout(() => {
       const img = cur?.fig.querySelector('img');
-      if (!img || !POSE[cur.pose].blink) return;
+      const P = cur && poseDef(cur.pose);
+      if (!img || !P || !P.blink) return;
       img.src = src(cur.pose, true);
       setTimeout(() => { if (img.isConnected) img.src = src(cur?.pose || 'sit_wave'); blinkLoop(); }, 130);
     }, 2200 + Math.random() * 3800);
@@ -359,11 +407,15 @@ const MASCOT = (() => {
     const last = m.last && findGame(m.last.id);
     const recap = last && isGame(last) ? `Last time you played ${last.g.title} for ${say(m.last.sec)}.`
       : (() => { const g = lastGames()[0]; return g && pt()[g.g.id] ? `You've put ${say(pt()[g.g.id])} into ${g.g.title} so far.` : null; })();
-    if (!m.seen && m.guided) return show({ pose: 'sit_wave', at: 'tile-sit', lines: ['All done! Here\'s your library.', 'Pick a console and press A to see its games. Have fun!'], homeOnly: true });
-    if (!m.seen) return show({ pose: 'sit_wave', at: 'tile-sit', lines: ['Hi there! I\'m Paige.', 'I\'ll drop by now and then. Have fun!'], homeOnly: true });
-    if (hour < 5) return show({ pose: 'doze', at: 'bar', lines: [`Zzz… oh! Welcome back.`, `It's ${clockNow()}. One more level?`] });
-    const hi = away > 3 ? `Long time no see! It's been ${Math.floor(away)} days.` : hour < 12 ? 'Good morning! Welcome back.' : hour < 18 ? 'Good afternoon! Welcome back.' : 'Good evening! Welcome back.';
-    return show({ pose: 'sit_wave', at: 'tile-sit', lines: recap ? [hi, recap] : [hi, 'Pick a console and let\'s play something.'], homeOnly: true });
+    if (!m.seen && m.guided) return show({ pose: 'sit_wave', at: 'tile-sit', lines: customLines('guided_done', ['All done! Here\'s your library.', 'Pick a console and press A to see its games. Have fun!']), homeOnly: true });
+    if (!m.seen) return show({ pose: 'sit_wave', at: 'tile-sit', lines: customLines('first_hi', [`Hi there! I'm {name}.`, 'I\'ll drop by now and then. Have fun!']), homeOnly: true });
+    if (hour < 5) return show({ pose: 'doze', at: 'bar', lines: customLines('late_night', ['Zzz… oh! Welcome back.', 'It\'s {time}. One more level?']) });
+    const hi = away > 3
+      ? customPick('welcome_away', [`Long time no see! It's been {days} days.`], { days: Math.floor(away) })
+      : hour < 12 ? customPick('morning', ['Good morning! Welcome back.'])
+      : hour < 18 ? customPick('afternoon', ['Good afternoon! Welcome back.'])
+      : customPick('evening', ['Good evening! Welcome back.']);
+    return show({ pose: 'sit_wave', at: 'tile-sit', lines: recap ? [hi, recap] : [hi, customPick('welcome_prompt', ['Pick a console and let\'s play something.'])], homeOnly: true });
   }
 
   // After a game closes. prev = total seconds before this session.
@@ -394,7 +446,7 @@ const MASCOT = (() => {
   function spun(id) {
     const f = findGame(id);
     if (!f || !on() || level() === 'moments' || Math.random() < 0.4) return;
-    setTimeout(() => show({ pose: 'surprise', at: 'bar', force: true, cover: f.g.cover ? mediaUrl(f.g.cover) : null, lines: [pick([`Ta-da! How about ${f.g.title}?`, `Paige's pick: ${f.g.title}!`, `${f.g.title}. Trust me on this one.`])] }), 700);
+    setTimeout(() => show({ pose: 'surprise', at: 'bar', force: true, cover: f.g.cover ? mediaUrl(f.g.cover) : null, lines: [customPick('surprise', ['Ta-da! How about {title}?', '{name}\'s pick: {title}!', '{title}. Trust me on this one.'], { title: f.g.title })] }), 700);
   }
 
   // Drop-ins on Home: one at a time, a few minutes apart.
@@ -417,7 +469,7 @@ const MASCOT = (() => {
     if (tile) opts.push({ pose: 'lean', at: 'tile-lean', lines: [`${tile.count} ${tile.sys.short} games. Can't choose?`, 'Press R3 and I\'ll pick one for you.'] });
     const rec = lastGames()[0];
     if (rec) opts.push({ pose: 'point', at: 'card-point', lines: [`You played ${rec.g.title} ${when(L[rec.g.id])}.`, T[rec.g.id] ? `${say(T[rec.g.id])} so far. Pick up where you left off?` : 'Pick up where you left off?'] });
-    opts.push({ pose: 'hang', at: 'hang', lines: [pick(['Just hanging around.', 'Don\'t mind me!', 'Nice library you have here.'])] });
+    opts.push({ pose: 'hang', at: 'hang', lines: [customPick('hang', ['Just hanging around.', 'Don\'t mind me!', 'Nice library you have here.'])] });
     if (new Date().getHours() < 5) opts.push({ pose: 'doze', at: 'bar', lines: [`It's ${clockNow()}…`, 'Remember to sleep sometime, okay?'] });
     // Don't repeat the same pose twice in a row.
     const fresh2 = opts.filter((o) => o.pose !== lastPose);
@@ -444,9 +496,9 @@ const MASCOT = (() => {
     const homeFree = S.screen === 'home' && !S.panel && !S.playing && document.visibilityState === 'visible';
     if (level() !== 'moments' && homeFree) {
       if (idleStage === 0 && idle > 150000 && !cur) {
-        if (show({ pose: 'read', at: 'bar', lines: [pick(['I\'ll read while you decide.', 'Take your time. I brought a book.'])], idle: true, homeOnly: true })) idleStage = 1;
+        if (show({ pose: 'read', at: 'bar', lines: [customPick('idle_read', ['I\'ll read while you decide.', 'Take your time. I brought a book.'])], idle: true, homeOnly: true })) idleStage = 1;
       } else if (idleStage === 1 && idle > 480000 && cur?.idle) {
-        idleStage = 2; swapPose('doze', ['Zzz…']);
+        idleStage = 2; swapPose('doze', customLines('idle_doze', ['Zzz…']));
       }
     }
     if (homeFree && !cur && !idleStage && Date.now() >= nextDrop && idle < 120000 && Date.now() - lastLeft > 60000) { ambient(); planDrop(); }
@@ -465,13 +517,13 @@ const MASCOT = (() => {
     if (!on() || cur) return;
     if (S.screen === 'welcome') {
       remember({ guided: true });
-      show({ pose: 'point', at: 'guide', screen: 'welcome', guide: true, lineMs: 4800, lines: [
-        'Hi! I\'m Paige. Welcome to Spine!',
+      show({ pose: 'point', at: 'guide', screen: 'welcome', guide: true, lineMs: 4800, lines: customLines('guide', [
+        'Hi! I\'m {name}. Welcome to Spine!',
         'Spine turns your ROM folder into a game library, sorted by console and A to Z.',
         'Covers, banners, trailers and descriptions get filled in for you.',
         'Every game starts with the right emulator. Steam, Epic and GOG games can join in too.',
         'Mouse, keyboard or controller: use whatever you like.',
-        'Ready? Choose your ROM folder and I\'ll take it from there.'] });
+        'Ready? Choose your ROM folder and I\'ll take it from there.']) });
     } else if (S.screen === 'scanning') {
       show({ pose: 'read', at: 'bar', screen: 'scanning', guide: true, lineMs: 3600, lines: ['Reading your library…', 'This is my favorite part.'] });
     }
@@ -483,7 +535,7 @@ const MASCOT = (() => {
       if (!on()) return done();
       if (cur) leave(true);
       const h = new Date().getHours();
-      const ok = show({ pose: 'bye', at: 'bar', bye: true, lines: [h >= 22 || h < 5 ? pick(['Good night!', 'Sleep well!']) : pick(['See you next time!', 'Bye! Come back soon.', 'Thanks for playing. See you!'])] });
+      const ok = show({ pose: 'bye', at: 'bar', bye: true, lines: [h >= 22 || h < 5 ? customPick('bye_night', ['Good night!', 'Sleep well!']) : customPick('bye', ['See you next time!', 'Bye! Come back soon.', 'Thanks for playing. See you!'])] });
       if (!ok) return done();
       setTimeout(() => cur?.fig.classList.add('walkoff'), 650);
       setTimeout(done, 1500);

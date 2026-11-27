@@ -342,11 +342,20 @@ const ICON_SETS = {
   systematic: new Set('arcade atari2600 atarilynx dos dreamcast fds gamegear gb gba gbc gc genesis mastersystem n3ds n64 nds neogeo nes ngpc pcengine pcenginecd ps2 ps3 psp psvita psx saturn sega32x segacd snes switch switch2 virtualboy wii wiiu wonderswan xbox xbox360'.split(' ')),
 };
 const iconSet = () => { const v = S.boot?.settings?.consoleIcons; return v === 'lines' || v === 'systematic' ? v : 'mono'; };
-const sysIcon = (id, size = 56, set = iconSet()) => {
-  if (ICON_SETS[set]?.has(id)) {
+const sysIcon = (id, size = 56, set = null) => {
+  // Custom icon pack (from active theme or user override) unless caller asked for a specific built-in preview set.
+  if (set === null && typeof THEMES !== 'undefined') {
+    const custom = THEMES.iconFor(id);
+    if (custom) {
+      const h = Math.round(size * 0.95);
+      return `<span class="sysicon sysimg theme-${custom.mode}" style="width:${size}px;height:${h}px;--ii:url('${custom.url.replace(/'/g, "\\'")}')" aria-hidden="true"></span>`;
+    }
+  }
+  const s = set || iconSet();
+  if (ICON_SETS[s]?.has(id)) {
     // Square pictures: a little taller than the 4:3 line icons so they read at the same size.
-    const h = Math.round(size * (set === 'mono' ? 0.9 : 0.95));
-    return `<span class="sysicon sysimg ${set}" style="width:${size}px;height:${h}px;--ii:url('icons/${set}/${id}.png')" aria-hidden="true"></span>`;
+    const h = Math.round(size * (s === 'mono' ? 0.9 : 0.95));
+    return `<span class="sysicon sysimg ${s}" style="width:${size}px;height:${h}px;--ii:url('icons/${s}/${id}.png')" aria-hidden="true"></span>`;
   }
   return sysLines(id, size);
 };
@@ -745,23 +754,119 @@ function settingsPanel() {
         <button class="btn small" data-nav data-key="${key}-${i}" data-act="${rm}" data-p="${esc(r.path)}">Remove</button></div>`).join('')}</div>`;
   let body = '';
   if (tab === 'look') {
-    const accent = st.accent || '#C8431F';
+    const tv = tvOn();
+    const allPacks = typeof THEMES !== 'undefined' ? THEMES.list() : [];
+    const visualPacks = allPacks.filter((p) => p.has_visual);
+    const iconPacks = allPacks.filter((p) => p.has_icons);
+    const musicPacks = allPacks.filter((p) => p.has_music);
+    const soundPacks = allPacks.filter((p) => p.has_sounds);
+    const mascotPacks = allPacks.filter((p) => p.has_mascot);
+    const activeThemeId = tv ? (st.tvTheme || 'tv') : (st.theme || 'cream');
+    const activePack = typeof THEMES !== 'undefined' ? THEMES.activePack() : null;
+    const accent = st.accent || activePack?.colors?.accent || (tv ? TV_ACCENT : '#C8431F');
     const sw = ['#C8431F', '#2F5FBF', '#237A52', '#5B21B6', '#C99A1A', '#0E7490'].map((c) =>
-      `<button class="swatch ${c === accent ? 'on' : ''}" style="background:${c}" data-nav data-key="acc-${c}" data-act="accent" data-c="${c}" aria-label="Accent ${c}"></button>`).join('');
+      `<button class="swatch ${c === accent && st.accent ? 'on' : ''}" style="background:${c}" data-nav data-key="acc-${c}" data-act="accent" data-c="${c}" aria-label="Accent ${c}"></button>`).join('');
     const style = waveOn() ? 'wave' : channelsOn() ? 'channels' : bladesOn() ? 'blades' : cubeOn() ? 'cube' : 'classic';
-    body = grp('TV mode', 'Spine as your living-room console: Play and Watch, big text for the couch.', `<div class="opts">${chips('tvm', 'tvmode', [['off', 'Off'], ['on', 'On']], tvOn() ? 'on' : 'off')}</div>`)
-      + (tvOn() ? grp('Open TV mode full-screen', 'Spine opens full-screen while TV mode is on. With Start with your PC (Updates &amp; window), your PC starts up like a console.', `<div class="opts">${chips('tvfs', 'tvfs', [['off', 'Off'], ['on', 'On']], st.tvFullscreen ? 'on' : 'off')}</div>`) : '')
-      + grp('Theme', tvOn() ? 'Used when TV mode is off. TV mode has its own dark look.' : '', `<div class="opts">
-      <button class="chip ${(st.theme || 'cream') === 'cream' ? 'on' : ''}" data-nav data-key="th-cream" data-act="theme" data-t="cream">Cream</button>
-      <button class="chip ${st.theme === 'midnight' ? 'on' : ''}" data-nav data-key="th-midnight" data-act="theme" data-t="midnight">Midnight</button>
-      <button class="chip ${st.theme === 'crt' ? 'on' : ''}" data-nav data-key="th-crt" data-act="theme" data-t="crt">Retro CRT</button></div>`)
-      + grp('Home style', tvOn() ? 'Used when TV mode is off.' : 'How Home is laid out.', `<div class="opts">${['classic', 'wave', 'channels', 'blades', 'cube'].map((v) =>
+    const builtinList = tv
+      ? [['tv', 'TV Dark'], ['cream', 'Cream'], ['midnight', 'Midnight'], ['crt', 'Retro CRT']]
+      : [['cream', 'Cream'], ['midnight', 'Midnight'], ['crt', 'Retro CRT']];
+    const builtinChips = builtinList.map(([id, label]) =>
+      `<button class="chip ${activeThemeId === id ? 'on' : ''}" data-nav data-key="th-${id}" data-act="theme" data-t="${id}">${label}</button>`).join('');
+    const packBadges = (p) => {
+      const b = [];
+      if (p.css) b.push('CSS');
+      if (Object.keys(p.wallpapers || {}).length) b.push('Wallpapers');
+      if (p.has_icons) b.push('Icons');
+      if (p.has_music) b.push('Music');
+      if (p.has_sounds) b.push('Sounds');
+      if (p.has_mascot) b.push('Mascot');
+      return b.map((x) => `<span class="th-badge">${x}</span>`).join('');
+    };
+    const packCards = allPacks.length ? `<div class="th-cards">${allPacks.map((p) => {
+      const on = p.has_visual && activeThemeId === p.id;
+      const thumb = p.preview ? `<img src="${mediaUrl(p.preview)}" alt="">` : esc((p.name || p.id).slice(0, 2).toUpperCase());
+      const sub = [p.author, p.version ? 'v' + p.version : ''].filter(Boolean).join(' · ');
+      return `<div class="th-card ${on ? 'on' : ''}">
+        <div class="th-card-top">
+          <div class="th-thumb">${thumb}</div>
+          <div class="th-meta"><span class="th-name">${esc(p.name)}</span>${sub ? `<span class="th-sub">${esc(sub)}</span>` : ''}</div>
+        </div>
+        ${p.description ? `<span class="th-desc">${esc(p.description)}</span>` : ''}
+        <div class="th-badges">${packBadges(p)}</div>
+        <div class="th-acts">
+          ${p.has_visual ? `<button class="btn small ${on ? 'primary' : ''}" data-nav data-key="th-${esc(p.id)}" data-act="theme" data-t="${esc(p.id)}">${on ? 'Active' : 'Use'}</button>` : ''}
+          <button class="btn small" data-nav data-key="thexp-${esc(p.id)}" data-act="exporttheme" data-id="${esc(p.id)}">Export</button>
+          <button class="btn small" data-nav data-key="thdel-${esc(p.id)}" data-act="deletetheme" data-id="${esc(p.id)}">Delete</button>
+        </div>
+      </div>`;
+    }).join('')}</div>` : '';
+    const hasCustomActive = !!activePack || (typeof THEMES !== 'undefined' && THEMES.hasCustom()) || !!(st.iconPack || st.musicPack || st.soundPack || st.mascotPack);
+    const hasSimpleCustom = typeof THEMES !== 'undefined' && THEMES.hasCustom();
+    const themeTools = `<div class="opts">
+      <button class="btn small primary" data-nav data-key="th-cust" data-act="customize">${hasSimpleCustom ? 'Customize look (edited)' : 'Customize look'}</button>
+      <button class="btn small" data-nav data-key="th-imp" data-act="importtheme">Import theme / pack (.zip)</button>
+      <button class="btn small" data-nav data-key="th-impdir" data-act="importfolder">Import external folder</button>
+      <button class="btn small" data-nav data-key="th-start" data-act="startertheme">Create starter theme</button>
+      <button class="btn small" data-nav data-key="th-dir" data-act="openthemes">Open themes folder</button>
+      <button class="btn small" data-nav data-key="th-rel" data-act="reloadthemes">Reload themes</button>
+      ${hasCustomActive ? '<button class="btn small" data-nav data-key="th-rst" data-act="resettheme">Reset to default</button>' : ''}
+    </div>`;
+    const themeOptionsHtml = activePack && (activePack.options || []).length
+      ? grp(`${esc(activePack.name)} options`, 'Custom settings provided by this theme.', `<div class="th-opts">${activePack.options.map((opt) => {
+          const val = THEMES.optionValue(activePack, opt);
+          const ctrl = opt.kind === 'choice'
+            ? `<div class="opts">${(opt.choices || []).map((c) =>
+                `<button class="chip ${String(val) === String(c.value) ? 'on' : ''}" data-nav data-key="topt-${esc(opt.id)}-${esc(c.value)}" data-act="themeopt" data-tid="${esc(activePack.id)}" data-oid="${esc(opt.id)}" data-k="choice" data-v="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>`
+            : `<div class="opts">
+                <button class="chip ${val ? 'on' : ''}" data-nav data-key="topt-${esc(opt.id)}-on" data-act="themeopt" data-tid="${esc(activePack.id)}" data-oid="${esc(opt.id)}" data-k="toggle" data-v="on">On</button>
+                <button class="chip ${!val ? 'on' : ''}" data-nav data-key="topt-${esc(opt.id)}-off" data-act="themeopt" data-tid="${esc(activePack.id)}" data-oid="${esc(opt.id)}" data-k="toggle" data-v="off">Off</button>
+              </div>`;
+          return `<div class="th-opt-row"><span class="k">${esc(opt.label)}</span>${opt.note ? `<span class="note">${esc(opt.note)}</span>` : ''}${ctrl}</div>`;
+        }).join('')}</div>`)
+      : '';
+    const iconOverride = st.iconPack || '';
+    const iconPackChips = iconPacks.length
+      ? `<div class="opts" style="margin-top:6px">
+          <button class="chip ${!iconOverride ? 'on' : ''}" data-nav data-key="ip-auto" data-act="iconpack" data-v="">From theme</button>
+          <button class="chip ${iconOverride === 'builtin' ? 'on' : ''}" data-nav data-key="ip-builtin" data-act="iconpack" data-v="builtin">Built-in only</button>
+          ${iconPacks.map((p) => `<button class="chip ${iconOverride === p.id ? 'on' : ''}" data-nav data-key="ip-${esc(p.id)}" data-act="iconpack" data-v="${esc(p.id)}">${esc(p.name)}</button>`).join('')}
+        </div>` : '';
+    const musicOverride = st.musicPack || '';
+    const musicPackGroup = musicPacks.length
+      ? grp('Home music pack', 'Override Home background music from any installed pack.', `<div class="opts">
+          <button class="chip ${!musicOverride ? 'on' : ''}" data-nav data-key="mp-auto" data-act="musicpack" data-v="">From theme</button>
+          <button class="chip ${musicOverride === 'builtin' ? 'on' : ''}" data-nav data-key="mp-builtin" data-act="musicpack" data-v="builtin">Built-in</button>
+          ${musicPacks.map((p) => `<button class="chip ${musicOverride === p.id ? 'on' : ''}" data-nav data-key="mp-${esc(p.id)}" data-act="musicpack" data-v="${esc(p.id)}">${esc(p.name)}</button>`).join('')}
+        </div>`) : '';
+    const soundOverride = st.soundPack || '';
+    const soundPackGroup = soundPacks.length
+      ? grp('Sound effects pack', 'Override interface clicks and chimes from any installed pack.', `<div class="opts">
+          <button class="chip ${!soundOverride ? 'on' : ''}" data-nav data-key="sp-auto" data-act="soundpack" data-v="">From theme</button>
+          <button class="chip ${soundOverride === 'builtin' ? 'on' : ''}" data-nav data-key="sp-builtin" data-act="soundpack" data-v="builtin">Built-in</button>
+          ${soundPacks.map((p) => `<button class="chip ${soundOverride === p.id ? 'on' : ''}" data-nav data-key="sp-${esc(p.id)}" data-act="soundpack" data-v="${esc(p.id)}">${esc(p.name)}</button>`).join('')}
+        </div>`) : '';
+    const mascotOverride = st.mascotPack || '';
+    const activeMascot = typeof THEMES !== 'undefined' ? THEMES.mascot() : null;
+    const mascotTitle = activeMascot ? `Mascot (${esc(activeMascot.name)})` : 'Paige';
+    const mascotPackRow = mascotPacks.length
+      ? `<div class="opts" style="margin-top:6px">
+          <button class="chip ${!mascotOverride ? 'on' : ''}" data-nav data-key="msp-auto" data-act="mascotpack" data-v="">From theme</button>
+          <button class="chip ${mascotOverride === 'paige' ? 'on' : ''}" data-nav data-key="msp-paige" data-act="mascotpack" data-v="paige">Paige</button>
+          ${mascotPacks.map((p) => `<button class="chip ${mascotOverride === p.id ? 'on' : ''}" data-nav data-key="msp-${esc(p.id)}" data-act="mascotpack" data-v="${esc(p.id)}">${esc(p.mascot?.name || p.name)}</button>`).join('')}
+        </div>` : '';
+    body = grp('TV mode', 'Spine as your living-room console: Play and Watch, big text for the couch.', `<div class="opts">${chips('tvm', 'tvmode', [['off', 'Off'], ['on', 'On']], tv ? 'on' : 'off')}</div>`)
+      + (tv ? grp('Open TV mode full-screen', 'Spine opens full-screen while TV mode is on. With Start with your PC (Updates &amp; window), your PC starts up like a console.', `<div class="opts">${chips('tvfs', 'tvfs', [['off', 'Off'], ['on', 'On']], st.tvFullscreen ? 'on' : 'off')}</div>`) : '')
+      + grp(tv ? 'TV mode theme' : 'Theme', tv ? 'Used while TV mode is on. Your Desktop theme comes back when TV mode is off. Ctrl+Shift+R resets anytime.' : 'Pick a built-in look or a custom theme pack. Press Ctrl+Shift+R anytime to reset.', `<div class="opts">${builtinChips}</div>${packCards}${themeTools}`)
+      + themeOptionsHtml
+      + grp('Home style', tv ? 'Used when TV mode is off.' : 'How Home is laid out.', `<div class="opts">${['classic', 'wave', 'channels', 'blades', 'cube'].map((v) =>
         `<button class="chip ${style === v ? 'on' : ''}" data-nav data-key="hs-${v}" data-act="homestyle" data-s="${v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div>`)
-      + grp('Paige', 'Spine\'s mascot. She drops by now and then: welcome back, play recaps, milestones, little tips, and she reads while you decide.', `<div class="opts">${chips('msc', 'mascot', [['off', 'Off'], ['moments', 'Big moments only'], ['sometimes', 'Sometimes'], ['often', 'Often']], st.mascot || 'sometimes')}
-        ${(st.mascot || 'sometimes') !== 'off' ? '<button class="btn small" data-nav data-key="mschi" data-act="mascothi">Say hi</button>' : ''}</div>`)
+      + grp(mascotTitle, activeMascot ? `Custom mascot from your theme pack.` : 'Spine\'s mascot. She drops by now and then: welcome back, play recaps, milestones, little tips, and she reads while you decide.', `<div class="opts">${chips('msc', 'mascot', [['off', 'Off'], ['moments', 'Big moments only'], ['sometimes', 'Sometimes'], ['often', 'Often']], st.mascot || 'sometimes')}
+        ${(st.mascot || 'sometimes') !== 'off' ? '<button class="btn small" data-nav data-key="mschi" data-act="mascothi">Say hi</button>' : ''}</div>${mascotPackRow}`)
       + grp('Console icons', 'Monochrome and Systematic are RetroArch\'s icons (libretro, CC BY 4.0).', `<div class="opts">${[['mono', 'Monochrome'], ['systematic', 'Systematic'], ['lines', 'Lines']].map(([v, l]) =>
-        `<button class="chip ${iconSet() === v ? 'on' : ''}" data-nav data-key="ci-${v}" data-act="consoleicons" data-v="${v}">${sysIcon('ps2', 26, v)} ${l}</button>`).join('')}</div>`)
-      + grp('Accent', '', `<div class="opts">${sw}</div>`)
+        `<button class="chip ${iconSet() === v ? 'on' : ''}" data-nav data-key="ci-${v}" data-act="consoleicons" data-v="${v}">${sysIcon('ps2', 26, v)} ${l}</button>`).join('')}</div>${iconPackChips}`)
+      + musicPackGroup
+      + soundPackGroup
+      + grp('Accent', activePack?.colors?.accent ? 'Override the theme\'s accent color, or use the theme\'s own color.' : '', `<div class="opts">${activePack?.colors?.accent ? `<button class="chip ${!st.accent ? 'on' : ''}" data-nav data-key="acc-theme" data-act="accent" data-c="">Theme's color</button>` : ''}${sw}</div>`)
       + grp('Interface size', 'Auto fits your screen.', `<div class="opts">${chips('sz', 'uiscale', ['auto', '1', '1.25', '1.5', '1.75', '2'].map((v) => [v, v === 'auto' ? 'Auto' : Math.round(v * 100) + '%']), String(st.ui_scale || 'auto'))}</div>`)
       + tileOrderGroup();
   } else if (tab === 'library') {
@@ -812,6 +917,100 @@ function settingsPanel() {
     <h2>Settings</h2>
     <div class="settabs">${SET_TABS.map(([k, l]) => `<button class="chip ${tab === k ? 'on' : ''}" data-nav data-key="stab-${k}" data-act="settab" data-t="${k}">${l}</button>`).join('')}</div>
     ${body}
+  </aside></div>`;
+}
+
+// Phase 2: Simple Mode visual customizer (colors, wallpaper, fonts, roundness, glass, audio, Save & Export).
+function customizePanel() {
+  if (S.panel !== 'customize' || typeof THEMES === 'undefined') return '';
+  const tv = tvOn();
+  const c = THEMES.custom();
+  const core = THEMES.effectiveCoreColors();
+  const grp = (k, note, body) => `<div class="grp"><span class="k">${k}</span>${note ? `<span class="note">${note}</span>` : ''}${body}</div>`;
+
+  const palCards = THEMES.PALETTES.map((p) => {
+    const on = core.bg.toLowerCase() === p.bg.toLowerCase() && core.surface.toLowerCase() === p.surface.toLowerCase() && core.accent.toLowerCase() === p.accent.toLowerCase();
+    return `<button class="cust-pal ${on ? 'on' : ''}" data-nav data-key="cpal-${p.id}" data-act="custpal" data-id="${p.id}">
+      <span class="cust-pal-dots">
+        <i style="background:${p.bg}"></i><i style="background:${p.surface}"></i><i style="background:${p.text}"></i><i style="background:${p.accent}"></i>
+      </span>
+      <span class="cust-pal-name">${esc(p.name)}</span>
+    </button>`;
+  }).join('');
+
+  const colorRows = [['bg', 'Background'], ['surface', 'Cards'], ['text', 'Text'], ['accent', 'Accent']].map(([slot, label]) => {
+    const val = core[slot];
+    const sw = (THEMES.SWATCHES[slot] || []).map((hex) =>
+      `<button class="cust-sw ${val.toLowerCase() === hex.toLowerCase() ? 'on' : ''}" style="background:${hex}" data-nav data-key="csw-${slot}-${hex}" data-act="custcolor" data-slot="${slot}" data-c="${hex}" aria-label="${label} ${hex}"></button>`).join('');
+    return `<div class="cust-crow">
+      <div class="cust-crow-top">
+        <span class="cust-crow-label">${label}</span>
+        <input type="color" class="cust-picker" data-cust-color="${slot}" value="${esc(val)}" aria-label="${label} color picker">
+        <input type="text" class="cust-hex" data-nav data-key="chex-${slot}" data-cust-hex="${slot}" value="${esc(val.toUpperCase())}" maxlength="7" spellcheck="false" autocomplete="off" aria-label="${label} hex code">
+      </div>
+      <div class="cust-swatches">${sw}</div>
+    </div>`;
+  }).join('');
+
+  const dim = typeof c.wallpaperDim === 'number' ? c.wallpaperDim : 0.55;
+  const blur = typeof c.wallpaperBlur === 'number' ? c.wallpaperBlur : 0;
+  const coverWallOn = c.coverWall !== false;
+  const radius = c.radius || 'rounded';
+  const glassOn = c.glass === true;
+  const curFont = c.fontFile ? '' : (c.font || '');
+  const curSound = c.soundStyle || '';
+
+  const dimChips = [[0.2, 'Light'], [0.45, 'Medium'], [0.65, 'Dark'], [0.8, 'Heavy']].map(([v, l]) =>
+    `<button class="chip ${Math.abs(dim - v) < 0.06 ? 'on' : ''}" data-nav data-key="cdim-${v}" data-act="custset" data-k="wallpaperDim" data-v="${v}" data-t="num">${l}</button>`).join('');
+  const blurChips = [[0, 'None'], [4, 'Soft'], [10, 'Medium'], [20, 'Heavy']].map(([v, l]) =>
+    `<button class="chip ${Math.abs(blur - v) < 1 ? 'on' : ''}" data-nav data-key="cblur-${v}" data-act="custset" data-k="wallpaperBlur" data-v="${v}" data-t="num">${l}</button>`).join('');
+  const fontChips = THEMES.FONTS.map((f) =>
+    `<button class="chip ${!c.fontFile && curFont === f.id ? 'on' : ''}" data-nav data-key="cfont-${f.id || 'def'}" data-act="custfont" data-v="${f.id}">${esc(f.label)}</button>`).join('');
+  const radChips = [['sharp', 'Sharp'], ['rounded', 'Rounded'], ['soft', 'Soft']].map(([v, l]) =>
+    `<button class="chip ${radius === v ? 'on' : ''}" data-nav data-key="crad-${v}" data-act="custset" data-k="radius" data-v="${v}">${l}</button>`).join('');
+  const sndChips = [['', 'Follow Home style'], ['default', 'Soft (Default)'], ['blades', 'Glassy (Blades)'], ['cube', 'Bubbly (Cube)']].map(([v, l]) =>
+    `<button class="chip ${curSound === v ? 'on' : ''}" data-nav data-key="csnd-${v || 'auto'}" data-act="custset" data-k="soundStyle" data-v="${v}">${l}</button>`).join('');
+
+  return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="Customize look">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <h2>${tv ? 'Customize TV look' : 'Customize look'}</h2>
+      <button class="btn small" data-nav data-key="cust-back" data-act="settings">Back to Settings</button>
+    </div>
+    ${grp('Quick palettes', 'Start from a curated look, then tweak anything below.', `<div class="cust-pals">${palCards}</div>`)}
+    ${grp('Colors', 'Pick swatches with a controller, or use the color picker and hex box. Borders and muted text adjust automatically.', `<div class="cust-crows">${colorRows}</div>`)}
+    ${grp('Background wallpaper', 'Pick any image. Adjust darkness and blur so text stays easy to read.', `<div class="opts">
+        <button class="btn small" data-nav data-key="cwp-pick" data-act="custasset" data-kind="wallpaper">${c.wallpaper ? 'Change wallpaper' : 'Choose image'}</button>
+        ${c.wallpaper ? `<button class="btn small" data-nav data-key="cwp-rm" data-act="custclear" data-kind="wallpaper">Remove</button><span class="cust-file">${esc(c.wallpaperName || 'Custom wallpaper')}</span>` : ''}
+      </div>
+      <div class="opts" style="margin-top:6px"><span class="note" style="margin-right:4px">Darkness:</span>${dimChips}</div>
+      <div class="opts" style="margin-top:6px"><span class="note" style="margin-right:4px">Blur:</span>${blurChips}</div>
+      <div class="opts" style="margin-top:6px"><span class="note" style="margin-right:4px">Moving cover wall:</span>
+        <button class="chip ${coverWallOn ? 'on' : ''}" data-nav data-key="ccw-on" data-act="custset" data-k="coverWall" data-v="true" data-t="bool">On</button>
+        <button class="chip ${!coverWallOn ? 'on' : ''}" data-nav data-key="ccw-off" data-act="custset" data-k="coverWall" data-v="false" data-t="bool">Off</button>
+      </div>`)}
+    ${grp('Fonts &amp; style', 'Choose a font style or load your own .ttf / .woff2 font file.', `<div class="opts">${fontChips}</div>
+      <div class="opts" style="margin-top:6px">
+        <button class="btn small" data-nav data-key="cfnt-pick" data-act="custasset" data-kind="font">${c.fontFile ? 'Change font file' : 'Load font file'}</button>
+        ${c.fontFile ? `<button class="btn small" data-nav data-key="cfnt-rm" data-act="custclear" data-kind="font">Remove font</button><span class="cust-file">${esc(c.fontName || 'Custom font')}</span>` : ''}
+      </div>
+      <div class="opts" style="margin-top:6px"><span class="note" style="margin-right:4px">Corners:</span>${radChips}</div>
+      <div class="opts" style="margin-top:6px"><span class="note" style="margin-right:4px">Cards:</span>
+        <button class="chip ${!glassOn ? 'on' : ''}" data-nav data-key="cgls-off" data-act="custset" data-k="glass" data-v="false" data-t="bool">Solid</button>
+        <button class="chip ${glassOn ? 'on' : ''}" data-nav data-key="cgls-on" data-act="custset" data-k="glass" data-v="true" data-t="bool">Frosted glass</button>
+      </div>`)}
+    ${grp('Audio', 'Use your own Home screen music and pick a UI sound style.', `<div class="opts">
+        <button class="btn small" data-nav data-key="cmus-pick" data-act="custasset" data-kind="music">${c.music ? 'Change music' : 'Choose Home music'}</button>
+        ${c.music ? `<button class="btn small" data-nav data-key="cmus-rm" data-act="custclear" data-kind="music">Remove music</button><span class="cust-file">${esc(c.musicName || 'Custom music')}</span>` : ''}
+      </div>
+      <div class="opts" style="margin-top:6px">${sndChips}</div>`)}
+    ${grp('Save &amp; share', 'Turn your customizations into a reusable Spine theme pack you can switch to anytime or share as a .zip.', `<div class="cust-save">
+        <input type="text" id="cust-name" data-nav data-key="cust-name" value="${esc(S.custName || '')}" placeholder="Theme name (e.g. Midnight Gold)" maxlength="48" autocomplete="off" spellcheck="false">
+        <div class="opts">
+          <button class="btn primary small" data-nav data-key="cust-save" data-act="custsave" data-exp="0">Save as theme</button>
+          <button class="btn small" data-nav data-key="cust-exp" data-act="custsave" data-exp="1">Save &amp; Export .zip</button>
+          <button class="btn small" data-nav data-key="cust-rst" data-act="custreset">Reset customizations</button>
+        </div>
+      </div>`)}
   </aside></div>`;
 }
 // A missing-mpv message Spine can fix itself (Windows: "Get mpv in Settings → …").
@@ -1142,8 +1341,8 @@ window.addEventListener('resize', () => applyScale());
 
 function applyTheme() {
   applyScale();
+  if (typeof THEMES !== 'undefined') return THEMES.apply();
   const st = settings();
-  // TV mode brings its own dark look to every screen (theme "tv" in tv.css); the chosen theme comes back when it's off.
   const tv = tvOn(), root = document.documentElement.style;
   const accent = st.accent || (tv ? TV_ACCENT : '#C8431F');
   document.documentElement.dataset.theme = tv ? 'tv' : st.theme || 'cream';
@@ -1194,7 +1393,7 @@ function render() {
   const scrollers = {};
   app.querySelectorAll('.scroll').forEach((el) => { if (el.id) scrollers[el.id] = el.scrollTop; });
   const screens = { welcome, scanning, home, games, detail, stream, sdetail, sperson, loading: () => '' };
-  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + scrapersPanel() + addonPanel() + sourcesPanel() + streamListsPanel() + streamGenrePanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
+  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + customizePanel() + scrapersPanel() + addonPanel() + sourcesPanel() + streamListsPanel() + streamGenrePanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
   silenceDetached();
   Object.entries(scrollers).forEach(([id, top]) => { const el = document.getElementById(id); if (el) el.scrollTop = top; });
   const car = document.getElementById('carousel');
@@ -1340,7 +1539,7 @@ function restoreFocus() {
   const els = navEls();
   let el = S.focusKey && els.find((e) => e.dataset.key === S.focusKey);
   if (!el) {
-    const pref = S.panel === 'settings' ? `stab-${setTab()}` : S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : S.panel === 'search' && S.osk ? (S.oskKey || 'k-a') : { home: tvOn() ? tvFocusKey() : waveOn() ? waveFocusKey() : bladesOn() ? bladeFocusKey() : cubeOn() ? cubeFocusKey() : `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
+    const pref = S.panel === 'settings' ? `stab-${setTab()}` : S.panel === 'customize' ? 'cust-back' : S.panel === 'scrapers' ? 'acc-sgdb' : S.panel === 'emulator' ? `emu-${S.emu?.current || 'default'}` : S.panel === 'search' && S.osk ? (S.oskKey || 'k-a') : { home: tvOn() ? tvFocusKey() : waveOn() ? waveFocusKey() : bladesOn() ? bladeFocusKey() : cubeOn() ? cubeFocusKey() : `con-${tiles()[S.sel]?.id}`, games: null, detail: 'play', welcome: 'pick' }[S.screen];
     el = (pref && els.find((e) => e.dataset.key === pref)) || els.find((e) => e.dataset.key?.startsWith('g-')) || els.find((e) => e.dataset.key !== 'brand') || els[0];
   }
   if (el) focusEl(el, false);
@@ -1388,6 +1587,44 @@ async function setSetting(k, v) {
   S.boot.settings = { ...settings(), [k]: v };
   render();
   await api.call('set_setting', { key: k, value: v });
+}
+
+// Shared handler for importing a native Spine .zip or an external ES-DE / Daijisho / RetroArch pack.
+async function finishThemeImport(call) {
+  try {
+    const res = await call();
+    if (!res) return;
+    S.boot.themes = res.themes;
+    THEMES.clearCache();
+    const p = res.theme;
+    if (p.has_visual) {
+      const key = tvOn() ? 'tvTheme' : 'theme';
+      await setSetting(key, p.id);
+    } else if (p.has_icons) {
+      await setSetting('iconPack', p.id);
+    } else if (p.has_music) {
+      await setSetting('musicPack', p.id);
+    } else if (p.has_sounds) {
+      await setSetting('soundPack', p.id);
+    } else if (p.has_mascot) {
+      await setSetting('mascotPack', p.id);
+    } else {
+      render();
+    }
+    const r = res.report;
+    if (r && r.source_kind && r.source_kind !== 'Spine theme') {
+      const parts = [];
+      if (r.wallpapers) parts.push(`${r.wallpapers} wallpaper${r.wallpapers === 1 ? '' : 's'}`);
+      if (r.icons) parts.push(`${r.icons} icon${r.icons === 1 ? '' : 's'}`);
+      if (r.fonts) parts.push(`${r.fonts} font${r.fonts === 1 ? '' : 's'}`);
+      if (r.music) parts.push(`${r.music} music`);
+      if (r.sounds) parts.push(`${r.sounds} sound${r.sounds === 1 ? '' : 's'}`);
+      if (r.has_colors) parts.push('colors');
+      toast(`Imported "${p.name}" (${r.source_kind}${parts.length ? ': ' + parts.join(', ') : ''})`, 5500);
+    } else {
+      toast(`Imported "${p.name}"`);
+    }
+  } catch (e) { toast(String(e), 6000); }
 }
 
 const ACT = {
@@ -1755,7 +1992,151 @@ const ACT = {
     render();
   },
   closeplay() { S.playing = null; S.focusKey = 'play'; render(); },
-  theme(d) { S.focusKey = `th-${d.t}`; setSetting('theme', d.t); },
+  theme(d) {
+    S.focusKey = `th-${d.t}`;
+    const key = tvOn() ? 'tvTheme' : 'theme';
+    setSetting(key, d.t);
+  },
+  themeopt(d) {
+    const val = d.k === 'toggle' ? d.v === 'on' : d.v;
+    S.focusKey = `topt-${d.oid}-${d.v}`;
+    const cur = { ...(settings().themeOptions || {}) };
+    cur[d.tid] = { ...(cur[d.tid] || {}), [d.oid]: val };
+    setSetting('themeOptions', cur);
+  },
+  iconpack(d) { S.focusKey = `ip-${d.v || 'auto'}`; setSetting('iconPack', d.v || ''); },
+  musicpack(d) { S.focusKey = `mp-${d.v || 'auto'}`; setSetting('musicPack', d.v || ''); },
+  soundpack(d) { S.focusKey = `sp-${d.v || 'auto'}`; setSetting('soundPack', d.v || ''); },
+  mascotpack(d) { S.focusKey = `msp-${d.v || 'auto'}`; setSetting('mascotPack', d.v || ''); MASCOT.leave(true); },
+  async importtheme() {
+    S.focusKey = 'th-imp';
+    await finishThemeImport(() => api.call('import_theme'));
+  },
+  async importfolder() {
+    S.focusKey = 'th-impdir';
+    await finishThemeImport(() => api.call('import_external_folder'));
+  },
+  async exporttheme(d) {
+    S.focusKey = `thexp-${d.id}`;
+    try {
+      const ok = await api.call('export_theme', { id: d.id });
+      if (ok) toast('Theme exported as .zip');
+    } catch (e) { toast(String(e), 5000); }
+  },
+  async startertheme() {
+    S.focusKey = 'th-start';
+    try {
+      const res = await api.call('create_starter_theme');
+      S.boot.themes = res.themes;
+      THEMES.clearCache();
+      const key = tvOn() ? 'tvTheme' : 'theme';
+      await setSetting(key, res.theme.id);
+      toast(`Created "${res.theme.name}" in your themes folder`, 4500);
+    } catch (e) { toast(String(e), 5000); }
+  },
+  async openthemes() {
+    S.focusKey = 'th-dir';
+    try { await api.call('open_path', { which: 'themes' }); } catch (e) { toast(String(e), 5000); }
+  },
+  async reloadthemes() {
+    S.focusKey = 'th-rel';
+    try {
+      S.boot.themes = await api.call('reload_themes');
+      THEMES.clearCache();
+      render();
+      toast(`Loaded ${S.boot.themes.length} theme pack${S.boot.themes.length === 1 ? '' : 's'}`);
+    } catch (e) { toast(String(e), 5000); }
+  },
+  async deletetheme(d) {
+    try {
+      S.boot.themes = await api.call('delete_theme', { id: d.id });
+      THEMES.clearCache();
+      const st = { ...settings() };
+      for (const k of ['theme', 'tvTheme', 'iconPack', 'musicPack', 'soundPack', 'mascotPack']) {
+        if (st[k] === d.id) delete st[k];
+      }
+      S.boot.settings = st;
+      S.focusKey = 'th-rel';
+      render();
+      toast('Theme deleted');
+    } catch (e) { toast(String(e), 5000); }
+  },
+  resettheme() { S.focusKey = tvOn() ? 'th-tv' : 'th-cream'; THEMES.safeReset(); },
+  customize() { S.panel = 'customize'; S.focusKey = 'cust-back'; render(); },
+  custpal(d) {
+    const p = THEMES.PALETTES.find((x) => x.id === d.id);
+    if (!p) return;
+    S.focusKey = `cpal-${p.id}`;
+    const next = { ...THEMES.custom(), bg: p.bg, surface: p.surface, text: p.text, accent: p.accent };
+    setSetting(THEMES.customKey(), next);
+  },
+  custcolor(d) {
+    S.focusKey = `csw-${d.slot}-${d.c}`;
+    const next = { ...THEMES.custom(), [d.slot]: d.c };
+    setSetting(THEMES.customKey(), next);
+  },
+  custset(d) {
+    let val = d.v;
+    if (d.t === 'num') val = Number(d.v);
+    else if (d.t === 'bool') val = d.v === 'true';
+    const next = { ...THEMES.custom(), [d.k]: val };
+    S.focusKey = d.k === 'wallpaperDim' ? `cdim-${d.v}` : d.k === 'wallpaperBlur' ? `cblur-${d.v}` : d.k === 'coverWall' ? `ccw-${val ? 'on' : 'off'}` : d.k === 'radius' ? `crad-${d.v}` : d.k === 'glass' ? `cgls-${val ? 'on' : 'off'}` : `csnd-${d.v || 'auto'}`;
+    setSetting(THEMES.customKey(), next);
+  },
+  custfont(d) {
+    S.focusKey = `cfont-${d.v || 'def'}`;
+    const next = { ...THEMES.custom(), font: d.v || '' };
+    delete next.fontFile; delete next.fontName;
+    setSetting(THEMES.customKey(), next);
+  },
+  async custasset(d) {
+    const slot = THEMES.customSlot(d.kind);
+    try {
+      const picked = await api.call('pick_custom_asset', { slot });
+      if (!picked) return;
+      const next = { ...THEMES.custom() };
+      if (d.kind === 'wallpaper') { next.wallpaper = picked.rel; next.wallpaperName = picked.name; S.focusKey = 'cwp-pick'; }
+      else if (d.kind === 'font') { next.fontFile = picked.rel; next.fontName = picked.name; delete next.font; S.focusKey = 'cfnt-pick'; }
+      else if (d.kind === 'music') { next.music = picked.rel; next.musicName = picked.name; S.focusKey = 'cmus-pick'; }
+      await setSetting(THEMES.customKey(), next);
+    } catch (e) { toast(String(e), 5000); }
+  },
+  async custclear(d) {
+    const slot = THEMES.customSlot(d.kind);
+    try { await api.call('clear_custom_asset', { slot }); } catch (e) { /* best effort */ }
+    const next = { ...THEMES.custom() };
+    if (d.kind === 'wallpaper') { delete next.wallpaper; delete next.wallpaperName; S.focusKey = 'cwp-pick'; }
+    else if (d.kind === 'font') { delete next.fontFile; delete next.fontName; S.focusKey = 'cfnt-pick'; }
+    else if (d.kind === 'music') { delete next.music; delete next.musicName; S.focusKey = 'cmus-pick'; }
+    await setSetting(THEMES.customKey(), next);
+  },
+  async custsave(d) {
+    const input = document.getElementById('cust-name');
+    const name = (input ? input.value : S.custName || '').trim();
+    if (!name) { toast('Give your theme a name first.', 3500); if (input) input.focus(); return; }
+    const exp = d.exp === '1';
+    try {
+      const spec = THEMES.buildCustomThemeSpec(name);
+      const res = await api.call('save_custom_theme', { spec, export: exp });
+      S.boot.themes = res.themes;
+      THEMES.clearCache();
+      S.custName = '';
+      const tkey = tvOn() ? 'tvTheme' : 'theme';
+      await setSetting(THEMES.customKey(), {});
+      await setSetting(tkey, res.theme.id);
+      S.panel = 'settings'; S.setTab = 'look'; S.focusKey = `th-${res.theme.id}`;
+      render();
+      toast(exp ? `Saved & exported "${res.theme.name}"` : `Saved "${res.theme.name}" as a theme`, 4000);
+    } catch (e) { toast(String(e), 6000); }
+  },
+  async custreset() {
+    for (const k of ['wallpaper', 'font', 'music']) {
+      try { await api.call('clear_custom_asset', { slot: THEMES.customSlot(k) }); } catch (e) { /* ignore */ }
+    }
+    S.focusKey = 'cust-back';
+    await setSetting(THEMES.customKey(), {});
+    toast('Customizations cleared');
+  },
   homemusic(d) { S.focusKey = `bgm-${d.v}`; setSetting('homeMusic', d.v); },
   async upnext(d) { S.focusKey = `upn-${d.v}`; if (d.v !== 'off') await setSetting('autoplayWait', Number(d.v)); setSetting('autoplayNext', d.v !== 'off'); },
   audiolang(d) { S.focusKey = `al-${d.v}`; setSetting('audioLang', d.v); },
@@ -1789,7 +2170,7 @@ const ACT = {
     render();
   },
   consoleicons(d) { S.focusKey = `ci-${d.v}`; setSetting('consoleIcons', d.v); },
-  accent(d) { S.focusKey = `acc-${d.c}`; setSetting('accent', d.c); },
+  accent(d) { S.focusKey = d.c ? `acc-${d.c}` : 'acc-theme'; setSetting('accent', d.c || ''); },
   async rescan() { S.panel = null; await doScan(S.boot.rom_root); },
   async addroot() {
     try {
@@ -1993,7 +2374,16 @@ const SFX = (() => {
       const now = performance.now();
       if (name === 'move' && now - last < 30) return; // fast scrolling: don't machine-gun
       last = now;
-      try { ((bladesOn() && blades[name]) || (cubeOn() && cube[name]) || sounds[name])?.(); } catch (e) { /* no audio device */ }
+      try {
+        const c = out();
+        if (c && typeof THEMES !== 'undefined') {
+          THEMES.preloadSounds(c);
+          if (THEMES.playSound(name, c, master)) return;
+        }
+        const ss = typeof THEMES !== 'undefined' ? THEMES.soundStyle() : '';
+        const bank = ss === 'blades' ? blades : ss === 'cube' ? cube : ss === 'default' ? sounds : (bladesOn() ? blades : cubeOn() ? cube : sounds);
+        (bank[name] || sounds[name])?.();
+      } catch (e) { /* no audio device */ }
     },
   };
 })();
@@ -2042,7 +2432,7 @@ function press(btn) {
     case 'A': if (cur?.dataset?.act) ACT[cur.dataset.act]?.(cur.dataset); else if (typing && cur.dataset.enter) ACT[cur.dataset.enter]?.(cur.dataset); else if (typing) move('down'); return;
     case 'B':
       if (S.playing && (S.playing.error || S.playing.emulator === 'system')) return ACT.closeplay();
-      if (S.panel === 'scrapers' || S.panel === 'addon') return ACT.settings();
+      if (S.panel === 'scrapers' || S.panel === 'addon' || S.panel === 'customize') return ACT.settings();
       return ACT.back();
     case 'X': if (searchStreamHere() && !S.panel && !S.playing) return ACT.search(); if (streamSearchFocus()) return; if (!S.panel && S.boot?.systems?.length && !S.playing) ACT.search(); return;
     case 'Y': {
@@ -2084,6 +2474,12 @@ function press(btn) {
 
 document.addEventListener('keydown', (e) => {
   INPUT_SRC = 'key';
+  // Safe-reset shortcut: Ctrl+Shift+R immediately restores the default theme if custom CSS breaks the layout.
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'r') {
+    e.preventDefault();
+    if (typeof THEMES !== 'undefined') THEMES.safeReset();
+    return;
+  }
   if (oskKeydown(e)) return; // typing while the pop-up keyboard has focus (keys.js)
   const typing = e.target.tagName === 'INPUT';
   const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'A', Escape: 'B', PageUp: 'LB', PageDown: 'RB', F2: 'START' };
@@ -2098,6 +2494,49 @@ document.addEventListener('keydown', (e) => {
   if (typing && (b === 'left' || b === 'right')) return;
   e.preventDefault();
   press(b);
+});
+
+// Live preview for Simple Mode color pickers, hex boxes and theme name input (no DOM rebuild while typing/dragging).
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (!el) return;
+  if (el.id === 'cust-name') { S.custName = el.value; return; }
+  if (typeof THEMES === 'undefined') return;
+  const cslot = el.dataset?.custColor;
+  if (cslot && THEMES.isHex(el.value)) {
+    const k = THEMES.customKey();
+    S.boot.settings = { ...settings(), [k]: { ...THEMES.custom(), [cslot]: el.value } };
+    const hx = document.querySelector(`[data-cust-hex="${cslot}"]`);
+    if (hx) hx.value = el.value.toUpperCase();
+    applyTheme();
+    return;
+  }
+  const hslot = el.dataset?.custHex;
+  if (hslot) {
+    let v = el.value.trim();
+    if (v && !v.startsWith('#')) v = '#' + v;
+    if (THEMES.isHex(v)) {
+      const k = THEMES.customKey();
+      S.boot.settings = { ...settings(), [k]: { ...THEMES.custom(), [hslot]: v } };
+      const pk = document.querySelector(`[data-cust-color="${hslot}"]`);
+      if (pk) pk.value = v;
+      applyTheme();
+    }
+  }
+});
+document.addEventListener('change', (e) => {
+  const el = e.target;
+  if (!el || typeof THEMES === 'undefined') return;
+  const slot = el.dataset?.custColor || el.dataset?.custHex;
+  if (!slot) return;
+  let v = el.value.trim();
+  if (v && !v.startsWith('#')) v = '#' + v;
+  if (!THEMES.isHex(v)) return;
+  const k = THEMES.customKey();
+  const next = { ...THEMES.custom(), [slot]: v };
+  S.boot.settings = { ...settings(), [k]: next };
+  api.call('set_setting', { key: k, value: next }).catch(() => {});
+  applyTheme();
 });
 
 // Standard gamepad mapping (Xbox layout names; PlayStation/Switch map the same positions).

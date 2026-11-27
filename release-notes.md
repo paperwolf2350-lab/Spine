@@ -1,4 +1,10 @@
 ## What's new
+- **Customize Spine's look (Simple Mode).** Go to **Settings → Look → Theme → Customize look** to pick from 8 curated color palettes or choose your own Background, Cards, Text, and Accent colors with a controller or mouse. Add a custom wallpaper (with darkness, blur, and moving cover-wall toggles), switch fonts or load your own font file, pick sharp/rounded/soft corners or frosted-glass cards, and choose your own Home music and UI sound style. Save your look as a reusable theme or export it as a `.zip` to share.
+- **Custom Theme Packs (Advanced Mode).** Drop theme folders into Spine's `themes/` folder—or import `.zip` packs in Settings—to restyle Spine with custom CSS, colors, fonts, overall & per-console wallpapers, console icon packs, Home music, UI sound effects, creator-defined Settings toggles, and full custom mascot packs (`mascot/mascot.json`). Themes are CSS + assets only (no scripts), and pressing **Ctrl + Shift + R** resets back to default anytime. See `THEMING.md` for the full creator guide.
+- **Separate Desktop & TV mode themes + Mix & Match.** Pick one theme for Desktop and a different theme (or TV Dark) for TV mode, and mix and match icon packs, Home music, sound effects, or mascots across packs.
+- **Import from ES-DE, Daijishō & RetroArch.** **Import theme / pack (.zip)** and **Import external folder** automatically pull compatible console wallpapers, console icons/logos, colors, fonts, music, and sounds from ES-DE themes, Daijishō wallpaper packs, and RetroArch icon packs into standard Spine themes.
+
+From 0.42.2:
 - Fixed: on the Streaming screens, "Show more" sometimes added just one title per press. This happened when you had hidden genres or turned on a filter, because Spine fetched one page from the addon and most of it got filtered out. Now it keeps fetching until a good batch of new titles is actually showing (up to 8 pages per press).
 
 From 0.42.1:

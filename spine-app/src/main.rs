@@ -145,6 +145,9 @@ impl App {
     fn media(&self) -> PathBuf {
         self.dir.join("media")
     }
+    fn themes_dir(&self) -> PathBuf {
+        self.dir.join("themes")
+    }
     fn save(&self) {
         let s = self.saved.lock().unwrap().clone();
         let tmp = self.dir.join("spine-state.json.tmp");
@@ -368,6 +371,8 @@ struct Boot {
     stream_links: Vec<String>,
     /// Spine starts when the user logs in (the computer's own setting).
     autostart: bool,
+    /// Installed custom theme packs found in `<data_dir>/themes/`.
+    themes: Vec<spine_core::themes::ThemePack>,
 }
 
 fn view(app: &App) -> Boot {
@@ -489,6 +494,7 @@ fn view(app: &App) -> Boot {
         stream_watched: saved.stream_watched.clone(),
         stream_links: app.links.lock().unwrap().keys().cloned().collect(),
         autostart: autostart::is_on(),
+        themes: spine_core::themes::scan_themes(&app.themes_dir()),
     }
 }
 
@@ -1328,6 +1334,11 @@ fn open_path(which: String, app: State<App>) -> Result<(), String> {
     let p = match which.as_str() {
         "credentials" => app.dir.join("credentials.txt"),
         "folder" => app.dir.clone(),
+        "themes" => {
+            let d = app.themes_dir();
+            let _ = fs::create_dir_all(&d);
+            d
+        }
         _ => return Err("unknown".into()),
     };
     if which == "credentials" {
@@ -1343,6 +1354,192 @@ fn open_path(which: String, app: State<App>) -> Result<(), String> {
         spine_core::hostenv::command("xdg-open").arg(&p).spawn().map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[derive(Serialize)]
+struct ThemeChange {
+    theme: spine_core::themes::ThemePack,
+    themes: Vec<spine_core::themes::ThemePack>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    report: Option<spine_core::theme_import::ImportReport>,
+}
+
+/// Rescan `<data_dir>/themes/` and return the fresh theme list.
+#[tauri::command]
+fn reload_themes(app: State<App>) -> Vec<spine_core::themes::ThemePack> {
+    spine_core::themes::scan_themes(&app.themes_dir())
+}
+
+/// Pick a `.zip` file (native Spine theme, ES-DE theme, Daijishō wallpaper pack, or RetroArch icon pack)
+/// and install it into `<data_dir>/themes/`.
+#[tauri::command]
+async fn import_theme(handle: AppHandle) -> Result<Option<ThemeChange>, String> {
+    let file = handle
+        .dialog()
+        .file()
+        .set_title("Import a Spine theme or external pack (.zip)")
+        .add_filter("Theme or pack (.zip)", &["zip"])
+        .blocking_pick_file()
+        .and_then(|p| p.into_path().ok());
+    let Some(src) = file else { return Ok(None) };
+    let dir = handle.state::<App>().themes_dir();
+    tauri::async_runtime::spawn_blocking(move || {
+        let report = spine_core::theme_import::import_any_zip(&dir, &src)?;
+        let theme = report.pack.clone();
+        let themes = spine_core::themes::scan_themes(&dir);
+        Ok(Some(ThemeChange { theme, themes, report: Some(report) }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Pick an unzipped external folder (ES-DE theme, Daijishō wallpaper pack, or RetroArch icon pack)
+/// and import its compatible wallpapers, icons, colors, fonts, music and sounds as a Spine theme pack.
+#[tauri::command]
+async fn import_external_folder(handle: AppHandle) -> Result<Option<ThemeChange>, String> {
+    let folder = handle
+        .dialog()
+        .file()
+        .set_title("Import ES-DE, Daijishō, or icon pack folder")
+        .blocking_pick_folder()
+        .and_then(|p| p.into_path().ok());
+    let Some(src) = folder else { return Ok(None) };
+    let dir = handle.state::<App>().themes_dir();
+    tauri::async_runtime::spawn_blocking(move || {
+        let report = spine_core::theme_import::import_external_folder(&dir, &src)?;
+        let theme = report.pack.clone();
+        let themes = spine_core::themes::scan_themes(&dir);
+        Ok(Some(ThemeChange { theme, themes, report: Some(report) }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Export an installed theme folder as a shareable `.zip` file.
+#[tauri::command]
+async fn export_theme(id: String, handle: AppHandle) -> Result<bool, String> {
+    let dest = handle
+        .dialog()
+        .file()
+        .set_title("Export theme as .zip")
+        .set_file_name(&format!("{id}.zip"))
+        .add_filter("Zip archive", &["zip"])
+        .blocking_save_file()
+        .and_then(|p| p.into_path().ok());
+    let Some(dst) = dest else { return Ok(false) };
+    let dir = handle.state::<App>().themes_dir();
+    tauri::async_runtime::spawn_blocking(move || {
+        spine_core::themes::export_zip(&dir, &id, &dst)?;
+        Ok(true)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Generate a ready-to-edit starter theme inside `<data_dir>/themes/`.
+#[tauri::command]
+fn create_starter_theme(app: State<App>) -> Result<ThemeChange, String> {
+    let dir = app.themes_dir();
+    let theme = spine_core::themes::create_starter_theme(&dir)?;
+    let themes = spine_core::themes::scan_themes(&dir);
+    Ok(ThemeChange { theme, themes, report: None })
+}
+
+/// Delete an installed theme pack and clear any settings pointing to it.
+#[tauri::command]
+fn delete_theme(id: String, app: State<App>) -> Result<Vec<spine_core::themes::ThemePack>, String> {
+    spine_core::themes::delete_theme(&app.themes_dir(), &id)?;
+    {
+        let mut s = app.saved.lock().unwrap();
+        let keys = ["theme", "tvTheme", "iconPack", "musicPack", "soundPack", "mascotPack"];
+        for k in keys {
+            if s.settings.get(k).and_then(|v| v.as_str()) == Some(id.as_str()) {
+                s.settings.remove(k);
+            }
+        }
+        if let Some(opts) = s.settings.get_mut("themeOptions").and_then(|v| v.as_object_mut()) {
+            opts.remove(&id);
+        }
+    }
+    app.save();
+    Ok(spine_core::themes::scan_themes(&app.themes_dir()))
+}
+
+#[derive(Serialize)]
+struct PickedAsset {
+    rel: String,
+    name: String,
+}
+
+/// Pick a custom wallpaper, font, or Home music file for Simple Mode and copy it into `media/custom/`.
+#[tauri::command]
+async fn pick_custom_asset(slot: String, handle: AppHandle) -> Result<Option<PickedAsset>, String> {
+    let (title, filter_name, exts): (&str, &str, &[&str]) = match slot.as_str() {
+        "wallpaper" | "tv-wallpaper" => ("Choose a background wallpaper", "Images", spine_core::themes::WALLPAPER_EXTS),
+        "font" | "tv-font" => ("Choose a font file", "Fonts", spine_core::themes::FONT_FILE_EXTS),
+        "music" | "tv-music" => ("Choose Home background music", "Audio", spine_core::themes::MUSIC_FILE_EXTS),
+        _ => return Err("Unknown asset slot.".into()),
+    };
+    let file = handle
+        .dialog()
+        .file()
+        .set_title(title)
+        .add_filter(filter_name, exts)
+        .blocking_pick_file()
+        .and_then(|p| p.into_path().ok());
+    let Some(src) = file else { return Ok(None) };
+    let media = handle.state::<App>().media();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (rel, name) = spine_core::themes::install_custom_asset(&media, &slot, &src)?;
+        Ok(Some(PickedAsset { rel, name }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Remove a copied Simple Mode custom asset file.
+#[tauri::command]
+fn clear_custom_asset(slot: String, app: State<App>) {
+    spine_core::themes::clear_custom_asset(&app.media(), &slot);
+}
+
+/// Save Simple Mode customizations as a shareable theme pack (and optionally export as `.zip`).
+#[tauri::command]
+async fn save_custom_theme(
+    spec: spine_core::themes::CustomThemeSpec,
+    export: bool,
+    handle: AppHandle,
+) -> Result<ThemeChange, String> {
+    let app = handle.state::<App>();
+    let themes_dir = app.themes_dir();
+    let media = app.media();
+    let dir2 = themes_dir.clone();
+    let theme = tauri::async_runtime::spawn_blocking(move || {
+        spine_core::themes::save_custom_theme(&dir2, &media, &spec)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    if export {
+        let dest = handle
+            .dialog()
+            .file()
+            .set_title("Export theme as .zip")
+            .set_file_name(&format!("{}.zip", theme.id))
+            .add_filter("Zip archive", &["zip"])
+            .blocking_save_file()
+            .and_then(|p| p.into_path().ok());
+        if let Some(dst) = dest {
+            let dir3 = themes_dir.clone();
+            let id = theme.id.clone();
+            tauri::async_runtime::spawn_blocking(move || spine_core::themes::export_zip(&dir3, &id, &dst))
+                .await
+                .map_err(|e| e.to_string())??;
+        }
+    }
+
+    let themes = spine_core::themes::scan_themes(&themes_dir);
+    Ok(ThemeChange { theme, themes, report: None })
 }
 
 fn find<'a>(lib: &'a Library, id: &str) -> Option<(&'a spine_core::SystemLibrary, &'a spine_core::Game)> {
@@ -1945,14 +2142,16 @@ fn set_fullscreen(on: bool, handle: AppHandle) {
 // Serving covers to the interface: spine://localhost/covers/gba/x.png
 // ---------------------------------------------------------------------------
 
-/// Serve covers and videos to the interface.
+/// Serve covers, videos, and custom theme assets to the interface.
 ///   spine://localhost/covers/gba/x.png   a file under the media folder
 ///   spine://localhost/video/<game id>    that game's video, wherever it lives
+///   spine://localhost/themes/<id>/...    a safe static file under the themes folder
 /// Videos honour HTTP Range requests so the player can stream and loop them.
-fn serve_media(media: &Path, uri_path: &str, range: Option<&str>, video_of: &dyn Fn(&str) -> Option<PathBuf>) -> tauri::http::Response<Vec<u8>> {
+fn serve_media(media: &Path, themes: &Path, uri_path: &str, range: Option<&str>, video_of: &dyn Fn(&str) -> Option<PathBuf>) -> tauri::http::Response<Vec<u8>> {
     let rel = percent_decode(uri_path.trim_start_matches('/'));
     let resp = tauri::http::Response::builder().header("Access-Control-Allow-Origin", "*");
     let not_found = || tauri::http::Response::builder().status(404).body(Vec::new()).unwrap();
+    let mut is_theme = false;
     let path = if let Some(id) = rel.strip_prefix("video/") {
         match video_of(id) {
             Some(p) => p,
@@ -1963,6 +2162,12 @@ fn serve_media(media: &Path, uri_path: &str, range: Option<&str>, video_of: &dyn
             Some(p) => p.with_extension("audio.m4a"),
             None => return not_found(),
         }
+    } else if let Some(sub) = rel.strip_prefix("themes/") {
+        if sub.is_empty() || sub.split(['/', '\\']).any(|p| p == ".." || p.contains(':') || p.starts_with('.')) {
+            return not_found();
+        }
+        is_theme = true;
+        themes.join(sub)
     } else {
         if rel.split(['/', '\\']).any(|p| p == ".." || p.contains(':')) {
             return not_found();
@@ -1970,11 +2175,24 @@ fn serve_media(media: &Path, uri_path: &str, range: Option<&str>, video_of: &dyn
         media.join(&rel)
     };
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    if is_theme && !spine_core::themes::is_safe_asset_ext(&ext) {
+        return not_found();
+    }
     let mime = match ext.as_str() {
         "png" => "image/png",
         "jpg" | "jpeg" => "image/jpeg",
         "webp" => "image/webp",
         "gif" => "image/gif",
+        "svg" => "image/svg+xml",
+        "css" => "text/css; charset=utf-8",
+        "json" => "application/json",
+        "woff2" => "font/woff2",
+        "woff" => "font/woff",
+        "ttf" => "font/ttf",
+        "otf" => "font/otf",
+        "mp3" => "audio/mpeg",
+        "ogg" => "audio/ogg",
+        "wav" => "audio/wav",
         "mp4" | "m4v" => "video/mp4",
         "m4a" => "audio/mp4",
         "webm" => "video/webm",
@@ -2008,8 +2226,9 @@ fn serve_media(media: &Path, uri_path: &str, range: Option<&str>, video_of: &dyn
             .body(buf)
             .unwrap();
     }
+    let cache = if is_theme { "no-cache" } else { "max-age=31536000" };
     match fs::read(&path) {
-        Ok(bytes) => resp.header("Content-Type", mime).header("Accept-Ranges", "bytes").header("Cache-Control", "max-age=31536000").body(bytes).unwrap(),
+        Ok(bytes) => resp.header("Content-Type", mime).header("Accept-Ranges", "bytes").header("Cache-Control", cache).body(bytes).unwrap(),
         Err(_) => not_found(),
     }
 }
@@ -2204,6 +2423,7 @@ fn main() {
     let mut saved: Saved = fs::read_to_string(dir.join("spine-state.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
     backfill_watched(&mut saved);
     let media = dir.join("media");
+    let themes_dir = dir.join("themes");
     let dir2 = dir.clone();
     let mut saved = saved;
     // Scanning is fast (under a second for ~700 games), so just do it at start.
@@ -2237,7 +2457,7 @@ fn main() {
                 let lib = app.library.lock().unwrap();
                 lib.as_ref().and_then(|l| find(l, id)).and_then(|(_, g)| g.video.clone())
             };
-            serve_media(&media, req.uri().path(), range.as_deref(), &video_of)
+            serve_media(&media, &themes_dir, req.uri().path(), range.as_deref(), &video_of)
         })
         .setup(|app| {
             watch_folders(app.handle().clone());
@@ -2260,7 +2480,7 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, set_autostart, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, forget_played, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, set_autostart, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, forget_played, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv, reload_themes, import_theme, import_external_folder, export_theme, create_starter_theme, delete_theme, pick_custom_asset, clear_custom_asset, save_custom_theme])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }
@@ -2296,21 +2516,33 @@ mod tests {
     fn decodes_and_refuses_escapes() {
         assert_eq!(percent_decode("covers/gba/pok%C3%A9mon.png"), "covers/gba/pokémon.png");
         let dir = std::env::temp_dir();
+        let themes = dir.join("spine-themes-serve-test");
+        let _ = fs::remove_dir_all(&themes);
+        fs::create_dir_all(themes.join("demo")).unwrap();
+        fs::write(themes.join("demo/theme.css"), b"body { color: red; }").unwrap();
+        fs::write(themes.join("demo/evil.js"), b"alert(1)").unwrap();
         let none = |_: &str| None;
-        assert_eq!(serve_media(&dir, "/../etc/passwd", None, &none).status(), 404);
-        assert_eq!(serve_media(&dir, "/C:%5Cwindows", None, &none).status(), 404);
+        assert_eq!(serve_media(&dir, &themes, "/../etc/passwd", None, &none).status(), 404);
+        assert_eq!(serve_media(&dir, &themes, "/C:%5Cwindows", None, &none).status(), 404);
+        assert_eq!(serve_media(&dir, &themes, "/themes/demo/evil.js", None, &none).status(), 404);
+        assert_eq!(serve_media(&dir, &themes, "/themes/../etc/passwd", None, &none).status(), 404);
+        let css = serve_media(&dir, &themes, "/themes/demo/theme.css", None, &none);
+        assert_eq!(css.status(), 200);
+        assert_eq!(css.headers()["content-type"], "text/css; charset=utf-8");
+        assert_eq!(css.headers()["cache-control"], "no-cache");
         // Range requests
         let d = std::env::temp_dir().join("spine-range-test");
         let _ = fs::create_dir_all(&d);
         fs::write(d.join("v.mp4"), b"0123456789").unwrap();
-        let r = serve_media(&d, "/v.mp4", Some("bytes=2-5"), &none);
+        let r = serve_media(&d, &themes, "/v.mp4", Some("bytes=2-5"), &none);
         assert_eq!(r.status(), 206);
         assert_eq!(r.body(), b"2345");
         assert_eq!(r.headers()["content-range"], "bytes 2-5/10");
-        let r = serve_media(&d, "/v.mp4", Some("bytes=8-"), &none);
+        let r = serve_media(&d, &themes, "/v.mp4", Some("bytes=8-"), &none);
         assert_eq!(r.body(), b"89");
-        let r = serve_media(&d, "/video/gba/x", None, &|_| Some(d.join("v.mp4")));
+        let r = serve_media(&d, &themes, "/video/gba/x", None, &|_| Some(d.join("v.mp4")));
         assert_eq!(r.headers()["content-type"], "video/mp4");
+        let _ = fs::remove_dir_all(&themes);
     }
 
     #[test]
