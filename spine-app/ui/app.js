@@ -2054,7 +2054,11 @@ const ACT = {
     S.panel = 'scrapers'; S.accounts = null; S.focusKey = null; render();
     S.accounts = await api.call('get_accounts'); render();
   },
-  async clearacc(d) { S.accounts = await api.call('set_accounts', { changes: { [d.f]: '' } }); S.focusKey = 'acc-sgdb'; render(); },
+  async clearacc(d) {
+    S.accounts = await api.call('set_accounts', { changes: { [d.f]: '' } });
+    if (d.f === 'tmdb_key') S.boot = await api.call('boot');
+    S.focusKey = 'acc-sgdb'; render();
+  },
   async saveacc() {
     const v = (k) => document.getElementById('acc-' + k)?.value;
     const changes = {};
@@ -2069,6 +2073,7 @@ const ACT = {
     if (ru || rk) S.ach = {};
     try {
       S.accounts = await api.call('set_accounts', { changes });
+      if (tk) S.boot = await api.call('boot');
       S.panel = null; S.focusKey = 'gear'; render();
       toast('Saved. Looking for missing covers…');
       api.call('fetch_media');

@@ -265,7 +265,11 @@ const KEYS_ACT = {
 // --- Streaming search: the same panel, searching your addons instead of your library ------------
 // Opened from the Streaming screens (top bar box, X or typing) and TV mode's Watch → Search.
 const STREAM_SCREENS = ['stream', 'sdetail', 'sperson'];
-function streamSearchKinds() { return streamKinds().map(([k]) => k).filter((k) => streamSearchCats(k).length); }
+function streamSearchKinds() {
+  const ks = streamKinds().map(([k]) => k).filter((k) => streamSearchCats(k).length);
+  const cur = streamKind();
+  return ks.includes(cur) ? [cur, ...ks.filter((k) => k !== cur)] : ks;
+}
 const searchStreamHere = () => STREAM_SCREENS.includes(S.screen) && streamAddons().length > 0 && streamSearchKinds().length > 0;
 const isStreamSearch = () => S.panel === 'search' && S.searchMode === 'stream';
 // Redraw after addon results arrive: only the results while the panel is open (keeps your place on the keyboard).

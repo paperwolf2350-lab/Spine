@@ -1,4 +1,8 @@
 ## What's new
+- **Built-in TMDB streaming search, Cartoons & Anime catalogs.** When you have a TMDB API key saved under **Settings → Scrapers**, Streaming now includes dedicated **Cartoons** and **Anime** tabs under Shows (and **Animated** / **Anime** under Movies) plus clean TMDB-powered search that filters out posterless fan-clip and episode-stub noise. Titles resolve to IMDb IDs automatically so all your source addons, Favorites, and Continue watching work seamlessly, with TMDB metadata fallback if Cinemeta is missing a show or episode list.
+- **Cleaner Streaming search & filter bar.** The Streaming search overlay now prioritizes whichever Movies/Shows tab you're on, skips noisy Cinemeta search duplicates when TMDB is enabled (toggleable under **Settings → Streaming**), and removes the redundant **Anime only** filter chip now that Anime has its own dedicated tab.
+
+From 0.44.1:
 - **Fixed custom theme options & accent switching.** Creator-defined Settings controls in custom theme packs (both choice selectors and on/off toggles) now render and apply immediately—and when **Accent color** is set to **Theme's color**, theme options like color moods can update the accent color cleanly too.
 - **Stained Glass example theme & tutorial.** Added a complete, ready-to-import **Stained Glass** example theme (`examples/stained-glass/` & `examples/stained-glass.zip`) with 3 custom Settings controls (*Color mood*, *Lead framing*, and *Backlight glow*), plus an upgraded step-by-step **"How to Make Your Own Spine Theme"** guide and CSS cheat sheet in `THEMING.md`.
 

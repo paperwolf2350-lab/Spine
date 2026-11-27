@@ -10,7 +10,10 @@ const STREAM_KINDS = [['movies', 'Movies'], ['tv', 'Shows']];
 const STREAM_COLOR = '#0E6E77';
 const S_STREAM = { kind: null, tab: {}, cache: {}, meta: {}, season: {}, search: {}, genre: {}, filt: {} };
 
-function streamAddons() { return S.boot?.addons || []; }
+function streamAddons() {
+  const all = S.boot?.addons || [];
+  return settings().tmdbStreaming === false ? all.filter((a) => !a.builtin) : all;
+}
 // Browsable catalogs for the Movies or TV screen, in addon order.
 function streamCats(sysId) {
   const types = STREAM_TYPES[sysId];
@@ -27,21 +30,26 @@ function streamCats(sysId) {
   return out;
 }
 // Catalogs to search for the Movies or TV screen: one per addon and type, preferring the
-// addon's own search catalog (Stremio addons search through a catalog with a "search" extra).
+// addon's own search catalog. When built-in TMDB is on, skip Cinemeta's noisy IMDb search.
 function streamSearchCats(sysId) {
   const types = STREAM_TYPES[sysId];
   if (!types) return [];
+  const addons = [...streamAddons()].sort((a, b) => (b.builtin ? 1 : 0) - (a.builtin ? 1 : 0));
+  const hasTmdb = addons.some((a) => a.builtin && a.key === 'tmdb');
   const out = [];
-  for (const a of streamAddons()) for (const t of types) {
-    const cs = a.catalogs.filter((c) => c.type === t && c.searchable);
-    const c = cs.find((x) => x.needs_input) || cs[0];
-    if (c) out.push({ addon: a.key, addonName: a.name, type: c.type, id: c.id });
+  for (const a of addons) {
+    if (hasTmdb && !a.builtin && a.name.toLowerCase() === 'cinemeta') continue;
+    for (const t of types) {
+      const cs = a.catalogs.filter((c) => c.type === t && c.searchable);
+      const c = cs.find((x) => x.needs_input) || cs[0];
+      if (c) out.push({ addon: a.key, addonName: a.name, type: c.type, id: c.id });
+    }
   }
   return out;
 }
-// The Home tile: shown once any addon is added.
+// The Home tile: shown once any streaming addon is added.
 function streamHomeTile() {
-  const n = streamAddons().length;
+  const n = (S.boot?.addons || []).filter((a) => !a.builtin).length;
   if (!n) return null;
   return { kind: 'stream', id: 'streaming', name: 'Streaming', short: 'Streaming', color: STREAM_COLOR, count: null, label: `${n} addon${n === 1 ? '' : 's'}` };
 }
@@ -180,8 +188,8 @@ function streamKey(btn) {
 }
 
 // ---- Filters (0.17). Genre is the addon's own option, so it filters the whole catalog
-// (some catalogs, like Cinemeta's "New", list years there instead). Anime, decade and
-// minimum rating filter what's loaded; Spine loads more pages until enough match.
+// (some catalogs, like Cinemeta's "New", list years there instead). Decade and minimum
+// rating filter what's loaded; Spine loads more pages until enough match.
 const S_DECADES = ['', '2020s', '2010s', '2000s', '1990s', '1980s', 'older'];
 const S_RATINGS = [0, 6, 7, 8];
 const sYearPicker = (c) => c.genres.length > 0 && c.genres.every((g) => /^\d{4}$/.test(g));
@@ -192,8 +200,8 @@ function sGenre(c) {
   return c.genreRequired ? c.genres[0] || '' : '';
 }
 const sCacheKey = (c) => { const g = sGenre(c); return g ? `${c.ck}#${g}` : c.ck; };
-function sFilt(kind) { return S_STREAM.filt[kind] || (S_STREAM.filt[kind] = { anime: false, decade: '', rating: 0 }); }
-const sFiltOn = (f) => !!(f.anime || f.decade || f.rating);
+function sFilt(kind) { return S_STREAM.filt[kind] || (S_STREAM.filt[kind] = { decade: '', rating: 0 }); }
+const sFiltOn = (f) => !!(f.decade || f.rating);
 // ---- Hidden genres (0.23, Settings → Streaming). Addons name genres differently
 // ("Sci-Fi" / "Science Fiction", "Reality-TV" / "Reality"), so names are compared by a key.
 const S_GENRE_SAME = { scifi: 'sciencefiction', realitytv: 'reality', talkshow: 'talk', kids: 'children' };
@@ -213,15 +221,8 @@ function sAllGenres() {
 // The genre picker leaves out genres you've hidden.
 function sPickOpts(c) { const hid = sHidden(); return (c.genreRequired ? [] : ['']).concat(c.genres.filter((g) => !hid.has(sGenreKey(g)))); }
 const sYearOf = (it) => { const m = String(it.year || '').match(/\d{4}/); return m ? +m[0] : null; };
-function sIsAnime(it) {
-  if (it.type === 'anime' || /^(kitsu|mal|anilist|anidb):/.test(it.id || '')) return true;
-  const g = (it.genres || []).map((x) => String(x).toLowerCase());
-  if (g.includes('anime')) return true;
-  return g.includes('animation') && String(it.country || '').split(',')[0].trim().toLowerCase() === 'japan';
-}
 function sMatch(it, f) {
   if (sHiddenHit(it)) return false;
-  if (f.anime && !sIsAnime(it)) return false;
   if (f.decade) {
     const y = sYearOf(it);
     if (y == null) return false;
@@ -240,7 +241,6 @@ function streamFilterBar(c) {
     ${c.genres.length ? btn('sfgenre', 'sgenre', `${yp ? 'Year' : 'Genre'}: ${esc(g || (yp ? 'All years' : 'All genres'))} ▾`, !!g, `data-ck="${esc(c.ck)}"`) : ''}
     ${yp ? '' : btn('sfdecade', 'sfstep', sDecadeLabel(f.decade), !!f.decade, 'data-f="decade"')}
     ${btn('sfrating', 'sfstep', f.rating ? `★ ${f.rating}+` : 'Any rating', !!f.rating, 'data-f="rating"')}
-    ${btn('sfanime', 'sfstep', `${f.anime ? ICON.check + ' ' : ''}Anime only`, f.anime, 'data-f="anime"')}
     ${sFiltOn(f) || (g && !c.genreRequired) ? btn('sfclear', 'sfclear', 'Clear filters', false, `data-ck="${esc(c.ck)}"`) : ''}
     ${sFiltOn(f) && d ? `<span class="note">${shown} of ${d.items.length} loaded</span>` : d && shown < d.items.length ? `<span class="note">${d.items.length - shown} hidden by genre</span>` : ''}
   </div>`;
@@ -275,7 +275,15 @@ function streamCatalogView(c) {
 }
 
 // A poster with a heart when it's a favorite.
-const sFavDot = (item) => (sInList(SL_FAV, item) ? `<span class="favdot">${ICON.heart}</span>` : '');
+function sFavDot(item) {
+  let hit = sInList(SL_FAV, item);
+  if (!hit && item.includes(':tmdb:')) {
+    const [t, , num] = item.split(':');
+    const tt = S_STREAM.imdb?.[`${t}:${num}`];
+    if (tt) hit = sInList(SL_FAV, `${t}:${tt}`);
+  }
+  return hit ? `<span class="favdot">${ICON.heart}</span>` : '';
+}
 // Continue watching, Favorites, Watch later or one of your lists, as a grid.
 function streamListView(c) {
   if (c.ck === 'cw') {
@@ -328,7 +336,12 @@ async function streamSearch(sys, q) {
       const found = await api.call('addon_search', { key: c.addon, kind: c.type, id: c.id, query: q });
       if (S_STREAM.search[sys] !== st) return; // a newer search replaced this one
       const seen = new Set(g.idx.map((i) => st.items[i].id));
-      for (const it of found) if (!seen.has(it.id)) { seen.add(it.id); st.items.push({ ...it, _addon: c.addon, _addonName: c.addonName }); g.idx.push(st.items.length - 1); }
+      // Drop posterless, unrated, undescribed junk stubs (e.g. IMDb fan clips) when real results exist.
+      const postered = c.addon === 'tmdb' ? 0 : found.filter((it) => it.poster).length;
+      for (const it of found) {
+        if (postered >= 2 && !it.poster && !it.rating && !it.description) continue;
+        if (!seen.has(it.id)) { seen.add(it.id); st.items.push({ ...it, _addon: c.addon, _addonName: c.addonName }); g.idx.push(st.items.length - 1); }
+      }
     } catch (e) {
       if (!g.idx.length) g.error = String(e || 'Something went wrong.');
     }
@@ -525,7 +538,7 @@ function sdetail() {
       ${it.description ? `<p class="desc">${esc(it.description)}</p>` : loading ? '<p class="desc" style="opacity:.6">Getting details…</p>' : ''}
       ${people.length ? `<div class="cats speople" aria-label="Cast and crew">${people.join('<span class="pgap"></span>')}</div>` : ''}
       <div class="actions">${action}</div>
-      <div class="facts"><div class="fact"><span class="k">From</span><span class="v">${esc(x.addonName || 'Your addons')}</span><span class="n">Streaming addon</span></div></div>
+      <div class="facts"><div class="fact"><span class="k">From</span><span class="v">${esc(x.addonName || 'Your addons')}</span><span class="n">${x.addonName === 'TMDB' ? 'Built-in catalog' : 'Streaming addon'}</span></div></div>
     </div>
    </div>
    ${epsHtml}
@@ -647,12 +660,34 @@ function sDetailInfo() {
   const it = { ...x.item, ...(m && m !== 'loading' ? Object.fromEntries(['name', 'poster', 'year'].filter((f) => m[f]).map((f) => [f, m[f]])) : {}) };
   return sListInfo(it, x.addon, x.addonName);
 }
+// Resolve a built-in TMDB title ("tmdb:15260") to its IMDb id ("tt…") so source addons,
+// Favorites, Continue watching and Cinemeta all share the same id.
+async function resolveTmdbItem(it) {
+  if (!it?.id?.startsWith('tmdb:')) return it;
+  const num = +it.id.slice(5);
+  if (!num) return it;
+  S_STREAM.imdb = S_STREAM.imdb || {};
+  const ik = `${it.type}:${num}`;
+  if (!(ik in S_STREAM.imdb)) {
+    try { S_STREAM.imdb[ik] = await api.call('tmdb_imdb', { kind: it.type, tmdb: num }); } catch { S_STREAM.imdb[ik] = null; }
+  }
+  const tt = S_STREAM.imdb[ik];
+  return tt ? { ...it, id: tt } : it;
+}
+
 // Y on the Streaming screens: favorite / unfavorite (true = handled here).
 function streamY(el) {
   if (S.screen === 'sperson') return true;
   if (S.screen !== 'stream' && S.screen !== 'sdetail') return false;
   const info = streamTitleAt(el);
-  if (info) streamToggle(SL_FAV, info);
+  if (!info) return true;
+  if (info.id?.startsWith('tmdb:')) {
+    resolveTmdbItem(info).then((resolved) => {
+      streamToggle(SL_FAV, { ...info, id: resolved.id, item: `${resolved.type}:${resolved.id}` });
+    });
+  } else {
+    streamToggle(SL_FAV, info);
+  }
   return true;
 }
 async function streamToggle(name, info, quiet) {
@@ -703,14 +738,21 @@ function sFiltChanged(focus) {
 
 // ---- Settings → Addons
 function addonSettings() {
-  const list = streamAddons();
+  const all = S.boot?.addons || [];
+  const list = all.filter((a) => !a.builtin);
+  const hasTmdb = all.some((a) => a.builtin);
+  const tmdbOn = settings().tmdbStreaming !== false;
+  const tmdbGroup = hasTmdb
+    ? `<div class="grp"><span class="k">Built-in TMDB catalogs &amp; search</span><span class="note">Uses your TMDB key for cleaner search and dedicated Cartoons &amp; Anime tabs. Titles resolve to IMDb IDs automatically for your source addons.</span>
+        <div class="opts"><button class="chip ${tmdbOn ? 'on' : ''}" data-nav data-key="tmdbstream" data-act="tmdbstream" aria-pressed="${tmdbOn}">${tmdbOn ? `${ICON.check} ` : ''}TMDB search, Cartoons &amp; Anime</button></div></div>`
+    : '';
   return `<div class="grp"><span class="k">Streaming addons</span><span class="note">Paste an addon's link from Stremio or Nuvio. Links stay on this PC.</span>
     ${list.length ? `<div class="roots">${list.map((a, i) => `<div class="root addonrow">${a.logo ? `<img class="alogo" src="${esc(a.logo)}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">` : '<span class="alogo"></span>'}
       <span class="rp" title="${esc(a.description || '')}">${esc(a.name)}${a.version ? ` <span class="rs">${esc(a.version)}</span>` : ''}</span>
       <span class="rs">${esc(addonWhat(a))}</span>
       <span class="abtns">${i > 0 ? `<button class="btn small" data-nav data-key="aup-${a.key}" data-act="mvaddon" data-k="${a.key}" data-up="1" aria-label="Move up">↑</button>` : ''}
       <button class="btn small" data-nav data-key="arm-${a.key}" data-act="rmaddon" data-k="${a.key}">Remove</button></span></div>`).join('')}</div>` : ''}
-    <div class="opts"><button class="btn" data-nav data-key="addaddon" data-act="addaddon">${ICON.plus} Add addon</button></div></div>${hideGenresGroup()}`;
+    <div class="opts"><button class="btn" data-nav data-key="addaddon" data-act="addaddon">${ICON.plus} Add addon</button></div></div>${tmdbGroup}${hideGenresGroup()}`;
 }
 // Settings → Streaming → Hide genres: titles in these genres don't show in catalogs or search.
 function hideGenresGroup() {
@@ -892,15 +934,19 @@ const STREAM_ACT = {
     S.focusKey = 'smore';
     streamLoad(d.ck);
   },
-  sopen(d) {
+  async sopen(d) {
     const f = streamFind(d.ck, d.i);
     if (!f) return;
     const { c, it } = f;
-    S.sitem = { item: it, addon: c.addon, addonName: c.addonName, catLabel: c.label, backKey: `si-${it.id}` };
+    const seq = (S_STREAM._openSeq = (S_STREAM._openSeq || 0) + 1);
+    const resolved = it.id?.startsWith('tmdb:') ? await resolveTmdbItem(it) : it;
+    if (seq !== S_STREAM._openSeq || S.screen !== 'stream') return;
+    const metaAddon = resolved.id?.startsWith('tmdb:') ? 'tmdb' : (c.addon === 'tmdb' ? null : c.addon);
+    S.sitem = { item: resolved, addon: metaAddon, addonName: c.addonName, catLabel: c.label, backKey: `si-${it.id}` };
     S.panel = null; S.screen = 'sdetail'; S.focusKey = 'sback';
     render();
     document.getElementById('detailscroll')?.scrollTo(0, 0);
-    streamMeta(it, c.addon);
+    streamMeta(resolved, metaAddon);
   },
   sperson(d) {
     if (!S.sitem) return;
@@ -964,10 +1010,14 @@ const STREAM_ACT = {
   },
   sfstep(d) {
     const f = sFilt(streamKind());
-    if (d.f === 'anime') f.anime = !f.anime;
     if (d.f === 'decade') f.decade = S_DECADES[(S_DECADES.indexOf(f.decade) + 1) % S_DECADES.length];
     if (d.f === 'rating') f.rating = S_RATINGS[(S_RATINGS.indexOf(f.rating) + 1) % S_RATINGS.length];
     sFiltChanged(`sf${d.f}`);
+  },
+  tmdbstream() {
+    const next = settings().tmdbStreaming === false;
+    S.focusKey = 'tmdbstream';
+    setSetting('tmdbStreaming', next);
   },
   hidegenre(d) {
     const k = sGenreKey(d.g), cur = Array.isArray(settings().hideGenres) ? settings().hideGenres : [];
@@ -977,7 +1027,7 @@ const STREAM_ACT = {
     setSetting('hideGenres', next);
   },
   sfclear(d) {
-    S_STREAM.filt[streamKind()] = { anime: false, decade: '', rating: 0 };
+    S_STREAM.filt[streamKind()] = { decade: '', rating: 0 };
     if (d.ck) S_STREAM.genre[d.ck] = '';
     sFiltChanged('sfrating');
     const cur = streamCur(streamKind()); if (cur && !cur.search && !cur.mine) streamLoad(cur.ck);

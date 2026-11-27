@@ -28,6 +28,7 @@ pub mod systems;
 pub mod theme_import;
 pub mod themes;
 pub mod title;
+pub mod tmdb_stream;
 pub mod tv;
 
 pub use scan::{scan, Game, Library, SystemLibrary};

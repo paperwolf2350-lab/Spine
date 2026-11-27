@@ -5,6 +5,8 @@ target/
 
 # Personal data Spine keeps next to Spine.exe (never upload these)
 credentials.txt
+addons.json
+stream-links.json
 spine-state.json
 spine-state.json.tmp
 library.json

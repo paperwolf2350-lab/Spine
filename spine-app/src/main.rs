@@ -198,11 +198,20 @@ struct AddonView {
     /// Gives details (meta) / sources (stream) for these types.
     meta: Vec<String>,
     stream: Vec<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    builtin: bool,
+}
+
+fn tmdb_key(app: &App) -> Option<String> {
+    spine_core::config::Credentials::load(&app.dir.join("credentials.txt"))
+        .tmdb_key
+        .filter(|k| !k.trim().is_empty())
 }
 
 fn addon_views(app: &App) -> Vec<AddonView> {
     let s = |v: &serde_json::Value, k: &str| v.get(k).and_then(|x| x.as_str()).map(String::from).filter(|x| !x.trim().is_empty());
-    app.addons
+    let mut out: Vec<AddonView> = app
+        .addons
         .lock()
         .unwrap()
         .iter()
@@ -222,9 +231,24 @@ fn addon_views(app: &App) -> Vec<AddonView> {
                 catalogs: addons::catalogs(&a.manifest),
                 meta: types("meta"),
                 stream: types("stream"),
+                builtin: false,
             }
         })
-        .collect()
+        .collect();
+    if !out.is_empty() && tmdb_key(app).is_some() {
+        out.push(AddonView {
+            key: spine_core::tmdb_stream::ADDON_KEY.into(),
+            name: "TMDB".into(),
+            version: None,
+            description: Some("Built-in search, Cartoons & Anime catalogs from your TMDB key.".into()),
+            logo: None,
+            catalogs: spine_core::tmdb_stream::catalogs(),
+            meta: vec!["movie".into(), "series".into()],
+            stream: vec![],
+            builtin: true,
+        });
+    }
+    out
 }
 
 fn now() -> u64 {
@@ -1875,6 +1899,12 @@ fn move_addon(key: String, up: bool, app: State<App>) -> Result<Boot, String> {
 #[tauri::command]
 async fn addon_catalog(key: String, kind: String, id: String, skip: usize, genre: Option<String>, handle: AppHandle) -> Result<Vec<addons::Item>, String> {
     let app = handle.state::<App>();
+    if key == spine_core::tmdb_stream::ADDON_KEY {
+        let tkey = tmdb_key(&app).ok_or("Add a TMDB key in Settings → Scrapers.")?;
+        return tauri::async_runtime::spawn_blocking(move || spine_core::tmdb_stream::fetch_catalog(&tkey, &kind, &id, skip, genre.as_deref()))
+            .await
+            .map_err(|e| e.to_string())?;
+    }
     let a = app.addons.lock().unwrap().iter().find(|a| a.key() == key).cloned().ok_or("That addon was removed.")?;
     tauri::async_runtime::spawn_blocking(move || addons::fetch_catalog(&a, &kind, &id, skip, genre.as_deref())).await.map_err(|e| e.to_string())?
 }
@@ -1883,6 +1913,12 @@ async fn addon_catalog(key: String, kind: String, id: String, skip: usize, genre
 #[tauri::command]
 async fn addon_search(key: String, kind: String, id: String, query: String, handle: AppHandle) -> Result<Vec<addons::Item>, String> {
     let app = handle.state::<App>();
+    if key == spine_core::tmdb_stream::ADDON_KEY {
+        let tkey = tmdb_key(&app).ok_or("Add a TMDB key in Settings → Scrapers.")?;
+        return tauri::async_runtime::spawn_blocking(move || spine_core::tmdb_stream::fetch_search(&tkey, &kind, &query))
+            .await
+            .map_err(|e| e.to_string())?;
+    }
     let a = app.addons.lock().unwrap().iter().find(|a| a.key() == key).cloned().ok_or("That addon was removed.")?;
     tauri::async_runtime::spawn_blocking(move || addons::fetch_search(&a, &kind, &id, &query)).await.map_err(|e| e.to_string())?
 }
@@ -2198,11 +2234,29 @@ async fn tmdb_imdb(kind: String, tmdb: u64, handle: AppHandle) -> Result<Option<
 }
 
 /// Full details for a title (episodes for shows), from the addon it came from or any other.
+/// Falls back to TMDB when Cinemeta has no details or episodes (and for `tmdb:` ids).
 #[tauri::command]
 async fn addon_meta(key: Option<String>, kind: String, id: String, handle: AppHandle) -> Result<Option<addons::Meta>, String> {
     let app = handle.state::<App>();
     let list = app.addons.lock().unwrap().clone();
-    tauri::async_runtime::spawn_blocking(move || addons::fetch_meta(&list, key.as_deref(), &kind, &id)).await.map_err(|e| e.to_string())
+    let tkey = tmdb_key(&app);
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some(num) = id.strip_prefix("tmdb:").and_then(|s| s.parse::<u64>().ok()) {
+            return tkey.and_then(|k| spine_core::tmdb_stream::fetch_meta(&k, &kind, num));
+        }
+        let found = addons::fetch_meta(&list, key.as_deref(), &kind, &id);
+        let need_fallback = found.as_ref().map_or(true, |m| kind != "movie" && m.episodes.is_empty());
+        if need_fallback && id.starts_with("tt") {
+            if let Some(k) = tkey {
+                if let Some(m) = spine_core::tmdb_stream::fetch_meta_by_imdb(&k, &kind, &id) {
+                    return Some(m);
+                }
+            }
+        }
+        found
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
