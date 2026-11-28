@@ -137,6 +137,14 @@ body.kb .game:focus-visible, body.kb .game.focused { box-shadow: none; }
 .cover.ph .pt { font-size: 14px; font-weight: 700; line-height: 1.2; overflow: hidden; }
 .cover.ph .ps { font-size: 11px; font-weight: 600; letter-spacing: .06em; opacity: .85; }
 .favdot { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 13px; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; }
+.porttag { position: absolute; left: 8px; bottom: 8px; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: rgba(16, 18, 26, .8); border: 1px solid rgba(255,255,255,.18); backdrop-filter: blur(6px); pointer-events: none; line-height: 1.2; }
+.porttag.recomp { background: color-mix(in srgb, var(--accent) 82%, #10121a); border-color: rgba(255,255,255,.28); }
+.list .game .cover .porttag, .recent .item .cover .porttag, .detail .left .cover .porttag { display: none; }
+.sc-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.sc-row.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.sc-row .sc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; }
+.sc-row .sc-main .t { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-row .sc-main .n { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Games screen */
 .gamesbar { display: flex; align-items: center; gap: 14px; padding: 18px 36px 14px; flex-wrap: wrap; }

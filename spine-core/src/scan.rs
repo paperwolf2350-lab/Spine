@@ -64,6 +64,15 @@ pub struct Game {
     /// TV shows: every episode file, in viewing order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub episodes: Vec<crate::tv::Episode>,
+    /// Extra command-line arguments for PC ports/recomps (parsed from .lnk / shortcuts.vdf).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub launch_args: Vec<String>,
+    /// Working directory when launching a PC port/recomp directly.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workdir: Option<PathBuf>,
+    /// Original console id for a PC recomp/port ("n64", "ps2", "xbox360"...), for cover lookup.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_system: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,6 +110,7 @@ const MAX_DEPTH: usize = 4;
 
 pub fn scan(root: &Path) -> std::io::Result<Library> {
     let mut by_system: BTreeMap<&'static str, (Vec<String>, Vec<Candidate>)> = BTreeMap::new();
+    let mut port_games: Vec<crate::ports::PortGame> = Vec::new();
     let mut notes = Vec::new();
 
     let mut entries: Vec<_> = fs::read_dir(root)?.filter_map(|e| e.ok()).collect();
@@ -112,6 +122,13 @@ pub fn scan(root: &Path) -> std::io::Result<Library> {
             continue;
         }
         if SKIP_DIRS.contains(&name.to_lowercase().as_str()) || name.starts_with('.') {
+            continue;
+        }
+        if crate::ports::is_port_folder_name(&name) {
+            let found_ports = crate::ports::scan_port_folder(&path);
+            if !found_ports.is_empty() {
+                port_games.extend(found_ports);
+            }
             continue;
         }
         match systems::system_for_folder(&name) {
@@ -143,7 +160,11 @@ pub fn scan(root: &Path) -> std::io::Result<Library> {
     }
     systems_out.sort_by_key(|s| systems::SYSTEMS.iter().position(|x| x.id == s.id).unwrap_or(usize::MAX));
 
-    Ok(Library { root: root.to_path_buf(), systems: systems_out, notes, game_count })
+    let mut lib = Library { root: root.to_path_buf(), systems: systems_out, notes, game_count };
+    if !port_games.is_empty() {
+        crate::ports::merge(&mut lib, port_games);
+    }
+    Ok(lib)
 }
 
 fn folder_has_files(dir: &Path) -> bool {
@@ -513,6 +534,9 @@ fn build_games(sys: &System, cands: Vec<Candidate>, notes: &mut Vec<String>) -> 
                 info: None,
                 warnings,
                 episodes: vec![],
+                launch_args: vec![],
+                workdir: None,
+                origin_system: None,
             }
         })
         .collect();

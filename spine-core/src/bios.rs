@@ -267,7 +267,7 @@ mod tests {
     }
 
     fn plan(program: &Path, args: &[&str]) -> LaunchPlan {
-        LaunchPlan { emulator: "x".into(), program: program.to_path_buf(), args: args.iter().map(|s| s.to_string()).collect(), blocked: None }
+        LaunchPlan { emulator: "x".into(), program: program.to_path_buf(), args: args.iter().map(|s| s.to_string()).collect(), workdir: None, blocked: None }
     }
 
     #[test]

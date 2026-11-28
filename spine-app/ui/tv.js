@@ -90,7 +90,7 @@ function tvHero(x) {
     : g.cover ? `<img class="tv-art blur" src="${mediaUrl(g.cover)}" alt="">` : '';
   return `<div class="tv-bg" aria-hidden="true">${art}<div class="tv-scrim"></div></div>
     <div class="tv-info">
-      <span class="tv-sys">${esc(s.name)}</span>
+      <span class="tv-sys">${esc(s.name)}${portLabel(g) ? ` · ${portLabel(g)}` : ''}</span>
       ${g.logo ? `<img class="tv-logo" src="${mediaUrl(g.logo)}" alt="${esc(g.title)}">` : `<h1 class="tv-title">${esc(g.title)}</h1>`}
       <span class="tv-meta${s.blocked || g.offline ? ' warn' : ''}">${esc(meta)}</span>
       <div class="tv-acts">
@@ -105,7 +105,7 @@ function tvCard(x, k, at) {
   const pic = g.cover ? `<img data-src="${mediaUrl(g.cover)}" alt="" decoding="async">`
     : `<span class="ph" style="background:${PAL[hash(g.title) % PAL.length]}"><span>${esc(g.title)}</span></span>`;
   return `<button class="tv-game${k === at ? ' sel' : ''}${g.offline ? ' off' : ''}" data-nav data-key="${esc(tvGameKey(x))}" data-act="tvgame" data-k="${k}" data-id="${esc(g.id)}" aria-label="${esc(g.title)}, ${esc(s.short)}">
-      ${pic}${isFav(g.id) ? `<span class="tv-fav">${ICON.heart}</span>` : ''}</button>`;
+      ${pic}${isFav(g.id) ? `<span class="tv-fav">${ICON.heart}</span>` : ''}${portLabel(g) ? `<span class="porttag ${esc(g.format)}">${portLabel(g)}</span>` : ''}</button>`;
 }
 
 function tvTop(sec) {

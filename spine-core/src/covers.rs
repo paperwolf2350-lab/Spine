@@ -832,6 +832,7 @@ pub fn attach_existing(lib: &mut Library, media: &Path) {
             g.cover = existing_cover(media, &g.id);
             g.video = existing_video(media, g);
             g.meta = metas.get(&g.id).cloned();
+            crate::ports::ensure_tag(g);
             g.info = crate::screenscraper::load_info(media, &g.id).filter(|i| i.not_found_at.is_none());
             if let Some(name) = g.info.as_ref().and_then(|i| i.name.clone()) {
                 if crate::screenscraper::should_use_name(s.id, &g.title) {
@@ -972,8 +973,28 @@ pub fn fetch_covers(lib: &mut Library, media: &Path, progress: &(dyn Fn(usize, u
             continue;
         }
         if s.id == "pc" {
+            // Cache libretro indexes for PC recomps/ports whose original console is known.
+            let mut origin_indexes: HashMap<String, ArtIndex> = HashMap::new();
             for gi in missing {
                 let g = &s.games[gi];
+                if let Some(origin) = g.origin_system.as_deref() {
+                    let repos = libretro_repos(origin);
+                    if !repos.is_empty() {
+                        let idx = origin_indexes.entry(origin.to_string()).or_insert_with(|| {
+                            let mut lists = Vec::new();
+                            for r in repos {
+                                if let Ok(l) = fetch_list(&agent, r, &list_cache) {
+                                    lists.push((*r, l));
+                                }
+                            }
+                            ArtIndex::new(lists)
+                        });
+                        if let Some(e) = idx.find(g) {
+                            jobs.push((si, gi, g.title.clone(), Job::Art(e.clone()), cover_base(media, &g.id).with_extension("png")));
+                            continue;
+                        }
+                    }
+                }
                 let dest = cover_base(media, &g.id).with_extension("jpg");
                 match steam_app_id(&g.path) {
                     Some(app) => jobs.push((si, gi, g.title.clone(), Job::Steam(app), dest)),
@@ -1152,11 +1173,17 @@ pub fn rank_names<'a>(names: &'a [String], query: &str, max: usize) -> Vec<&'a S
 
 /// Search every source for covers matching `query` (usually the game's name).
 pub fn cover_choices(system: &str, query: &str, media: &Path, sgdb_key: Option<&str>) -> Vec<CoverChoice> {
+    cover_choices_with_origin(system, None, query, media, sgdb_key)
+}
+
+/// Like `cover_choices`, also searching `origin_system`'s libretro repository for PC ports/recomps.
+pub fn cover_choices_with_origin(system: &str, origin_system: Option<&str>, query: &str, media: &Path, sgdb_key: Option<&str>) -> Vec<CoverChoice> {
     let agent = agent();
     let mut out = Vec::new();
-    // libretro (retro consoles): exact No-Intro names, so the user can pick the right region / version.
+    // libretro (retro consoles, and PC recomps/ports whose original console is known).
     let cache = media.join("lists");
-    for repo in libretro_repos(system) {
+    let libretro_sys = origin_system.filter(|o| !libretro_repos(o).is_empty()).unwrap_or(system);
+    for repo in libretro_repos(libretro_sys) {
         let Ok(names) = fetch_list(&agent, repo, &cache) else { continue };
         for n in rank_names(&names, query, 8) {
             let file = format!("{n}.png");

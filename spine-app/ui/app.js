@@ -57,6 +57,8 @@ const S = {
 const settings = () => S.boot?.settings || {};
 const videosOn = () => settings().videos !== false;
 const storesOn = () => settings().storeGames !== false;
+const autoPortsOn = () => settings().autoPorts !== false;
+const portLabel = (g) => (g.format === 'recomp' ? 'Recomp' : g.format === 'port' ? 'Port' : null);
 const exitComboOn = () => settings().exitCombo !== false;
 const soundOn = () => settings().video_sound === true;
 const systems = () => S.boot?.systems || [];
@@ -385,11 +387,12 @@ const glyph = (k) => ('ABXY'.includes(k) && k.length === 1 ? `<span class="glyph
 
 function cover(g, s, extra = '') {
   const fav = isFav(g.id) && !extra.includes('nofav') ? `<span class="favdot">${ICON.heart}</span>` : '';
+  const ptag = !extra.includes('notag') && portLabel(g) ? `<span class="porttag ${esc(g.format)}">${portLabel(g)}</span>` : '';
   const off = g.offline ? ' off' : '';
   if (g.cover) {
-    return `<div class="cover${off}"><img src="${mediaUrl(g.cover)}" alt="" loading="lazy" decoding="async">${fav}</div>`;
+    return `<div class="cover${off}"><img src="${mediaUrl(g.cover)}" alt="" loading="lazy" decoding="async">${fav}${ptag}</div>`;
   }
-  return `<div class="cover ph${off}" style="background:${PAL[hash(g.title) % PAL.length]}"><span class="pt">${esc(g.title)}</span><span class="ps">${esc(s ? s.short : '')}</span>${fav}</div>`;
+  return `<div class="cover ph${off}" style="background:${PAL[hash(g.title) % PAL.length]}"><span class="pt">${esc(g.title)}</span><span class="ps">${esc(s ? s.short : '')}</span>${fav}${ptag}</div>`;
 }
 
 function topbar() {
@@ -587,7 +590,9 @@ function games() {
   const layout = layoutFor(s.id);
   const pt0 = S.boot.playtime || {};
   const lp0 = S.boot.last_played || {};
-  const filt = { fav: (x) => isFav(x.g.id), new: (x) => !pt0[x.g.id] && !lp0[x.g.id], multi: (x) => maxPlayers(x.g) >= 2 }[S.filter];
+  const filt = { fav: (x) => isFav(x.g.id), new: (x) => !pt0[x.g.id] && !lp0[x.g.id], multi: (x) => maxPlayers(x.g) >= 2, recomp: (x) => x.g.format === 'recomp', port: (x) => x.g.format === 'port' }[S.filter];
+  const hasRecomp = L.items.some((x) => x.g.format === 'recomp');
+  const hasPort = L.items.some((x) => x.g.format === 'port');
   const items = sortItems(filt ? L.items.filter(filt) : L.items, s.kind === 'coll');
   const list = items.map((x) => x.g);
   const bySort = sortMode() !== 'title' || s.kind === 'coll';
@@ -631,6 +636,8 @@ function games() {
       <button class="chip ${!S.filter || S.filter === 'all' ? 'on' : ''}" data-nav data-key="f-all" data-act="filter" data-f="all">All</button>
       ${s.kind === 'fav' ? '' : `<button class="chip ${S.filter === 'fav' ? 'on' : ''}" data-nav data-key="f-fav" data-act="filter" data-f="fav">Favorites</button>`}
       <button class="chip ${S.filter === 'new' ? 'on' : ''}" data-nav data-key="f-new" data-act="filter" data-f="new">${isMovies(s) ? 'Not watched' : 'Not played'}</button>
+      ${hasRecomp ? `<button class="chip ${S.filter === 'recomp' ? 'on' : ''}" data-nav data-key="f-recomp" data-act="filter" data-f="recomp">Recomps</button>` : ''}
+      ${hasPort ? `<button class="chip ${S.filter === 'port' ? 'on' : ''}" data-nav data-key="f-port" data-act="filter" data-f="port">Ports</button>` : ''}
       ${L.items.some((x) => maxPlayers(x.g) >= 2) ? `<button class="chip ${S.filter === 'multi' ? 'on' : ''}" data-nav data-key="f-multi" data-act="filter" data-f="multi">2+ players</button>` : ''}
       ${s.kind === 'coll' ? `<button class="chip" data-nav data-key="dellist" data-act="dellist" data-n="${esc(s.coll)}">Delete list</button>` : ''}
       <div class="seg" role="group" aria-label="Layout">${lay('tiles', 'Tiles')}${lay('list', 'List')}${lay('cards', 'Cards')}${lay('shelf', 'Shelf')}</div>
@@ -923,10 +930,21 @@ function settingsPanel() {
         tog('as-tog', 'autoscan', st.autoScan !== false, '', 'Watch for new games'))
       + stackRow('Movies', 'Posters and details come from TMDB (key under Scrapers).', rootRows(S.boot.movie_roots, 'rmmovieroot', 'rmmovie') + `<div class="opts"><button class="btn small" data-nav data-key="addmovieroot" data-act="addmovieroot">${ICON.plus} Add movie folder</button></div>`)
       + stackRow('TV shows', 'One folder per show.', rootRows(S.boot.tv_roots, 'rmtvroot', 'rmtv') + `<div class="opts"><button class="btn small" data-nav data-key="addtvroot" data-act="addtvroot">${ICON.plus} Add TV folder</button></div>`)
+      + stackRow('Ports & recomps', 'Listed under PC Games with a Recomp or Port tag. Each subfolder or shortcut counts as one game.',
+        rootRows(S.boot.port_roots, 'rmportroot', 'rmport')
+        + ((S.boot.custom_ports || []).length ? `<div class="roots">${S.boot.custom_ports.map((cp, i) => `<div class="root"><span class="dot"></span><span class="rp" title="${esc(cp.path)}">${esc(cp.name)}</span><span class="rs">${cp.kind === 'recomp' ? 'Recomp' : 'Port'}</span>
+          <button class="btn small" data-nav data-key="rmcp-${i}" data-act="rmcustomport" data-p="${esc(cp.path)}">Remove</button></div>`).join('')}</div>` : '')
+        + `<div class="opts">
+          <button class="btn small" data-nav data-key="addportroot" data-act="addportroot">${ICON.plus} Add ports folder</button>
+          <button class="btn small" data-nav data-key="addcustomport" data-act="addcustomport">${ICON.plus} Add .exe / shortcut</button>
+          <button class="btn small" data-nav data-key="importshortcuts" data-act="importshortcuts">Import from Desktop…</button>
+        </div>`)
     )
     + sec('Stores & metadata',
       row('PC stores', 'Include installed Steam, Epic Games and GOG titles in PC Games.',
         tog(`st-${storesOn() ? 'on' : 'off'}`, 'stores', storesOn(), storesOn() ? 'off' : 'on', 'Include PC stores'))
+      + row('Auto-detect recomps & ports', 'Find known recomps, fan ports and tagged Steam shortcuts under PC Games.',
+        tog(`ap-${autoPortsOn() ? 'on' : 'off'}`, 'autoports', autoPortsOn(), autoPortsOn() ? 'off' : 'on', 'Auto-detect recomps and ports'))
       + row('Box art &amp; details', esc(fetching), `<button class="btn small" data-nav data-key="fetchnow" data-act="fetch">Get missing covers</button><button class="btn small" data-nav data-key="scrapers" data-act="scrapers">Scrapers…</button>`)
     )
     + ((S.boot.hidden || []).length ? sec('Hidden games',
@@ -1491,8 +1509,47 @@ function editPanel() {
       <label class="field"><input type="text" id="ed-q" data-nav data-key="ed-q" data-enter="findcovers" value="${esc(E.query)}" autocomplete="off" spellcheck="false"></label>
       <div class="opts"><button class="btn" data-nav data-key="ed-find" data-act="findcovers">${ICON.search} Search covers</button></div>
       ${results}</div>
+    ${s.id === 'pc' ? `<div class="grp"><span class="k">Tag</span><span class="note">Show a Recomp or Port badge on this game and include it in PC filters.</span>
+      <div class="opts">
+        <button class="chip ${g.format === 'recomp' ? 'on' : ''}" data-nav data-key="ed-tag-recomp" data-act="setporttag" data-k="recomp">Recomp</button>
+        <button class="chip ${g.format === 'port' ? 'on' : ''}" data-nav data-key="ed-tag-port" data-act="setporttag" data-k="port">Port</button>
+        ${g.format === 'recomp' || g.format === 'port' ? `<button class="chip" data-nav data-key="ed-tag-none" data-act="setporttag" data-k="">Reset</button>` : ''}
+      </div></div>` : ''}
+    ${g.custom_port_path ? `<div class="grp"><span class="k">Added manually</span><span class="note">Remove this entry from Spine. Nothing on disk is deleted.</span>
+      <div class="opts"><button class="btn" data-nav data-key="ed-rmcp" data-act="rmcustomport" data-p="${esc(g.custom_port_path)}">Remove from Spine</button></div></div>` : ''}
     <div class="grp"><span class="k">Hide</span><span class="note">For junk files, demos or duplicates. Nothing is deleted, and you can bring it back from Settings.</span>
       <div class="opts"><button class="btn" data-nav data-key="ed-hide" data-act="hidegame">Hide this game</button></div></div>
+  </aside></div>`;
+}
+
+// One-click Desktop / Start Menu shortcut importer for recomps and ports.
+function shortcutsPanel() {
+  if (S.panel !== 'shortcuts' || !S.shortcuts) return '';
+  const sc = S.shortcuts;
+  const rows = sc.loading
+    ? '<div class="spinner" style="margin:24px auto"></div>'
+    : !sc.items.length
+      ? '<p class="note">No new Desktop or Start Menu shortcuts found. You can still add any .exe or .lnk directly with “Add .exe / shortcut”.</p>'
+      : `<div class="choices">${sc.items.map((it, i) => {
+          const picked = sc.selected.has(i);
+          const tag = sc.kinds[i] || it.kind || 'port';
+          return `<div class="sc-row ${picked ? 'on' : ''}">
+            <button class="sc-main" data-nav data-key="sc-${i}" data-act="sctoggle" data-i="${i}">
+              <span class="t">${picked ? ICON.check + ' ' : ''}${esc(it.name)}${it.already_added ? ' <span style="opacity:.6;font-weight:500">(already in PC Games)</span>' : ''}</span>
+              <span class="n" title="${esc(it.target)}">${esc(it.reason)} · ${esc(it.target)}</span>
+            </button>
+            <button class="chip ${tag === 'recomp' ? 'on' : ''}" data-nav data-key="sck-${i}" data-act="sckind" data-i="${i}" title="Toggle Recomp / Port tag">${tag === 'recomp' ? 'Recomp' : 'Port'}</button>
+          </div>`;
+        }).join('')}</div>`;
+  const count = sc.selected.size;
+  return `<div class="panel" data-act="closepanel"><aside class="sheet wide" role="dialog" aria-label="Import shortcuts">
+    <h2>Import from Desktop &amp; Start Menu</h2>
+    <span class="note">Pick any recomp, fan port or launcher to list under PC Games. Steam, Epic, GOG games and regular apps are already filtered out. Click a row to select it, or tap Port/Recomp to switch its tag.</span>
+    ${rows}
+    <div class="opts">
+      <button class="btn primary" data-nav data-key="sc-go" data-act="scimport" ${count ? '' : 'disabled'}>${ICON.plus} Import${count ? ` ${count} game${count === 1 ? '' : 's'}` : ''}</button>
+      <button class="btn" data-nav data-key="sc-back" data-act="settings">Back to Settings</button>
+    </div>
   </aside></div>`;
 }
 const libretroSys = (id) => !['pc', 'switch', 'wiiu', 'ps3', 'psvita', 'xbox'].includes(id);
@@ -1582,7 +1639,7 @@ function render() {
   const scrollers = {};
   app.querySelectorAll('.scroll').forEach((el) => { if (el.id) scrollers[el.id] = el.scrollTop; });
   const screens = { welcome, scanning, home, games, detail, stream, sdetail, sperson, loading: () => '' };
-  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + themeManagerPanel() + customizePanel() + scrapersPanel() + addonPanel() + sourcesPanel() + streamListsPanel() + streamGenrePanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
+  app.innerHTML = (screens[S.screen] || home)() + playingOverlay() + settingsPanel() + shortcutsPanel() + themeManagerPanel() + customizePanel() + scrapersPanel() + addonPanel() + sourcesPanel() + streamListsPanel() + streamGenrePanel() + emulatorPanel() + arcPanel() + specialPanel() + showPanel() + editPanel() + listsPanel() + shotViewer() + searchPanel();
   silenceDetached();
   Object.entries(scrollers).forEach(([id, top]) => { const el = document.getElementById(id); if (el) el.scrollTop = top; });
   const car = document.getElementById('carousel');
@@ -1954,12 +2011,34 @@ const ACT = {
     await setSetting('storeGames', d.v === 'on');
     try {
       const keep = S.boot.settings;
-      S.boot = { ...(await api.call('scan', { root: S.boot.rom_root })), settings: keep };
+      S.boot = { ...(await api.call('reload_library')), settings: keep };
       const pc = S.boot.systems.find((x) => x.id === 'pc');
       toast(d.v === 'on' ? `PC Games now has ${pc ? pc.games.length : 0} games` : 'Store games hidden');
       render();
       if (d.v === 'on') api.call('fetch_media');
     } catch (e) { toast(String(e), 6000); }
+  },
+  async autoports(d) {
+    S.focusKey = `ap-${d.v}`;
+    if ((d.v === 'on') === autoPortsOn()) return;
+    await setSetting('autoPorts', d.v === 'on');
+    try {
+      const keep = S.boot.settings;
+      S.boot = { ...(await api.call('reload_library')), settings: keep };
+      const pc = S.boot.systems.find((x) => x.id === 'pc');
+      const n = pc ? pc.games.filter((g) => g.format === 'recomp' || g.format === 'port').length : 0;
+      toast(d.v === 'on' ? `PC Games now has ${n} recomp / port title${n === 1 ? '' : 's'}` : 'Auto-detected recomps & ports hidden');
+      render();
+      if (d.v === 'on') api.call('fetch_media');
+    } catch (e) { toast(String(e), 6000); }
+  },
+  async setporttag(d) {
+    const id = S.edit?.id;
+    if (!id) return;
+    S.boot = await api.call('set_port_tag', { id, kind: d.k || null });
+    S.focusKey = d.k ? `ed-tag-${d.k}` : 'ed-name';
+    render();
+    toast(d.k === 'recomp' ? 'Tagged as Recomp' : d.k === 'port' ? 'Tagged as Port' : 'Tag reset');
   },
   async biosdir(d) { try { await api.call('open_bios_folder', { system: d.s }); } catch (e) { toast(String(e), 5000); } },
   fixgame(d) {
@@ -2372,7 +2451,7 @@ const ACT = {
       if (!res) return;
       S.boot = res.boot;
       THEMES.clearCache();
-      const hasLib = S.boot.rom_root || (S.boot.movie_roots || []).length || (S.boot.tv_roots || []).length;
+      const hasLib = S.boot.rom_root || (S.boot.movie_roots || []).length || (S.boot.tv_roots || []).length || (S.boot.port_roots || []).length || (S.boot.custom_ports || []).length;
       S.screen = hasLib ? 'home' : 'welcome';
       const r = res.report;
       const parts = [];
@@ -2433,7 +2512,7 @@ const ACT = {
   async rmroot(d) {
     S.boot = await api.call('remove_root', { path: d.p });
     S.focusKey = 'addroot';
-    if (!S.boot.roots.length && !(S.boot.movie_roots || []).length && !(S.boot.tv_roots || []).length) { S.panel = null; S.screen = 'welcome'; }
+    if (!S.boot.roots.length && !(S.boot.movie_roots || []).length && !(S.boot.tv_roots || []).length && !(S.boot.port_roots || []).length && !(S.boot.custom_ports || []).length) { S.panel = null; S.screen = 'welcome'; }
     render();
     toast('Folder removed from Spine (nothing was deleted)');
   },
@@ -2485,6 +2564,101 @@ const ACT = {
     S.focusKey = 'addtvroot';
     render();
     toast('Folder removed from Spine (nothing was deleted)');
+  },
+  async addportroot() {
+    try {
+      const b = await api.call('add_port_root');
+      if (!b) return;
+      const count = (x) => (x.systems.find((s) => s.id === 'pc')?.games.filter((g) => g.format === 'recomp' || g.format === 'port').length || 0);
+      const n = count(b) - count(S.boot);
+      S.boot = b; S.focusKey = 'addportroot';
+      render();
+      toast(n > 0 ? `Found ${n} port / recomp title${n === 1 ? '' : 's'} under PC Games` : 'Folder added (drop subfolders or shortcuts inside it)', 4000);
+      api.call('fetch_media');
+    } catch (e) { toast(String(e), 5000); }
+  },
+  async rmportroot(d) {
+    S.boot = await api.call('remove_port_root', { path: d.p });
+    S.focusKey = 'addportroot';
+    render();
+    toast('Folder removed from Spine (nothing was deleted)');
+  },
+  async addcustomport() {
+    try {
+      const b = await api.call('add_custom_port', { kind: null });
+      if (!b) return;
+      S.boot = b; S.focusKey = 'addcustomport';
+      render();
+      toast('Added under PC Games', 3500);
+      api.call('fetch_media');
+    } catch (e) { toast(String(e), 5000); }
+  },
+  async rmcustomport(d) {
+    S.boot = await api.call('remove_custom_port', { path: d.p });
+    if (S.panel === 'edit') { S.panel = null; S.edit = null; S.screen = 'games'; S.focusKey = null; }
+    else S.focusKey = 'addcustomport';
+    render();
+    toast('Removed from Spine (nothing on disk was deleted)');
+  },
+  async importshortcuts() {
+    S.shortcuts = { loading: true, items: [], selected: new Set(), kinds: {} };
+    S.panel = 'shortcuts'; S.focusKey = 'sc-back';
+    render();
+    try {
+      const items = await api.call('list_desktop_shortcuts');
+      const selected = new Set();
+      const kinds = {};
+      items.forEach((it, i) => {
+        kinds[i] = it.kind || 'port';
+        if (!it.already_added && (it.reason === 'Known recomp' || it.reason === 'Known port' || it.reason === 'Recomp detected')) {
+          selected.add(i);
+        }
+      });
+      S.shortcuts = { loading: false, items, selected, kinds };
+      S.focusKey = items.length ? 'sc-0' : 'sc-back';
+      render();
+    } catch (e) {
+      S.shortcuts = { loading: false, items: [], selected: new Set(), kinds: {} };
+      render();
+      toast(String(e), 5000);
+    }
+  },
+  sctoggle(d) {
+    const i = +d.i;
+    if (!S.shortcuts) return;
+    if (S.shortcuts.selected.has(i)) S.shortcuts.selected.delete(i);
+    else S.shortcuts.selected.add(i);
+    S.focusKey = `sc-${i}`;
+    render();
+  },
+  sckind(d) {
+    const i = +d.i;
+    if (!S.shortcuts) return;
+    S.shortcuts.kinds[i] = S.shortcuts.kinds[i] === 'recomp' ? 'port' : 'recomp';
+    S.shortcuts.selected.add(i);
+    S.focusKey = `sck-${i}`;
+    render();
+  },
+  async scimport() {
+    if (!S.shortcuts || !S.shortcuts.selected.size) return;
+    const chosen = [...S.shortcuts.selected].map((i) => {
+      const it = S.shortcuts.items[i];
+      return {
+        path: it.target,
+        name: it.name,
+        kind: S.shortcuts.kinds[i] || it.kind || 'port',
+        args: it.args || [],
+        workdir: it.workdir || null,
+        origin_system: it.origin_system || null,
+      };
+    });
+    try {
+      S.boot = await api.call('import_shortcuts', { items: chosen });
+      S.panel = 'settings'; S.setTab = 'library'; S.shortcuts = null; S.focusKey = 'importshortcuts';
+      render();
+      toast(`Imported ${chosen.length} game${chosen.length === 1 ? '' : 's'} under PC Games`, 4000);
+      api.call('fetch_media');
+    } catch (e) { toast(String(e), 5000); }
   },
   fetch() { api.call('fetch_media'); },
   creds() { api.call('open_path', { which: 'credentials' }); },
@@ -2896,7 +3070,7 @@ api.on('game-exited', (p) => {
 (async function start() {
   S.boot = await api.call('boot');
   applyTheme();
-  const hasLibrary = S.boot.rom_root || (S.boot.movie_roots || []).length || (S.boot.tv_roots || []).length;
+  const hasLibrary = S.boot.rom_root || (S.boot.movie_roots || []).length || (S.boot.tv_roots || []).length || (S.boot.port_roots || []).length || (S.boot.custom_ports || []).length;
   if (!hasLibrary) S.screen = 'welcome';
   else { S.screen = 'home'; S.sel = Math.max(0, tiles().findIndex((t) => t.kind === 'sys')); }
   render();

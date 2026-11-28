@@ -66,6 +66,15 @@ struct Saved {
     /// Folders with TV shows in them (Settings → TV): one show per folder inside.
     #[serde(default)]
     tv_roots: Vec<String>,
+    /// Standalone folders holding PC recomps and fan ports (Settings → Library).
+    #[serde(default)]
+    port_roots: Vec<String>,
+    /// Individually added or Desktop-imported PC recomps and ports.
+    #[serde(default)]
+    custom_ports: Vec<spine_core::ports::CustomPort>,
+    /// Per-game Recomp / Port tag override: game id -> PortKind.
+    #[serde(default)]
+    port_tags: BTreeMap<String, spine_core::ports::PortKind>,
     /// Which TMDB season each arc folder is: "<show id>|<arc name>" -> season.
     #[serde(default)]
     arc_seasons: BTreeMap<String, spine_core::tv::ArcMap>,
@@ -105,11 +114,14 @@ impl Saved {
     fn tv_roots(&self) -> Vec<PathBuf> {
         self.tv_roots.iter().map(PathBuf::from).collect()
     }
-    /// Nothing to show yet: no ROM, movie or TV folder.
-    fn empty(&self) -> bool {
-        self.roots().is_empty() && self.movie_roots.is_empty() && self.tv_roots.is_empty()
+    fn port_roots(&self) -> Vec<PathBuf> {
+        self.port_roots.iter().map(PathBuf::from).collect()
     }
-    /// Already used for games, movies or TV.
+    /// Nothing to show yet: no ROM, movie, TV or ports folder (and no custom ports).
+    fn empty(&self) -> bool {
+        self.roots().is_empty() && self.movie_roots.is_empty() && self.tv_roots.is_empty() && self.port_roots.is_empty() && self.custom_ports.is_empty()
+    }
+    /// Already used for games, movies, TV or ports.
     fn uses(&self, p: &Path) -> Option<&'static str> {
         if self.roots().iter().any(|r| r == p) {
             Some("one of your ROM folders")
@@ -117,6 +129,8 @@ impl Saved {
             Some("in Movies")
         } else if self.tv_roots().iter().any(|r| r == p) {
             Some("in TV")
+        } else if self.port_roots().iter().any(|r| r == p) {
+            Some("in Ports & recomps")
         } else {
             None
         }
@@ -310,6 +324,9 @@ struct GameView {
     added: u64,
     /// The user gave it its name.
     renamed: bool,
+    /// Path of a manually added/imported PC port or recomp (so it can be removed from Spine).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    custom_port_path: Option<String>,
     /// TV shows: episodes in viewing order (the index is what `play` takes).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     episodes: Vec<EpisodeView>,
@@ -392,6 +409,8 @@ struct Boot {
     roots: Vec<RootView>,
     movie_roots: Vec<RootView>,
     tv_roots: Vec<RootView>,
+    port_roots: Vec<RootView>,
+    custom_ports: Vec<spine_core::ports::CustomPort>,
     hidden: Vec<HiddenView>,
     collections: BTreeMap<String, Vec<String>>,
     progress: BTreeMap<String, spine_core::player::Progress>,
@@ -460,6 +479,8 @@ fn view(app: &App) -> Boot {
                                     "gog" if g.path.to_string_lossy().starts_with("heroic://") => "Installed with Heroic (GOG)".into(),
                                     "epic" => "Installed on Epic Games".into(),
                                     "gog" => format!("Installed from GOG · {}", g.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default()),
+                                    "recomp" => format!("Recomp · {}", g.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default()),
+                                    "port" => format!("Port · {}", g.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default()),
                                     _ => g.path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default(),
                                 },
                                 region: g.region.clone(),
@@ -487,6 +508,7 @@ fn view(app: &App) -> Boot {
                                 offline: is_offline(&g.path),
                                 added: saved.first_seen.get(&g.id).copied().unwrap_or(0),
                                 renamed: saved.renames.contains_key(&g.id),
+                                custom_port_path: saved.custom_ports.iter().find(|cp| Path::new(&cp.path) == g.path.as_path()).map(|cp| cp.path.clone()),
                                 episodes: if g.episodes.is_empty() { vec![] } else { episode_views(g, &media, &rel, &saved.arc_seasons) },
                                 tmdb_seasons: if g.episodes.iter().any(|e| e.season.is_none() && e.number.is_some()) { spine_core::tv::load_seasons(&media, &g.id).map(|s| s.list).unwrap_or_default() } else { vec![] },
                                 show_query: saved.show_queries.get(&g.id).cloned(),
@@ -506,10 +528,13 @@ fn view(app: &App) -> Boot {
     let roots = saved.roots().iter().map(|r| RootView { path: r.to_string_lossy().to_string(), online: !offline.contains(r) }).collect();
     let movie_roots = saved.movie_roots().iter().map(|r| RootView { path: r.to_string_lossy().to_string(), online: !offline.contains(r) }).collect();
     let tv_roots = saved.tv_roots().iter().map(|r| RootView { path: r.to_string_lossy().to_string(), online: !offline.contains(r) }).collect();
+    let port_roots = saved.port_roots().iter().map(|r| RootView { path: r.to_string_lossy().to_string(), online: !offline.contains(r) }).collect();
     Boot {
         roots,
         movie_roots,
         tv_roots,
+        port_roots,
+        custom_ports: saved.custom_ports.clone(),
         hidden,
         collections: saved.collections.clone(),
         rom_root: saved.rom_root,
@@ -713,6 +738,130 @@ fn remove_tv_root(path: String, app: State<App>) -> Boot {
     view(&app)
 }
 
+/// Add a folder with PC recomps and ports (each subfolder or shortcut counts as one game).
+#[tauri::command]
+async fn add_port_root(handle: AppHandle) -> Result<Option<Boot>, String> {
+    let Some(p) = handle.dialog().file().set_title("Choose a folder with recomps or ports").blocking_pick_folder().and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    let app = handle.state::<App>();
+    {
+        let mut s = app.saved.lock().unwrap();
+        if let Some(w) = s.uses(&p) {
+            return Err(format!("That folder is already {w}."));
+        }
+        s.port_roots.push(p.to_string_lossy().to_string());
+    }
+    app.save();
+    reload(&app);
+    Ok(Some(view(&app)))
+}
+
+/// Stop reading a ports/recomps folder (nothing on disk is touched).
+#[tauri::command]
+fn remove_port_root(path: String, app: State<App>) -> Boot {
+    app.saved.lock().unwrap().port_roots.retain(|r| r != &path);
+    app.save();
+    reload(&app);
+    view(&app)
+}
+
+/// Pick a single `.exe` or `.lnk` file and add it under PC Games as a Recomp or Port.
+#[tauri::command]
+async fn add_custom_port(kind: Option<String>, handle: AppHandle) -> Result<Option<Boot>, String> {
+    let dlg = handle.dialog().file().set_title("Choose a recomp or port executable / shortcut");
+    let dlg = if cfg!(windows) {
+        dlg.add_filter("Games & shortcuts", &["exe", "lnk", "bat"])
+    } else {
+        dlg.add_filter("Games & shortcuts", &["AppImage", "sh", "desktop", "exe", "lnk"])
+    };
+    let Some(p) = dlg.blocking_pick_file().and_then(|f| f.into_path().ok()) else { return Ok(None) };
+    let kind_ov = kind.as_deref().filter(|k| !k.is_empty()).map(spine_core::ports::PortKind::from_str_lossy);
+    let cp = spine_core::ports::custom_port_from_file(&p, kind_ov)
+        .ok_or_else(|| "Couldn't read that file as a game.".to_string())?;
+    let app = handle.state::<App>();
+    {
+        let mut s = app.saved.lock().unwrap();
+        let exists = s.custom_ports.iter().any(|c| c.path.eq_ignore_ascii_case(&cp.path) && c.args == cp.args);
+        if !exists {
+            s.custom_ports.push(cp);
+        }
+    }
+    app.save();
+    reload(&app);
+    Ok(Some(view(&app)))
+}
+
+/// Remove a manually added or imported port/recomp from Spine (nothing on disk is deleted).
+#[tauri::command]
+fn remove_custom_port(path: String, app: State<App>) -> Boot {
+    app.saved.lock().unwrap().custom_ports.retain(|c| !c.path.eq_ignore_ascii_case(&path));
+    app.save();
+    reload(&app);
+    view(&app)
+}
+
+/// List non-store Desktop and Start Menu shortcuts for the one-click importer in Settings.
+#[tauri::command]
+fn list_desktop_shortcuts(app: State<App>) -> Vec<spine_core::ports::ShortcutCandidate> {
+    let pc_games: Vec<spine_core::Game> = app
+        .library
+        .lock()
+        .unwrap()
+        .as_ref()
+        .and_then(|l| l.systems.iter().find(|s| s.id == "pc"))
+        .map(|s| s.games.clone())
+        .unwrap_or_default();
+    spine_core::ports::desktop_shortcut_candidates(&pc_games)
+}
+
+/// Import one or more shortcuts selected from the Desktop / Start Menu importer.
+#[tauri::command]
+fn import_shortcuts(items: Vec<spine_core::ports::CustomPort>, app: State<App>) -> Boot {
+    {
+        let mut s = app.saved.lock().unwrap();
+        for cp in items {
+            if !s.custom_ports.iter().any(|c| c.path.eq_ignore_ascii_case(&cp.path) && c.args == cp.args) {
+                s.custom_ports.push(cp);
+            }
+        }
+    }
+    app.save();
+    reload(&app);
+    view(&app)
+}
+
+/// Set or clear a PC game's Recomp / Port tag ("recomp", "port", or empty to reset).
+#[tauri::command]
+fn set_port_tag(id: String, kind: Option<String>, app: State<App>) -> Boot {
+    if !covers::is_safe_id(&id) {
+        return view(&app);
+    }
+    {
+        let mut s = app.saved.lock().unwrap();
+        match kind.as_deref().filter(|k| !k.is_empty()) {
+            Some(k) => {
+                let pk = spine_core::ports::PortKind::from_str_lossy(k);
+                s.port_tags.insert(id.clone(), pk);
+                // Keep custom_ports in sync if this game came from there.
+                if let Some(lib) = app.library.lock().unwrap().as_ref() {
+                    if let Some((_, g)) = find(lib, &id) {
+                        for cp in &mut s.custom_ports {
+                            if Path::new(&cp.path) == g.path.as_path() {
+                                cp.kind = pk;
+                            }
+                        }
+                    }
+                }
+            }
+            None => {
+                s.port_tags.remove(&id);
+            }
+        }
+    }
+    app.save();
+    reload(&app);
+    view(&app)
+}
+
 /// "Fix match" for a movie in a show's folder: search TMDB's movies for this name next time.
 #[tauri::command]
 fn set_special_query(id: String, file: String, query: String, app: State<App>) -> Boot {
@@ -861,6 +1010,13 @@ fn set_setting(key: String, value: serde_json::Value, app: State<App>) {
     app.save();
 }
 
+/// Rescan the current library without changing roots (e.g. after toggling PC stores or auto-detected ports).
+#[tauri::command]
+fn reload_library(app: State<App>) -> Boot {
+    reload(&app);
+    view(&app)
+}
+
 /// mpv as Spine sees it (Settings → Controller & sound). Windows only offers "Get mpv".
 #[derive(Serialize)]
 struct MpvStatus {
@@ -998,7 +1154,10 @@ fn play(id: String, episode: Option<usize>, from_start: Option<bool>, next: Opti
     let h = handle.clone();
     // Hold Select + Start on the controller to close the game and come back.
     let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let own_exe = plan.program.to_string_lossy().to_lowercase().ends_with(".exe");
+    let low_prog = plan.program.to_string_lossy().to_lowercase();
+    let own_exe = !low_prog.contains("://")
+        && (low_prog.ends_with(".exe")
+            || (!cfg!(windows) && !low_prog.ends_with(".desktop") && !low_prog.ends_with(".url") && !low_prog.ends_with(".lnk") && plan.program.is_file()));
     let combo_on = app.saved.lock().unwrap().settings.get("exitCombo").and_then(|v| v.as_bool()) != Some(false);
     if combo_on && (plan.emulator != "system" || own_exe) {
         let pid = child.id();
@@ -1224,9 +1383,12 @@ fn set_hidden(id: String, hidden: bool, app: State<App>) -> Boot {
 #[tauri::command]
 async fn cover_choices(id: String, query: String, handle: AppHandle) -> Result<Vec<covers::CoverChoice>, String> {
     let app = handle.state::<App>();
-    let system = {
+    let (system, origin) = {
         let lib = app.library.lock().unwrap();
-        lib.as_ref().and_then(|l| find(l, &id)).map(|(s, _)| s.id).ok_or("Game not found.")?
+        lib.as_ref()
+            .and_then(|l| find(l, &id))
+            .map(|(s, g)| (s.id, g.origin_system.clone()))
+            .ok_or("Game not found.")?
     };
     let key = Credentials::load(&app.dir.join("credentials.txt")).steamgriddb_key;
     let media = app.media();
@@ -1234,7 +1396,7 @@ async fn cover_choices(id: String, query: String, handle: AppHandle) -> Result<V
     if q.is_empty() {
         return Ok(vec![]);
     }
-    tauri::async_runtime::spawn_blocking(move || covers::cover_choices(system, &q, &media, key.as_deref())).await.map_err(|e| e.to_string())
+    tauri::async_runtime::spawn_blocking(move || covers::cover_choices_with_origin(system, origin.as_deref(), &q, &media, key.as_deref())).await.map_err(|e| e.to_string())
 }
 
 /// Use one of the covers from the picker.
@@ -2454,6 +2616,15 @@ fn percent_decode(s: &str) -> String {
 
 /// Covers, details, and the user's own names, on top of a scanned library.
 fn reattach(lib: &mut Library, media: &Path, saved: &Saved) {
+    if !saved.port_tags.is_empty() {
+        if let Some(pc) = lib.systems.iter_mut().find(|s| s.id == "pc") {
+            for g in &mut pc.games {
+                if let Some(&pk) = saved.port_tags.get(&g.id) {
+                    g.format = pk.as_str().to_string();
+                }
+            }
+        }
+    }
     covers::attach_existing(lib, media);
     if saved.renames.is_empty() {
         return;
@@ -2474,11 +2645,21 @@ fn reattach(lib: &mut Library, media: &Path, saved: &Saved) {
     }
 }
 
-/// Scan every ROM folder (plus installed PC store games) into one library.
+/// Scan every ROM folder (plus installed PC store games, ports & recomps) into one library.
 fn build_library(dir: &Path, saved: &Saved) -> (Library, Vec<PathBuf>, Installed) {
     let roots = saved.roots();
     let (mut lib, mut offline) = spine_core::scan::scan_many(&roots, &dir.join("media").join("cache"));
     add_store_games(&mut lib, saved);
+    let port_roots = saved.port_roots();
+    if !port_roots.is_empty() {
+        let (ports_lib, ports_offline) = spine_core::ports::scan_port_roots(&port_roots, &dir.join("media").join("cache"));
+        spine_core::scan::merge_library(&mut lib, ports_lib);
+        offline.extend(ports_offline);
+    }
+    if !saved.custom_ports.is_empty() {
+        spine_core::ports::merge(&mut lib, spine_core::ports::from_custom(&saved.custom_ports));
+    }
+    add_auto_ports(&mut lib, saved, &roots);
     let movie_roots = saved.movie_roots();
     if !movie_roots.is_empty() {
         let (movies, movies_offline) = spine_core::movies::scan_many(&movie_roots, &dir.join("media").join("cache"));
@@ -2544,6 +2725,7 @@ fn folder_signature(saved: &Saved) -> Vec<(PathBuf, bool, Vec<u64>)> {
     let mut dirs: Vec<PathBuf> = saved.roots();
     dirs.extend(saved.movie_roots());
     dirs.extend(saved.tv_roots());
+    dirs.extend(saved.port_roots());
     if saved.settings.get("storeGames").and_then(|v| v.as_bool()) != Some(false) {
         dirs.push(spine_core::stores::epic_manifest_dir());
         if let Some(st) = spine_core::stores::steam_root() {
@@ -2610,6 +2792,17 @@ fn add_store_games(lib: &mut Library, saved: &Saved) {
     let n = spine_core::stores::merge(lib, spine_core::stores::installed());
     if n > 0 {
         lib.notes.push(format!("Added {n} installed game(s) from Steam, Epic Games and GOG."));
+    }
+}
+
+/// Known recomps & fan ports auto-detected on this PC (on unless turned off in Settings).
+fn add_auto_ports(lib: &mut Library, saved: &Saved, roots: &[PathBuf]) {
+    if saved.settings.get("autoPorts").and_then(|v| v.as_bool()) == Some(false) {
+        return;
+    }
+    let n = spine_core::ports::merge(lib, spine_core::ports::auto_detect(roots));
+    if n > 0 {
+        lib.notes.push(format!("Detected {n} recomp / port title(s) under PC Games."));
     }
 }
 
@@ -2693,7 +2886,7 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, set_autostart, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, forget_played, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv, reload_themes, import_theme, import_external_folder, import_theme_url, export_theme, create_starter_theme, delete_theme, pick_custom_asset, clear_custom_asset, save_custom_theme, create_backup, restore_backup])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, app_version, achievements, open_url, set_collection, delete_collection, open_bios_folder, rename_game, set_hidden, cover_choices, use_cover, boot, pick_folder, scan, add_root, remove_root, fetch_media, toggle_favorite, set_setting, play, open_path, quit, set_fullscreen, set_autostart, launch_options, set_launcher, pick_cover, reset_cover, pick_video, reset_video, get_accounts, set_accounts, add_movie_root, remove_movie_root, add_tv_root, remove_tv_root, add_port_root, remove_port_root, add_custom_port, remove_custom_port, list_desktop_shortcuts, import_shortcuts, set_port_tag, reload_library, set_arc_season, set_special_query, set_show_query, set_watched, add_addon, remove_addon, move_addon, addon_catalog, addon_search, addon_meta, addon_streams, play_stream, stream_forget, forget_played, stream_list_set, stream_list_delete, person_credits, tmdb_imdb, mpv_status, get_mpv, reload_themes, import_theme, import_external_folder, import_theme_url, export_theme, create_starter_theme, delete_theme, pick_custom_asset, clear_custom_asset, save_custom_theme, create_backup, restore_backup])
         .run(tauri::generate_context!())
         .expect("error while running Spine");
 }

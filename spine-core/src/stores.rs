@@ -427,6 +427,9 @@ pub fn merge(lib: &mut Library, games: Vec<StoreGame>) -> usize {
             info: None,
             warnings: vec![],
             episodes: vec![],
+            launch_args: vec![],
+            workdir: None,
+            origin_system: None,
         });
         added += 1;
     }

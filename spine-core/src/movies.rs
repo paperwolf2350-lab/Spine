@@ -208,6 +208,9 @@ pub fn scan_root(root: &Path) -> Option<Library> {
                     info: None,
                     warnings: vec![],
                     episodes: vec![],
+                    launch_args: vec![],
+                    workdir: None,
+                    origin_system: None,
                 };
                 by_id.insert(id, (g, size));
             }

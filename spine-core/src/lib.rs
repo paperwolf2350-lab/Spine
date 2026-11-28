@@ -20,6 +20,7 @@ pub mod movies;
 pub mod mpvget;
 pub mod people;
 pub mod player;
+pub mod ports;
 pub mod scan;
 pub mod stores;
 pub mod retroachievements;

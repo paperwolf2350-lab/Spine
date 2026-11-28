@@ -330,6 +330,9 @@ pub fn scan_root(root: &Path) -> Option<Library> {
                         info: None,
                         warnings: vec![],
                         episodes: eps,
+                        launch_args: vec![],
+                        workdir: None,
+                        origin_system: None,
                     },
                 );
             }
@@ -977,7 +980,7 @@ mod tests {
     fn matches_long_seasons_and_arcs() {
         let ep = |group: &str, season: Option<u32>, number: u32, absolute: Option<u32>| Episode { path: PathBuf::from("x.mkv"), group: group.into(), season, number: Some(number), title: None, absolute };
         let tm = |n: u32| (1..=n).map(|number| TmdbEpisode { number, ..Default::default() }).collect::<Vec<_>>();
-        let mut g = Game { id: "tv/x".into(), title: "X".into(), sort_key: "x".into(), letter: 'X', path: PathBuf::new(), format: "mkv".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![], episodes: vec![] };
+        let mut g = Game { id: "tv/x".into(), title: "X".into(), sort_key: "x".into(), letter: 'X', path: PathBuf::new(), format: "mkv".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![], episodes: vec![], launch_args: vec![], workdir: None, origin_system: None };
         let none = |_: &str| None;
 
         // Jujutsu Kaisen: TMDB has one season of 59; files say 001-024 and 025-047.

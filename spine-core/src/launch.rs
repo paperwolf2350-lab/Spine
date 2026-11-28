@@ -227,6 +227,9 @@ pub struct LaunchPlan {
     pub emulator: String,
     pub program: PathBuf,
     pub args: Vec<String>,
+    /// Working directory when launching a PC game/port directly.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workdir: Option<PathBuf>,
     /// Empty when ready; otherwise what the user needs to do.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocked: Option<String>,
@@ -283,13 +286,13 @@ pub fn plan(sys: &System, game: &Game, installed: &Installed) -> LaunchPlan {
         // Nothing works: report the first choice (for Movies & TV that's mpv, Spine's player).
         first_block.get_or_insert(p);
     }
-    first_block.unwrap_or(LaunchPlan { emulator: "none".into(), program: PathBuf::new(), args: vec![], blocked: Some("No emulator configured for this console.".into()) })
+    first_block.unwrap_or(LaunchPlan { emulator: "none".into(), program: PathBuf::new(), args: vec![], workdir: None, blocked: Some("No emulator configured for this console.".into()) })
 }
 
 fn plan_with(l: &Launcher, game: &Game, installed: &Installed) -> LaunchPlan {
     let rom = game.path.to_string_lossy().to_string();
     match l {
-        Launcher::ShellOpen => LaunchPlan { emulator: "system".into(), program: game.path.clone(), args: vec![], blocked: None },
+        Launcher::ShellOpen => LaunchPlan { emulator: "system".into(), program: game.path.clone(), args: game.launch_args.clone(), workdir: game.workdir.clone(), blocked: None },
         Launcher::RetroArch(core) => {
             let def = emulator("retroarch").unwrap();
             let file = if cfg!(windows) { format!("{core}_libretro.dll") } else { format!("{core}_libretro.so") };
@@ -298,7 +301,7 @@ fn plan_with(l: &Launcher, game: &Game, installed: &Installed) -> LaunchPlan {
             } else if let Some(fp) = installed.flatpak.get("retroarch") {
                 (PathBuf::from("flatpak"), flatpak_run(fp, game), retroarch_core_dirs(None))
             } else {
-                return LaunchPlan { emulator: format!("RetroArch · {core}"), program: PathBuf::from(def.exes[0]), args: vec![], blocked: Some("Install RetroArch.".into()) };
+                return LaunchPlan { emulator: format!("RetroArch · {core}"), program: PathBuf::from(def.exes[0]), args: vec![], workdir: None, blocked: Some("Install RetroArch.".into()) };
             };
             let core_file = dirs.iter().map(|d| d.join(&file)).find(|p| p.exists()).unwrap_or_else(|| dirs[0].join(&file));
             let blocked = (!core_file.exists()).then(|| format!("Download the \"{core}\" core in RetroArch (Main Menu → Online Updater → Core Downloader)."));
@@ -306,20 +309,20 @@ fn plan_with(l: &Launcher, game: &Game, installed: &Installed) -> LaunchPlan {
             // on Windows that option opens an extra console window, so not there.
             let verbose = cfg!(target_os = "linux").then(|| "--verbose".to_string());
             let args = prefix.into_iter().chain(verbose).chain(def.args.iter().map(|a| a.replace("{core}", &core_file.to_string_lossy()).replace("{rom}", &rom))).collect();
-            LaunchPlan { emulator: format!("RetroArch · {core}"), program, args, blocked }
+            LaunchPlan { emulator: format!("RetroArch · {core}"), program, args, workdir: None, blocked }
         }
         Launcher::Standalone(id) => {
             let def = emulator(id).expect("unknown emulator id");
             let (exe, prefix) = match (installed.path(id), installed.flatpak.get(*id)) {
                 (Some(exe), _) => (exe.clone(), vec![]),
                 (None, Some(fp)) => (PathBuf::from("flatpak"), flatpak_run(fp, game)),
-                (None, None) => return LaunchPlan { emulator: def.name.into(), program: PathBuf::from(def.exes[0]), args: vec![], blocked: Some(install_hint(def)) },
+                (None, None) => return LaunchPlan { emulator: def.name.into(), program: PathBuf::from(def.exes[0]), args: vec![], workdir: None, blocked: Some(install_hint(def)) },
             };
             let needs_id = def.args.iter().any(|a| a.contains("{title_id}"));
             let blocked = (needs_id && game.title_id.is_none()).then(|| format!("{} needs this game's title id first.", def.name));
             let tid = game.title_id.clone().unwrap_or_default();
             let args = prefix.into_iter().chain(def.args.iter().map(|a| a.replace("{rom}", &rom).replace("{title_id}", &tid))).collect();
-            LaunchPlan { emulator: def.name.into(), program: exe, args, blocked }
+            LaunchPlan { emulator: def.name.into(), program: exe, args, workdir: None, blocked }
         }
     }
 }
@@ -335,7 +338,7 @@ fn install_hint(def: &EmulatorDef) -> String {
 pub fn plan_stream(installed: &Installed, url: &str, title: &str, headers: &[(String, String)], preferred: Option<&str>) -> LaunchPlan {
     let url = url.trim();
     if !(url.starts_with("https://") || url.starts_with("http://")) || url.chars().any(|c| c.is_control()) {
-        return LaunchPlan { emulator: "mpv".into(), program: PathBuf::from("mpv"), args: vec![], blocked: Some("That stream link isn't a valid http/https address.".into()) };
+        return LaunchPlan { emulator: "mpv".into(), program: PathBuf::from("mpv"), args: vec![], workdir: None, blocked: Some("That stream link isn't a valid http/https address.".into()) };
     }
     let clean_line = |s: &str| s.chars().filter(|c| !matches!(c, '\r' | '\n' | '\0')).collect::<String>();
     let title = clean_line(title);
@@ -363,9 +366,9 @@ pub fn plan_stream(installed: &Installed, url: &str, title: &str, headers: &[(St
             args.extend(referer.iter().map(|r| format!("--referrer={r}")));
         }
         args.push(url.to_string());
-        return LaunchPlan { emulator: def.name.into(), program, args, blocked: None };
+        return LaunchPlan { emulator: def.name.into(), program, args, workdir: None, blocked: None };
     }
-    LaunchPlan { emulator: "VLC".into(), program: PathBuf::from("vlc"), args: vec![], blocked: Some(if cfg!(windows) { "Get mpv in Settings → Controller & sound (or install VLC) to watch streams.".into() } else { "Install mpv (or VLC) to watch streams.".into() }) }
+    LaunchPlan { emulator: "VLC".into(), program: PathBuf::from("vlc"), args: vec![], workdir: None, blocked: Some(if cfg!(windows) { "Get mpv in Settings → Controller & sound (or install VLC) to watch streams.".into() } else { "Install mpv (or VLC) to watch streams.".into() }) }
 }
 
 /// Allowed URI schemes for store game shortcuts opened via the OS URL handler.
@@ -402,11 +405,16 @@ pub fn launch_logged(plan: &LaunchPlan, log: Option<&Path>) -> std::io::Result<s
     }
     if plan.emulator == "system" {
         let target = plan.program.to_string_lossy().to_string();
-        // A store game's own .exe (GOG): start it from its folder so it finds its files,
-        // and Spine can time the session.
-        if target.to_lowercase().ends_with(".exe") && !target.contains("://") {
+        // A store game or PC port/recomp's own executable: start it directly with its
+        // working directory and arguments so it finds its files and Spine can time the session.
+        let low = target.to_lowercase();
+        let direct_bin = !target.contains("://")
+            && (low.ends_with(".exe")
+                || (!cfg!(windows) && !low.ends_with(".desktop") && !low.ends_with(".url") && !low.ends_with(".lnk") && plan.program.is_file()));
+        if direct_bin {
             let mut cmd = crate::hostenv::command(&plan.program);
-            if let Some(dir) = plan.program.parent() {
+            cmd.args(&plan.args);
+            if let Some(dir) = plan.workdir.as_deref().filter(|d| d.is_dir()).or_else(|| plan.program.parent().filter(|d| d.is_dir())) {
                 cmd.current_dir(dir);
             }
             return cmd.spawn();
@@ -615,7 +623,7 @@ mod player_hint_tests {
     fn no_player_suggests_mpv() {
         for id in ["movies", "tv"] {
             let sys = system_by_id(id).unwrap();
-            let game = Game { id: format!("{id}/film"), title: "Film".into(), sort_key: "film".into(), letter: 'F', path: PathBuf::from("Film (2010).mkv"), format: "mkv".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![], episodes: vec![] };
+            let game = Game { id: format!("{id}/film"), title: "Film".into(), sort_key: "film".into(), letter: 'F', path: PathBuf::from("Film (2010).mkv"), format: "mkv".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![], episodes: vec![], launch_args: vec![], workdir: None, origin_system: None };
             let p = plan(sys, &game, &Installed::default());
             assert_eq!(p.emulator, "mpv", "{id}");
             assert!(p.blocked.as_deref().unwrap().contains("mpv"), "{id}");
@@ -652,7 +660,7 @@ mod player_hint_tests {
         assert_eq!(found.path("eden_nx2"), Some(&d.join("Eden-NX2").join("eden.exe")));
         assert!(found.path("lichii").is_some());
         let sys = system_by_id("switch2").unwrap();
-        let game = Game { id: "switch2/mkw".into(), title: "Mario Kart World".into(), sort_key: "mario kart world".into(), letter: 'M', path: PathBuf::from("Mario Kart World.xci"), format: "xci".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![], episodes: vec![] };
+        let game = Game { id: "switch2/mkw".into(), title: "Mario Kart World".into(), sort_key: "mario kart world".into(), letter: 'M', path: PathBuf::from("Mario Kart World.xci"), format: "xci".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![], episodes: vec![], launch_args: vec![], workdir: None, origin_system: None };
         let p = plan(sys, &game, &found);
         assert_eq!(p.emulator, "Lichii");
         assert!(p.blocked.is_none(), "{:?}", p.blocked);
@@ -674,7 +682,7 @@ mod linux_tests {
     use crate::systems::system_by_id;
 
     fn game(path: &str) -> Game {
-        Game { id: "gba/x".into(), title: "X".into(), sort_key: "x".into(), letter: 'X', path: PathBuf::from(path), format: "gba".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![], episodes: vec![] }
+        Game { id: "gba/x".into(), title: "X".into(), sort_key: "x".into(), letter: 'X', path: PathBuf::from(path), format: "gba".into(), region: None, revision: None, title_id: None, versions: vec![], updates: 0, dlc: 0, cover: None, video: None, meta: None, info: None, warnings: vec![], episodes: vec![], launch_args: vec![], workdir: None, origin_system: None }
     }
 
     #[test]
