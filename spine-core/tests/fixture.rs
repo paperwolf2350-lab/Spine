@@ -17,6 +17,7 @@ fn game<'a>(lib: &'a spine_core::Library, sys: &str, title: &str) -> &'a spine_c
 }
 
 #[test]
+#[ignore = "requires local developer ROM fixtures in ../fixtures/Roms"]
 fn only_consoles_with_games_show_up() {
     if !fixtures_present() {
         return; // the sample library is only on the developer\'s machine
@@ -28,6 +29,7 @@ fn only_consoles_with_games_show_up() {
 }
 
 #[test]
+#[ignore = "requires local developer ROM fixtures in ../fixtures/Roms"]
 fn rankings_are_stripped_and_sorted() {
     if !fixtures_present() {
         return; // the sample library is only on the developer\'s machine
@@ -43,6 +45,7 @@ fn rankings_are_stripped_and_sorted() {
 }
 
 #[test]
+#[ignore = "requires local developer ROM fixtures in ../fixtures/Roms"]
 fn wii_u_duplicates_merge_and_prefer_wua() {
     if !fixtures_present() {
         return; // the sample library is only on the developer\'s machine
@@ -66,6 +69,7 @@ fn wii_u_duplicates_merge_and_prefer_wua() {
 }
 
 #[test]
+#[ignore = "requires local developer ROM fixtures in ../fixtures/Roms"]
 fn discs_updates_and_installers() {
     if !fixtures_present() {
         return; // the sample library is only on the developer\'s machine

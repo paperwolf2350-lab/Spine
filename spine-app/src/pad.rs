@@ -66,10 +66,14 @@ mod xinput {
 
     type GetState = unsafe extern "system" fn(u32, *mut State) -> u32;
 
+    const LOAD_LIBRARY_SEARCH_SYSTEM32: u32 = 0x0000_0800;
+
     unsafe extern "system" {
-        fn LoadLibraryA(name: *const u8) -> *mut c_void;
+        fn LoadLibraryExA(name: *const u8, file: *mut c_void, flags: u32) -> *mut c_void;
         fn GetProcAddress(module: *mut c_void, name: *const u8) -> *mut c_void;
     }
+
+    static CACHED_GET_STATE: std::sync::OnceLock<Option<GetState>> = std::sync::OnceLock::new();
 
     pub struct XInput {
         get: GetState,
@@ -77,20 +81,24 @@ mod xinput {
 
     impl XInput {
         pub fn load() -> Option<XInput> {
-            const DLLS: [&[u8]; 3] = [b"xinput1_4.dll\0", b"xinput1_3.dll\0", b"xinput9_1_0.dll\0"];
-            for dll in DLLS {
-                unsafe {
-                    let m = LoadLibraryA(dll.as_ptr());
-                    if m.is_null() {
-                        continue;
-                    }
-                    let f = GetProcAddress(m, b"XInputGetState\0".as_ptr());
-                    if !f.is_null() {
-                        return Some(XInput { get: std::mem::transmute::<*mut c_void, GetState>(f) });
+            let get = *CACHED_GET_STATE.get_or_init(|| {
+                const DLLS: [&[u8]; 3] = [b"xinput1_4.dll\0", b"xinput1_3.dll\0", b"xinput9_1_0.dll\0"];
+                for dll in DLLS {
+                    unsafe {
+                        // Load strictly from System32 to avoid DLL search-order hijacking in the app folder.
+                        let m = LoadLibraryExA(dll.as_ptr(), std::ptr::null_mut(), LOAD_LIBRARY_SEARCH_SYSTEM32);
+                        if m.is_null() {
+                            continue;
+                        }
+                        let f = GetProcAddress(m, b"XInputGetState\0".as_ptr());
+                        if !f.is_null() {
+                            return Some(std::mem::transmute::<*mut c_void, GetState>(f));
+                        }
                     }
                 }
-            }
-            None
+                None
+            });
+            get.map(|get| XInput { get })
         }
         /// Buttons held on any of the four controller slots, combined.
         pub fn buttons(&self) -> u16 {

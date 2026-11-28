@@ -255,7 +255,7 @@ pub fn sanitize_id(raw: &str) -> String {
 }
 
 /// Check that a relative path inside a theme stays inside the theme root.
-fn safe_rel(rel: &str) -> Option<PathBuf> {
+pub(crate) fn safe_rel(rel: &str) -> Option<PathBuf> {
     let p = Path::new(rel);
     if p.is_absolute() {
         return None;
@@ -472,21 +472,41 @@ fn load_mascot(id: &str, theme_dir: &Path, stamp: u64) -> Option<MascotPack> {
 /// Sanitize a CSS color/font value in `theme.json` colors map to block CSS injection.
 fn clean_css_val(v: &str) -> Option<String> {
     let t = v.trim();
-    if t.is_empty() || t.len() > 160 || t.contains([';', '{', '}', '<', '>', '\n', '\r']) {
+    if t.is_empty() || t.len() > 160 || t.contains([';', '{', '}', '<', '>', '\\', '\n', '\r']) {
+        return None;
+    }
+    let lower = t.to_ascii_lowercase();
+    if lower.contains("url(") || lower.contains("@import") || lower.contains("expression(") {
         return None;
     }
     Some(t.to_string())
 }
 
+/// Sanitize a font family name derived from an on-disk filename.
+fn clean_font_family(stem: &str) -> String {
+    let cleaned: String = stem
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_') { c } else { ' ' })
+        .collect();
+    let collapsed = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    if collapsed.is_empty() { "CustomFont".into() } else { collapsed }
+}
+
 /// Load a single theme folder (`<themes_dir>/<id>`).
 pub fn load_theme(theme_dir: &Path) -> Option<ThemePack> {
+    let id = theme_dir.file_name()?.to_str()?.to_string();
+    load_theme_as(theme_dir, &id)
+}
+
+/// Load a theme folder using an explicit target `id` (lets staging directories be validated before swap).
+fn load_theme_as(theme_dir: &Path, id: &str) -> Option<ThemePack> {
     if !theme_dir.is_dir() {
         return None;
     }
-    let id = theme_dir.file_name()?.to_str()?.to_string();
-    if id.starts_with('.') || RESERVED_IDS.contains(&id.as_str()) || id.contains(['/', '\\', ':']) {
+    if id.is_empty() || id.starts_with('.') || RESERVED_IDS.contains(&id) || id.contains(['/', '\\', ':']) {
         return None;
     }
+    let id = id.to_string();
     let manifest_path = theme_dir.join("theme.json");
     let manifest: ThemeManifest = if manifest_path.is_file() {
         let text = fs::read_to_string(&manifest_path).ok()?;
@@ -540,7 +560,7 @@ pub fn load_theme(theme_dir: &Path) -> Option<ThemePack> {
     let fonts: Vec<FontAsset> = scan_dir_files(&theme_dir.join("fonts"), FONT_EXTS)
         .into_iter()
         .map(|(stem, fname)| FontAsset {
-            family: stem,
+            family: clean_font_family(&stem),
             path: asset_url(&id, &format!("fonts/{fname}"), stamp),
         })
         .collect();
@@ -817,23 +837,37 @@ pub fn import_zip(themes_dir: &Path, zip_path: &Path) -> Result<ThemePack, Strin
         return Err(e);
     }
 
-    // If theme.json didn't exist, ensure the folder is still valid before moving it into place.
+    // Validate the staged theme BEFORE touching any existing installed theme with the same id.
+    let validated = match load_theme_as(&stage, &base_id) {
+        Some(pack) => pack,
+        None => {
+            let _ = fs::remove_dir_all(&stage);
+            return Err("This .zip doesn't contain a valid Spine theme (needs theme.json, theme.css, or mascot/mascot.json).".into());
+        }
+    };
+
     let final_dir = themes_dir.join(&base_id);
-    if final_dir.exists() {
-        let _ = fs::remove_dir_all(&final_dir);
+    let backup_dir = themes_dir.join(format!(".prev-{base_id}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&backup_dir);
+    let had_prev = final_dir.exists();
+    if had_prev {
+        if let Err(e) = fs::rename(&final_dir, &backup_dir) {
+            let _ = fs::remove_dir_all(&stage);
+            return Err(format!("Couldn't replace existing theme folder: {e}"));
+        }
     }
     if let Err(e) = fs::rename(&stage, &final_dir) {
         let _ = fs::remove_dir_all(&stage);
+        if had_prev {
+            let _ = fs::rename(&backup_dir, &final_dir);
+        }
         return Err(format!("Couldn't save theme folder: {e}"));
     }
-
-    match load_theme(&final_dir) {
-        Some(pack) => Ok(pack),
-        None => {
-            let _ = fs::remove_dir_all(&final_dir);
-            Err("This .zip doesn't contain a valid Spine theme (needs theme.json, theme.css, or mascot/mascot.json).".into())
-        }
+    if had_prev {
+        let _ = fs::remove_dir_all(&backup_dir);
     }
+
+    Ok(load_theme(&final_dir).unwrap_or(validated))
 }
 
 /// Export an installed theme folder `<themes_dir>/<id>/` as a `.zip` file.
@@ -1166,6 +1200,8 @@ pub fn save_custom_theme(
     let base = match spec.base.trim().to_ascii_lowercase().as_str() {
         "cream" => "cream",
         "crt" => "crt",
+        "glass-light" => "glass-light",
+        "glass-dark" => "glass-dark",
         "tv" => "tv",
         _ => "midnight",
     }
@@ -1414,6 +1450,39 @@ mod tests {
         assert!(from_zip.preview.is_some());
         assert!(from_zip.wallpapers.contains_key("default"));
         assert_eq!(from_zip.options.len(), 3);
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn failed_import_preserves_existing_theme_and_sanitizes_css() {
+        let root = temp_dir("preserve-existing");
+        let existing = root.join("my-theme");
+        fs::create_dir_all(&existing).unwrap();
+        fs::write(existing.join("theme.css"), b"/* keep me */").unwrap();
+        fs::write(existing.join("theme.json"), br#"{"name":"My Theme"}"#).unwrap();
+
+        // Build a zip with the same slug ("my-theme.zip") that is NOT a valid Spine theme.
+        let bad_zip = root.join("my-theme.zip");
+        {
+            let f = fs::File::create(&bad_zip).unwrap();
+            let mut zw = zip::ZipWriter::new(f);
+            let opts = zip::write::SimpleFileOptions::default();
+            zw.start_file("readme.txt", opts).unwrap();
+            std::io::Write::write_all(&mut zw, b"not a theme").unwrap();
+            zw.finish().unwrap();
+        }
+
+        assert!(import_zip(&root, &bad_zip).is_err());
+        assert_eq!(fs::read_to_string(existing.join("theme.css")).unwrap(), "/* keep me */");
+
+        // CSS value sanitizer rejects url(), @import, expression(), and backslashes
+        assert!(clean_css_val("#123456").is_some());
+        assert!(clean_css_val("'Cinzel', Georgia, serif").is_some());
+        assert!(clean_css_val("url(https://evil.example/x.png)").is_none());
+        assert!(clean_css_val("@import url(x)").is_none());
+        assert!(clean_css_val(r"red \22").is_none());
+        assert_eq!(clean_font_family("My'Font;evil"), "My Font evil");
 
         let _ = fs::remove_dir_all(&root);
     }

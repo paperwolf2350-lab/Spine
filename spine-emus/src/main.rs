@@ -258,10 +258,10 @@ async fn check_updates(handle: AppHandle, force: bool) -> Result<UpdatesView, St
 #[tauri::command]
 fn open_folder(app: tauri::State<App>, id: Option<String>) -> Result<(), String> {
     let dir = app.dir.lock().unwrap().clone();
-    let path = match id.as_deref().and_then(emus::emu) {
-        Some(def) if cfg!(windows) => emus::target(&dir, def),
-        Some(_) => emus::cores_dir(&dir),
-        None => dir,
+    let path = match id.as_deref() {
+        Some(raw) if cfg!(windows) => emus::emu(raw).map(|def| emus::target(&dir, def)).unwrap_or_else(|| dir.clone()),
+        Some(raw) if raw == "retroarch" || raw.starts_with("core:") => emus::cores_dir(&dir),
+        _ => dir,
     };
     std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
     let opener = if cfg!(windows) { "explorer" } else { "xdg-open" };

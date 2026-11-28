@@ -302,7 +302,31 @@ pub fn agent() -> Agent {
 
 pub(crate) const PATH_SEG: &AsciiSet = &NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(b'.').remove(b'~');
 
+/// Strip query strings (which may hold API keys or passwords) from URLs inside error strings.
+fn sanitize_net_err(msg: &str) -> String {
+    let mut out = String::with_capacity(msg.len());
+    let mut rest = msg;
+    while let Some(i) = rest.find("http://").or_else(|| rest.find("https://")) {
+        out.push_str(&rest[..i]);
+        let after = &rest[i..];
+        let end = after.find(|c: char| c.is_whitespace() || matches!(c, '"' | '\'' | ')' | '>')).unwrap_or(after.len());
+        let url_part = &after[..end];
+        if let Some(q) = url_part.find('?') {
+            out.push_str(&url_part[..q]);
+            out.push_str("?...");
+        } else {
+            out.push_str(url_part);
+        }
+        rest = &after[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
 pub fn curl(url: &str, fail_on_http_error: bool, headers: &[String]) -> Result<Vec<u8>, String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("Only http/https URLs are supported.".into());
+    }
     // Linux: the built-in downloader first (no outside program, so nothing about the
     // AppImage or the system's curl can get in the way); curl only if it fails to connect.
     #[cfg(target_os = "linux")]
@@ -314,14 +338,29 @@ pub fn curl(url: &str, fail_on_http_error: bool, headers: &[String]) -> Result<V
         }
     }
     let mut cmd = crate::hostenv::command("curl");
-    cmd.args(["-sSL", "--connect-timeout", "15", "--max-time", "90", "--retry", "2", "-A", "Spine/0.1 (game library frontend)"]);
+    cmd.args([
+        "-sSL",
+        "-g",
+        "--proto",
+        "=https,http",
+        "--proto-redir",
+        "=https,http",
+        "--connect-timeout",
+        "15",
+        "--max-time",
+        "90",
+        "--retry",
+        "2",
+        "-A",
+        "Spine/0.1 (game library frontend)",
+    ]);
     if fail_on_http_error {
         cmd.arg("--fail");
     }
     for h in headers {
         cmd.arg("-H").arg(h);
     }
-    cmd.arg(url);
+    cmd.arg("--").arg(url);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -337,7 +376,7 @@ pub fn curl(url: &str, fail_on_http_error: bool, headers: &[String]) -> Result<V
     if out.status.success() {
         Ok(out.stdout)
     } else {
-        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        let err = sanitize_net_err(String::from_utf8_lossy(&out.stderr).trim());
         Err(if err.is_empty() { format!("curl exit {}", out.status) } else { err })
     }
 }
@@ -360,7 +399,7 @@ pub fn builtin_get(url: &str, fail_on_http_error: bool, headers: &[String]) -> R
             }
             r
         }
-        Err(e) => return Err(e.to_string()),
+        Err(e) => return Err(sanitize_net_err(&e.to_string())),
     };
     let mut buf = Vec::new();
     resp.into_reader().take(1 << 30).read_to_end(&mut buf).map_err(|e| e.to_string())?;
@@ -369,6 +408,9 @@ pub fn builtin_get(url: &str, fail_on_http_error: bool, headers: &[String]) -> R
 
 /// A big download straight to a file (mpv, 0.24), allowed up to `max_secs`.
 pub fn curl_to_file(url: &str, dest: &Path, max_secs: u64) -> Result<(), String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("Only http/https URLs are supported.".into());
+    }
     #[cfg(target_os = "linux")]
     {
         let _ = max_secs;
@@ -378,8 +420,23 @@ pub fn curl_to_file(url: &str, dest: &Path, max_secs: u64) -> Result<(), String>
     #[cfg(not(target_os = "linux"))]
     {
         let mut cmd = crate::hostenv::command("curl");
-        cmd.args(["-sSL", "--fail", "--connect-timeout", "15", "--retry", "2", "-A", "Spine/0.1 (game library frontend)", "--max-time"]);
-        cmd.arg(max_secs.to_string()).arg("-o").arg(dest).arg(url);
+        cmd.args([
+            "-sSL",
+            "-g",
+            "--proto",
+            "=https,http",
+            "--proto-redir",
+            "=https,http",
+            "--fail",
+            "--connect-timeout",
+            "15",
+            "--retry",
+            "2",
+            "-A",
+            "Spine/0.1 (game library frontend)",
+            "--max-time",
+        ]);
+        cmd.arg(max_secs.to_string()).arg("-o").arg(dest).arg("--").arg(url);
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -389,7 +446,7 @@ pub fn curl_to_file(url: &str, dest: &Path, max_secs: u64) -> Result<(), String>
         if out.status.success() {
             Ok(())
         } else {
-            let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+            let err = sanitize_net_err(String::from_utf8_lossy(&out.stderr).trim());
             Err(if err.is_empty() { format!("curl exit {}", out.status) } else { err })
         }
     }
@@ -524,29 +581,49 @@ pub(crate) fn save(dest: &Path, bytes: &[u8]) -> Result<(), String> {
 // Whole-library pass
 // ---------------------------------------------------------------------------
 
-/// Where a game's cover lives (whether or not it exists yet).
-pub fn cover_base(media: &Path, game_id: &str) -> PathBuf {
-    let mut p = media.join("covers");
-    for part in game_id.split('/') {
+/// True when a game/movie/show id is safe to turn into a relative path under `media/`.
+/// Rejects empty ids, leading/trailing/empty slashes, `.` / `..`, backslashes, drive colons, and NUL.
+pub fn is_safe_id(id: &str) -> bool {
+    if id.is_empty() || id.contains(['\\', ':', '\0']) {
+        return false;
+    }
+    let mut count = 0usize;
+    for part in id.split('/') {
+        if part.is_empty() || part == "." || part == ".." {
+            return false;
+        }
+        count += 1;
+    }
+    count > 0
+}
+
+/// Join a validated `id` under `media/<kind>/`, or return None if `id` could escape.
+pub(crate) fn safe_media_base(media: &Path, kind: &str, id: &str) -> Option<PathBuf> {
+    if !is_safe_id(id) {
+        return None;
+    }
+    let mut p = media.join(kind);
+    for part in id.split('/') {
         p.push(part);
     }
-    p
+    Some(p)
+}
+
+/// Where a game's cover lives (whether or not it exists yet).
+pub fn cover_base(media: &Path, game_id: &str) -> PathBuf {
+    safe_media_base(media, "covers", game_id).unwrap_or_else(|| media.join("covers").join("_invalid"))
 }
 
 /// Where a user-chosen cover for a game lives (without extension).
 pub fn custom_base(media: &Path, game_id: &str) -> PathBuf {
-    let mut p = media.join("custom");
-    for part in game_id.split('/') {
-        p.push(part);
-    }
-    p
+    safe_media_base(media, "custom", game_id).unwrap_or_else(|| media.join("custom").join("_invalid"))
 }
 
 pub const CUSTOM_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "gif"];
 
 /// The user's own cover for a game, if they picked one.
 pub fn custom_cover(media: &Path, game_id: &str) -> Option<PathBuf> {
-    let base = custom_base(media, game_id);
+    let base = safe_media_base(media, "custom", game_id)?;
     CUSTOM_EXTS.iter().map(|e| base.with_extension(e)).find(|p| p.exists())
 }
 
@@ -555,7 +632,7 @@ pub fn existing_cover(media: &Path, game_id: &str) -> Option<PathBuf> {
     if let Some(c) = custom_cover(media, game_id) {
         return Some(c);
     }
-    let base = cover_base(media, game_id);
+    let base = safe_media_base(media, "covers", game_id)?;
     ["png", "jpg"].iter().map(|e| base.with_extension(e)).find(|p| p.exists())
 }
 
@@ -567,11 +644,7 @@ pub const VIDEO_EXTS: &[&str] = &["mp4", "webm", "m4v"];
 
 /// Where Spine saves a downloaded video for a game (without extension).
 pub fn video_base(media: &Path, game_id: &str) -> PathBuf {
-    let mut p = media.join("videos");
-    for part in game_id.split('/') {
-        p.push(part);
-    }
-    p
+    safe_media_base(media, "videos", game_id).unwrap_or_else(|| media.join("videos").join("_invalid"))
 }
 
 /// The video to play for a game: the user's own, one Spine downloaded, or one
@@ -1136,13 +1209,16 @@ pub fn allowed_cover_url(url: &str) -> bool {
 
 /// Save the picked cover as the game's own cover.
 pub fn use_cover_url(media: &Path, game_id: &str, url: &str) -> Result<PathBuf, String> {
+    if !is_safe_id(game_id) {
+        return Err("Invalid game id.".into());
+    }
     if !allowed_cover_url(url) {
         return Err("That image isn't from a cover source Spine knows.".into());
     }
     let agent = agent();
     let b = get_bytes(&agent, url)?;
     let ext = is_image(&b).ok_or("That link didn't give an image.")?;
-    let base = custom_base(media, game_id);
+    let base = safe_media_base(media, "custom", game_id).ok_or("Invalid game id.")?;
     for e in CUSTOM_EXTS {
         let _ = fs::remove_file(base.with_extension(e));
     }
@@ -1164,6 +1240,17 @@ mod choice_tests {
         assert!(rank_names(&names, "", 5).is_empty());
         assert!(allowed_cover_url("https://cdn2.steamgriddb.com/grid/abc.png"));
         assert!(!allowed_cover_url("https://evil.example/x.png"));
+        // Safe game_id checks
+        assert!(is_safe_id("gba/pokemon-emerald"));
+        assert!(is_safe_id("movies/inception-2010"));
+        for bad in ["", ".", "..", "gba/../x", "/etc/passwd", r"C:\Users\x", r"gba\x", "gba/", "/gba", "gba//x", "a\0b"] {
+            assert!(!is_safe_id(bad), "should reject {bad:?}");
+        }
+        assert!(use_cover_url(Path::new("."), "../escape", "https://cdn2.steamgriddb.com/grid/abc.png").is_err());
+        assert_eq!(
+            sanitize_net_err("failed: https://api.screenscraper.fr/api2/jeuInfos.php?devpassword=SECRET&sspassword=PW timed out"),
+            "failed: https://api.screenscraper.fr/api2/jeuInfos.php?... timed out"
+        );
     }
 }
 

@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' http://spine.localhost spine://localhost https://fonts.googleapis.com; font-src 'self' http://spine.localhost spine://localhost https://fonts.gstatic.com; img-src 'self' data: blob: http://spine.localhost spine://localhost https: http:; media-src 'self' blob: http://spine.localhost spine://localhost; connect-src 'self' http://spine.localhost spine://localhost; object-src 'none'; base-uri 'self'"
     }
   },
   "bundle": {

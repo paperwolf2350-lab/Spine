@@ -129,7 +129,7 @@ function streamCur(kind) {
   return list.find((c) => c.ck === S_STREAM.tab[kind]) || list.find((c) => !c.search && !c.mine) || list[0] || null;
 }
 
-const streamImg = (u, cls = '') => (u ? `<img ${cls ? `class="${cls}" ` : ''}src="${esc(u)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : '');
+const streamImg = (u, cls = '') => { const s = safeUrl(u); return s ? `<img ${cls ? `class="${cls}" ` : ''}src="${esc(s)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-onerr="remove">` : ''; };
 // A poster over a title card: if the picture can't load, the title shows instead.
 const streamCover = (it, src) => `<div class="cover ph scover" style="background:${PAL[hash(it.name) % PAL.length]}"><span class="pt">${esc(it.name)}</span><span class="ps">${esc(it.year || '')}</span>${streamImg(src)}</div>`;
 // Stremio's poster service hands out small posters by default; pages look better with bigger ones.
@@ -353,7 +353,7 @@ async function streamSearch(sys, q) {
 document.addEventListener('input', (e) => {
   if (e.target.id !== 'sq') return;
   const sys = e.target.dataset.s;
-  S_STREAM.search[sys] = { ...(S_STREAM.search[sys] || {}), typed: e.target.value };
+  (S_STREAM.search[sys] ||= {}).typed = e.target.value;
 });
 // On the Search tab, typing or X goes to the addon search box, not the library search.
 function streamSearchFocus() {
@@ -522,7 +522,7 @@ function sdetail() {
   const fav = sInList(SL_FAV, k), later = sInList(SL_LATER, k), inOwn = sOwnLists().some((n) => sInList(n, k));
   const listBtns = `<button class="btn small ${fav ? 'on' : ''}" data-nav data-key="sfav" data-act="sfav" aria-pressed="${fav}">${glyph('Y')}${fav ? 'Remove favorite' : 'Favorite'}</button>
       <button class="btn small ${later ? 'on' : ''}" data-nav data-key="slater" data-act="slater" aria-pressed="${later}">${later ? ICON.check + ' In Watch later' : 'Watch later'}</button>
-      <button class="btn small" data-nav data-key="slists" data-act="slists">${ICON.list} ${inOwn ? 'In your lists' : 'Add to list'}</button>`;
+      <button class="btn small" data-nav data-key="slists" data-act="slists">${ICON.lists} ${inOwn ? 'In your lists' : 'Add to list'}</button>`;
   const bg = it.background;
   return topbar() + `<main class="main"><div class="backdrop" aria-hidden="true">${it.poster ? streamImg(it.poster) : ''}</div>
   <div class="detail scroll ${bg ? 'has-hero' : ''}" id="detailscroll">
@@ -532,7 +532,7 @@ function sdetail() {
       <div class="coverbtns">${listBtns}${inContinue ? `<button class="btn small" data-nav data-key="sforget" data-act="sforget" data-item="${esc(k)}">Remove from Continue watching</button>` : ''}</div></div>
     <div class="right">
       <button class="back" data-nav data-key="sback" data-act="back">${ICON.back}${esc(backLabel)}</button>
-      ${it.logo ? `<h2 class="haslogo"><img class="gamelogo" src="${esc(it.logo)}" alt="${esc(it.name)}" referrerpolicy="no-referrer" onerror="this.parentNode.classList.remove('haslogo'); this.replaceWith(this.alt)"></h2>` : `<h2>${esc(it.name)}</h2>`}
+      ${safeUrl(it.logo) ? `<h2 class="haslogo"><img class="gamelogo" src="${esc(safeUrl(it.logo))}" alt="${esc(it.name)}" referrerpolicy="no-referrer" data-onerr="logo"></h2>` : `<h2>${esc(it.name)}</h2>`}
       ${meta ? `<div class="metaline">${meta}</div>` : ''}
       ${it.genres?.length ? `<div class="cats" role="list" aria-label="Genres">${it.genres.slice(0, 6).map((g) => `<span class="cat" role="listitem">${esc(g)}</span>`).join('')}</div>` : ''}
       ${it.description ? `<p class="desc">${esc(it.description)}</p>` : loading ? '<p class="desc" style="opacity:.6">Getting details…</p>' : ''}
@@ -559,7 +559,7 @@ function sperson() {
   const grid = (kind, label) => {
     const list = (d?.credits || []).filter((c) => c.type === kind);
     if (!list.length) return '';
-    return `<section class="row sprow"><h3>${label} <span class="rs">${list.length}</span></h3><div class="tiles stiles">${list.map((c) => `<button class="game" data-nav data-key="pc-${c.type}-${c.tmdb}" data-act="spcredit" data-k="${esc(c.type)}" data-id="${c.tmdb}">
+    return `<section class="row sprow"><h3>${label} <span class="rs">${list.length}</span></h3><div class="tiles stiles">${list.map((c) => `<button class="game" data-nav data-key="pc-${esc(c.type)}-${esc(c.tmdb)}" data-act="spcredit" data-k="${esc(c.type)}" data-id="${esc(c.tmdb)}">
       <span class="cwimg">${streamCover(c, c.poster)}</span>
       <span class="t">${esc(c.name)}</span>${c.role || c.year ? `<span class="s">${esc([c.year, c.role].filter(Boolean).join(' · '))}</span>` : ''}</button>`).join('')}</div></section>`;
   };
@@ -747,11 +747,11 @@ function addonSettings() {
         <div class="opts"><button class="chip ${tmdbOn ? 'on' : ''}" data-nav data-key="tmdbstream" data-act="tmdbstream" aria-pressed="${tmdbOn}">${tmdbOn ? `${ICON.check} ` : ''}TMDB search, Cartoons &amp; Anime</button></div></div>`
     : '';
   return `<div class="grp"><span class="k">Streaming addons</span><span class="note">Paste an addon's link from Stremio or Nuvio. Links stay on this PC.</span>
-    ${list.length ? `<div class="roots">${list.map((a, i) => `<div class="root addonrow">${a.logo ? `<img class="alogo" src="${esc(a.logo)}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">` : '<span class="alogo"></span>'}
+    ${list.length ? `<div class="roots">${list.map((a, i) => `<div class="root addonrow">${safeUrl(a.logo) ? `<img class="alogo" src="${esc(safeUrl(a.logo))}" alt="" referrerpolicy="no-referrer" data-onerr="hide">` : '<span class="alogo"></span>'}
       <span class="rp" title="${esc(a.description || '')}">${esc(a.name)}${a.version ? ` <span class="rs">${esc(a.version)}</span>` : ''}</span>
       <span class="rs">${esc(addonWhat(a))}</span>
-      <span class="abtns">${i > 0 ? `<button class="btn small" data-nav data-key="aup-${a.key}" data-act="mvaddon" data-k="${a.key}" data-up="1" aria-label="Move up">↑</button>` : ''}
-      <button class="btn small" data-nav data-key="arm-${a.key}" data-act="rmaddon" data-k="${a.key}">Remove</button></span></div>`).join('')}</div>` : ''}
+      <span class="abtns">${i > 0 ? `<button class="btn small" data-nav data-key="aup-${esc(a.key)}" data-act="mvaddon" data-k="${esc(a.key)}" data-up="1" aria-label="Move up">↑</button>` : ''}
+      <button class="btn small" data-nav data-key="arm-${esc(a.key)}" data-act="rmaddon" data-k="${esc(a.key)}">Remove</button></span></div>`).join('')}</div>` : ''}
     <div class="opts"><button class="btn" data-nav data-key="addaddon" data-act="addaddon">${ICON.plus} Add addon</button></div></div>${tmdbGroup}${hideGenresGroup()}`;
 }
 // Settings → Streaming → Hide genres: titles in these genres don't show in catalogs or search.

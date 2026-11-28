@@ -5,6 +5,7 @@ use spine_core::covers::{libretro_repos, ArtIndex};
 use std::path::Path;
 
 #[test]
+#[ignore = "requires local developer ROM fixtures in ../fixtures/Roms"]
 fn match_rate_on_real_library() {
     if !fixtures_present() {
         return; // the sample library is only on the developer\'s machine

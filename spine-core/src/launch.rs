@@ -333,7 +333,13 @@ fn install_hint(def: &EmulatorDef) -> String {
 /// player instead of the link (which can hold the user's key); `headers` are what the
 /// addon says the link needs (User-Agent, Referer).
 pub fn plan_stream(installed: &Installed, url: &str, title: &str, headers: &[(String, String)], preferred: Option<&str>) -> LaunchPlan {
-    let header = |k: &str| headers.iter().find(|(h, _)| h.eq_ignore_ascii_case(k)).map(|(_, v)| v.clone());
+    let url = url.trim();
+    if !(url.starts_with("https://") || url.starts_with("http://")) || url.chars().any(|c| c.is_control()) {
+        return LaunchPlan { emulator: "mpv".into(), program: PathBuf::from("mpv"), args: vec![], blocked: Some("That stream link isn't a valid http/https address.".into()) };
+    }
+    let clean_line = |s: &str| s.chars().filter(|c| !matches!(c, '\r' | '\n' | '\0')).collect::<String>();
+    let title = clean_line(title);
+    let header = |k: &str| headers.iter().find(|(h, _)| h.eq_ignore_ascii_case(k)).map(|(_, v)| clean_line(v));
     let (ua, referer) = (header("user-agent"), header("referer"));
     // mpv first (Spine's player: resume, Up next); VLC if asked for, or if there's no mpv.
     let mut order = vec!["mpv", "vlc"];
@@ -362,6 +368,27 @@ pub fn plan_stream(installed: &Installed, url: &str, title: &str, headers: &[(St
     LaunchPlan { emulator: "VLC".into(), program: PathBuf::from("vlc"), args: vec![], blocked: Some(if cfg!(windows) { "Get mpv in Settings → Controller & sound (or install VLC) to watch streams.".into() } else { "Install mpv (or VLC) to watch streams.".into() }) }
 }
 
+/// Allowed URI schemes for store game shortcuts opened via the OS URL handler.
+#[cfg(windows)]
+fn allowed_launcher_uri(target: &str) -> bool {
+    if target.chars().any(|c| c.is_control()) {
+        return false;
+    }
+    let low = target.to_ascii_lowercase();
+    [
+        "steam://",
+        "com.epicgames.launcher://",
+        "heroic://",
+        "goggalaxy://",
+        "xbox://",
+        "ms-windows-store://",
+        "https://",
+        "http://",
+    ]
+    .iter()
+    .any(|p| low.starts_with(p))
+}
+
 /// Start the game. Returns the child process so the app can track playtime.
 pub fn launch(plan: &LaunchPlan) -> std::io::Result<std::process::Child> {
     launch_logged(plan, None)
@@ -387,6 +414,9 @@ pub fn launch_logged(plan: &LaunchPlan, log: Option<&Path>) -> std::io::Result<s
         #[cfg(windows)]
         {
             if target.contains("://") {
+                if !allowed_launcher_uri(&target) {
+                    return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Unsupported launcher link scheme."));
+                }
                 // Launcher links (steam://, com.epicgames.launcher://) contain '&', which cmd would
                 // split on, so hand them to the URL handler directly.
                 use std::os::windows::process::CommandExt;
@@ -395,8 +425,10 @@ pub fn launch_logged(plan: &LaunchPlan, log: Option<&Path>) -> std::io::Result<s
         }
         #[cfg(windows)]
         {
+            // Open shortcuts/files via ShellExec_RunDLL instead of `cmd /C start` so shell
+            // metacharacters (`&`, `|`, `^`, `%VAR%`) in filenames are never interpreted by cmd.exe.
             use std::os::windows::process::CommandExt;
-            return std::process::Command::new("cmd").args(["/C", "start", ""]).arg(&plan.program).creation_flags(0x0800_0000).spawn();
+            return std::process::Command::new("rundll32").arg("shell32.dll,ShellExec_RunDLL").arg(&plan.program).creation_flags(0x0800_0000).spawn();
         }
         #[cfg(target_os = "macos")]
         return std::process::Command::new("open").arg(&plan.program).spawn();
@@ -721,5 +753,10 @@ mod stream_tests {
         inst.flatpak.insert("mpv".into(), "io.mpv.Mpv".into());
         assert_eq!(plan_stream(&inst, "https://x.example/v.mkv", "Dune", &[], None).emulator, "mpv");
         assert_eq!(plan_stream(&inst, "https://x.example/v.mkv", "Dune", &[], Some("vlc")).emulator, "VLC");
+        // Non-http(s) stream URLs are refused, and CRLF is stripped from headers/title.
+        assert!(plan_stream(&inst, "file:///etc/passwd", "Dune", &[], None).blocked.is_some());
+        assert!(plan_stream(&inst, "--script=evil.lua", "Dune", &[], None).blocked.is_some());
+        let p = plan_stream(&inst, "https://x.example/v.mkv", "Dune\r\nEvil", &[("User-Agent".into(), "UA\r\nX-Bad: 1".into())], None);
+        assert!(p.args.iter().all(|a| !a.contains('\r') && !a.contains('\n')));
     }
 }

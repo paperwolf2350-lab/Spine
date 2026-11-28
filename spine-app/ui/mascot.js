@@ -305,8 +305,8 @@ const MASCOT = (() => {
     const fig = document.createElement('div');
     fig.className = `msc-fig in-${spot.enter}${spot.mirror ? ' mirror' : ''}${spot.swing ? ' swing' : ''}${pose === 'doze' ? ' breathe' : ''}`;
     // Surprise me: the picked game's real cover goes into Paige's blank case (only for built-in Paige).
-    const coverHtml = !P.custom && pose === 'surprise' && o.cover ? `<img class="msc-cover" alt="" draggable="false" src="${o.cover}" onerror="this.remove()">` : '';
-    fig.innerHTML = `<div class="msc-bob"><img alt="" draggable="false" src="${P.path}">${coverHtml}</div>${pose === 'doze' ? '<span class="msc-z"><i>z</i><i>z</i><i>Z</i></span>' : ''}`;
+    const coverHtml = !P.custom && pose === 'surprise' && o.cover ? `<img class="msc-cover" alt="" draggable="false" src="${esc(o.cover)}" data-onerr="remove">` : '';
+    fig.innerHTML = `<div class="msc-bob"><img alt="" draggable="false" src="${esc(P.path)}">${coverHtml}</div>${pose === 'doze' ? '<span class="msc-z"><i>z</i><i>z</i><i>Z</i></span>' : ''}`;
     let wrap = fig;
     if (spot.clip != null) { // rising from behind the bar: hide what's below its edge
       wrap = document.createElement('div');

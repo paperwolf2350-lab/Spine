@@ -10,7 +10,7 @@ function chPageOf(i) { return Math.floor(i / CH_PER_PAGE); }
 // Posters for the Streaming tile: what you watched last, then your streaming lists.
 function chStreamPosters() {
   const seen = new Set(), out = [];
-  const add = (r) => { if (r?.poster && !seen.has(r.item)) { seen.add(r.item); out.push({ src: r.poster }); } };
+  const add = (r) => { const u = safeUrl(r?.poster); if (u && !seen.has(r.item)) { seen.add(r.item); out.push({ src: u }); } };
   Object.values(S.boot?.stream_recent || {}).sort((a, b) => (b.at || 0) - (a.at || 0)).forEach(add);
   Object.values(S.boot?.stream_lists || {}).forEach((l) => (l || []).forEach(add));
   return out;
@@ -31,12 +31,12 @@ function chTileArt(t) {
   if (pick.length < 3) {
     const lead = pick.find((x) => x.g?.hero) || pick[0];
     const bg = lead.g?.hero ? mediaUrl(lead.g.hero) : src(lead);
-    const covers = pick.map((x, i) => `<img class="c${pick.length > 1 ? i + 1 : 0}" src="${src(x)}" alt="" decoding="async">`).join('');
+    const covers = pick.map((x, i) => `<img class="c${pick.length > 1 ? i + 1 : 0}" src="${esc(src(x))}" alt="" decoding="async" referrerpolicy="no-referrer">`).join('');
     return `<span class="ch-show${lead.g?.hero ? '' : ' soft'}" style="--chip:${t.color}">
-        <img class="ch-bg" src="${bg}" alt="" decoding="async" style="animation-duration:${18 + (h % 9)}s;animation-delay:${-(h % 18)}s">
+        <img class="ch-bg" src="${esc(bg)}" alt="" decoding="async" referrerpolicy="no-referrer" style="animation-duration:${18 + (h % 9)}s;animation-delay:${-(h % 18)}s">
         <span class="ch-covers">${covers}</span></span>` + chBadge(t);
   }
-  const imgs = pick.map((x) => `<img src="${src(x)}" alt="" loading="lazy" decoding="async">`).join('');
+  const imgs = pick.map((x) => `<img src="${esc(src(x))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`).join('');
   // Every tile drifts at its own pace and starting point so the grid never moves in lockstep.
   return `<span class="ch-strip" style="animation-duration:${38 + (h % 17)}s;animation-delay:${-(h % 40)}s">${imgs}${imgs}</span>`
     + chBadge(t);

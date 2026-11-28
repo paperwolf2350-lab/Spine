@@ -279,7 +279,7 @@ pub fn parse_details(json: &serde_json::Value) -> MovieDetails {
     let info = GameInfo {
         name: s(&json["title"]),
         description: s(&json["overview"]),
-        year: s(&json["release_date"]).filter(|d| d.len() >= 4).map(|d| d[..4].to_string()),
+        year: s(&json["release_date"]).and_then(|d| d.get(..4).map(String::from)),
         genre: (!genres.is_empty()).then(|| genres.join(", ")),
         runtime: json["runtime"].as_u64().filter(|m| *m > 0).map(|m| m as u32),
         ..Default::default()
@@ -385,11 +385,7 @@ pub fn fetch_details(lib: &Library, media: &Path, key: &str, typed: &dyn Fn(&str
 }
 
 pub(crate) fn art_base(media: &Path, kind: &str, id: &str) -> PathBuf {
-    let mut p = media.join(kind);
-    for part in id.split('/') {
-        p.push(part);
-    }
-    p
+    covers::safe_media_base(media, kind, id).unwrap_or_else(|| media.join(kind).join("_invalid"))
 }
 
 #[cfg(test)]

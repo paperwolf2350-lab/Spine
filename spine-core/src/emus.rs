@@ -332,15 +332,25 @@ fn keeps_user_files(_def: &EmuDef) -> bool {
 }
 
 /// Move what's in `old` but not in `new` over (folders merged; the new download's files win).
-fn carry_over(old: &Path, new: &Path) {
+/// Records each moved `(from, to)` pair so the caller can roll back cleanly if the final swap fails.
+fn carry_over(old: &Path, new: &Path, moved: &mut Vec<(PathBuf, PathBuf)>) {
     let Ok(rd) = fs::read_dir(old) else { return };
     for e in rd.flatten() {
         let (from, to) = (e.path(), new.join(e.file_name()));
         if !to.exists() {
-            let _ = fs::rename(&from, &to);
+            if fs::rename(&from, &to).is_ok() {
+                moved.push((from, to));
+            }
         } else if from.is_dir() && to.is_dir() {
-            carry_over(&from, &to);
+            carry_over(&from, &to, moved);
         }
+    }
+}
+
+/// Undo `carry_over` if putting `new` into `dest` fails, so user saves/keys/BIOS return to `old`.
+fn rollback_carry_over(moved: &[(PathBuf, PathBuf)]) {
+    for (orig_from, moved_to) in moved.iter().rev() {
+        let _ = fs::rename(moved_to, orig_from);
     }
 }
 
@@ -370,6 +380,7 @@ pub fn unpack(dir: &Path, def: &EmuDef, archive: &Path, a: &Asset) -> Result<Pat
         return Err(format!("The download didn't contain {}'s program.", def.name));
     }
     let old = dir.join(format!("{}.old", def.name));
+    let mut moved = Vec::new();
     if dest.exists() {
         let _ = fs::remove_dir_all(&old);
         if fs::rename(&dest, &old).is_err() {
@@ -377,11 +388,13 @@ pub fn unpack(dir: &Path, def: &EmuDef, archive: &Path, a: &Asset) -> Result<Pat
             return Err(format!("{} is still open. Close it and try again.", def.name));
         }
         if keeps_user_files(def) {
-            carry_over(&old, &new);
+            carry_over(&old, &new, &mut moved);
         }
     }
     if let Err(e) = fs::rename(&new, &dest) {
+        rollback_carry_over(&moved);
         let _ = fs::rename(&old, &dest);
+        let _ = fs::remove_dir_all(&new);
         return Err(format!("Couldn't put {} in place ({e}).", def.name));
     }
     let _ = fs::remove_dir_all(&old);
@@ -1067,6 +1080,32 @@ mod tests {
         fs::write(&z, b"<html>not found</html>").unwrap();
         assert!(unpack(&d, def, &z, &a).is_err());
         assert!(!d.join("Cemu").exists());
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn rollback_carry_over_restores_user_files() {
+        let d = tmp("rollback");
+        let old = d.join("Emu.old");
+        let new = d.join("Emu.new");
+        fs::create_dir_all(old.join("saves")).unwrap();
+        fs::create_dir_all(old.join("user")).unwrap();
+        fs::create_dir_all(new.join("user")).unwrap();
+        fs::write(old.join("saves/slot1.sav"), b"my-save").unwrap();
+        fs::write(old.join("user/prod.keys"), b"my-keys").unwrap();
+        fs::write(new.join("user/default.ini"), b"new-default").unwrap();
+
+        let mut moved = Vec::new();
+        carry_over(&old, &new, &mut moved);
+        assert!(new.join("saves/slot1.sav").is_file());
+        assert!(new.join("user/prod.keys").is_file());
+        assert!(!old.join("saves/slot1.sav").exists());
+
+        rollback_carry_over(&moved);
+        assert_eq!(fs::read(old.join("saves/slot1.sav")).unwrap(), b"my-save");
+        assert_eq!(fs::read(old.join("user/prod.keys")).unwrap(), b"my-keys");
+        assert!(new.join("user/default.ini").is_file(), "new's own files stay untouched");
+
         let _ = fs::remove_dir_all(&d);
     }
 

@@ -18,11 +18,7 @@ use std::time::{Duration, SystemTime};
 const IMG_EXTS: &[&str] = &["jpg", "png", "webp"];
 
 fn base(media: &Path, kind: &str, game_id: &str) -> PathBuf {
-    let mut p = media.join(kind);
-    for part in game_id.split('/') {
-        p.push(part);
-    }
-    p
+    covers::safe_media_base(media, kind, game_id).unwrap_or_else(|| media.join(kind).join("_invalid"))
 }
 
 fn find_img(base: &Path) -> Option<PathBuf> {
@@ -30,14 +26,14 @@ fn find_img(base: &Path) -> Option<PathBuf> {
 }
 
 pub fn existing_hero(media: &Path, game_id: &str) -> Option<PathBuf> {
-    find_img(&base(media, "heroes", game_id))
+    find_img(&covers::safe_media_base(media, "heroes", game_id)?)
 }
 pub fn existing_logo(media: &Path, game_id: &str) -> Option<PathBuf> {
-    find_img(&base(media, "logos", game_id))
+    find_img(&covers::safe_media_base(media, "logos", game_id)?)
 }
 /// Screenshots in order (title screen first for retro games).
 pub fn existing_shots(media: &Path, game_id: &str) -> Vec<PathBuf> {
-    let dir = base(media, "shots", game_id);
+    let Some(dir) = covers::safe_media_base(media, "shots", game_id) else { return vec![] };
     let mut v: Vec<PathBuf> = fs::read_dir(&dir).map(|rd| rd.flatten().map(|e| e.path()).filter(|p| p.extension().map_or(false, |x| IMG_EXTS.contains(&x.to_string_lossy().to_lowercase().as_str()))).collect()).unwrap_or_default();
     v.sort();
     v

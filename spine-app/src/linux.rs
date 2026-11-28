@@ -33,9 +33,16 @@ pub fn appimage() -> Option<PathBuf> {
 const ICON: &[u8] = include_bytes!("../icons/icon.png");
 
 pub fn desktop_entry(exec: &Path) -> String {
-    // Desktop-entry Exec quoting: wrap in quotes, escape backslash, quote, backtick and dollar.
+    // Desktop-entry Exec quoting: strip control newlines, escape `%` field codes, and quote special chars.
     let mut q = String::from('"');
     for c in exec.to_string_lossy().chars() {
+        if matches!(c, '\r' | '\n' | '\0') {
+            continue;
+        }
+        if c == '%' {
+            q.push_str("%%");
+            continue;
+        }
         if matches!(c, '"' | '`' | '$' | '\\') {
             q.push('\\');
         }
@@ -72,8 +79,10 @@ mod tests {
 
     #[test]
     fn entry_quotes_odd_paths() {
-        let e = desktop_entry(Path::new("/home/me/My Apps/Spine$1.AppImage"));
-        assert!(e.contains("Exec=\"/home/me/My Apps/Spine\\$1.AppImage\"\n"), "{e}");
+        let e = desktop_entry(Path::new("/home/me/My Apps/Spine$1%f.AppImage"));
+        assert!(e.contains("Exec=\"/home/me/My Apps/Spine\\$1%%f.AppImage\"\n"), "{e}");
         assert!(e.contains("Icon=spine"));
+        let nl = desktop_entry(Path::new("/tmp/Spine\nExec=evil"));
+        assert!(!nl.contains("\nExec=evil"));
     }
 }

@@ -139,6 +139,8 @@ struct App {
     /// The source last played per movie/episode ("stream/<type>:<id>" -> (time, source)), for
     /// Resume. Kept in stream-links.json, not spine-state.json: the links hold the user's key.
     links: Mutex<BTreeMap<String, (u64, addons::Source)>>,
+    /// Serializes temp-file write + rename across state JSON files so concurrent saves never race.
+    save_lock: Mutex<()>,
 }
 
 impl App {
@@ -149,16 +151,20 @@ impl App {
         self.dir.join("themes")
     }
     fn save(&self) {
+        let _guard = self.save_lock.lock().unwrap();
         let s = self.saved.lock().unwrap().clone();
+        let Ok(json) = serde_json::to_string_pretty(&s) else { return };
         let tmp = self.dir.join("spine-state.json.tmp");
-        if fs::write(&tmp, serde_json::to_string_pretty(&s).unwrap_or_default()).is_ok() {
+        if fs::write(&tmp, json).is_ok() {
             let _ = fs::rename(&tmp, self.dir.join("spine-state.json"));
         }
     }
     fn save_addons(&self) -> Result<(), String> {
+        let _guard = self.save_lock.lock().unwrap();
         let a = self.addons.lock().unwrap().clone();
+        let json = serde_json::to_string_pretty(&a).map_err(|e| format!("Couldn't save: {e}"))?;
         let tmp = self.dir.join("addons.json.tmp");
-        fs::write(&tmp, serde_json::to_string_pretty(&a).unwrap_or_default()).map_err(|e| format!("Couldn't save: {e}"))?;
+        fs::write(&tmp, json).map_err(|e| format!("Couldn't save: {e}"))?;
         fs::rename(&tmp, self.dir.join("addons.json")).map_err(|e| format!("Couldn't save: {e}"))
     }
 }
@@ -169,14 +175,16 @@ fn load_links(dir: &Path) -> BTreeMap<String, (u64, addons::Source)> {
 
 impl App {
     fn save_links(&self) {
+        let _guard = self.save_lock.lock().unwrap();
         let mut l = self.links.lock().unwrap();
         // Only the most recent 300: older links have usually expired anyway.
         while l.len() > 300 {
             let Some(old) = l.iter().min_by_key(|(_, v)| v.0).map(|(k, _)| k.clone()) else { break };
             l.remove(&old);
         }
+        let Ok(json) = serde_json::to_string(&*l) else { return };
         let tmp = self.dir.join("stream-links.json.tmp");
-        if fs::write(&tmp, serde_json::to_string(&*l).unwrap_or_default()).is_ok() {
+        if fs::write(&tmp, json).is_ok() {
             let _ = fs::rename(&tmp, self.dir.join("stream-links.json"));
         }
     }
@@ -708,6 +716,9 @@ fn remove_tv_root(path: String, app: State<App>) -> Boot {
 /// "Fix match" for a movie in a show's folder: search TMDB's movies for this name next time.
 #[tauri::command]
 fn set_special_query(id: String, file: String, query: String, app: State<App>) -> Boot {
+    if !covers::is_safe_id(&id) {
+        return view(&app);
+    }
     let q = query.trim().to_string();
     {
         let mut s = app.saved.lock().unwrap();
@@ -728,6 +739,9 @@ fn set_special_query(id: String, file: String, query: String, app: State<App>) -
 /// cleared, so the next lookup starts over.
 #[tauri::command]
 fn set_show_query(id: String, query: String, app: State<App>) -> Boot {
+    if !covers::is_safe_id(&id) {
+        return view(&app);
+    }
     let q = query.trim().to_string();
     {
         let mut s = app.saved.lock().unwrap();
@@ -1226,6 +1240,9 @@ async fn cover_choices(id: String, query: String, handle: AppHandle) -> Result<V
 /// Use one of the covers from the picker.
 #[tauri::command]
 async fn use_cover(id: String, url: String, handle: AppHandle) -> Result<Boot, String> {
+    if !covers::is_safe_id(&id) {
+        return Err("Invalid item id.".into());
+    }
     let app = handle.state::<App>();
     let media = app.media();
     let (m, i, u) = (media.clone(), id.clone(), url.clone());
@@ -1690,6 +1707,9 @@ fn set_launcher(id: String, key: Option<String>, app: State<App>) -> Boot {
 /// Let the user pick their own cover image for a game.
 #[tauri::command]
 async fn pick_cover(id: String, handle: AppHandle) -> Result<Option<Boot>, String> {
+    if !covers::is_safe_id(&id) {
+        return Err("Invalid item id.".into());
+    }
     let file = handle
         .dialog()
         .file()
@@ -1721,6 +1741,9 @@ async fn pick_cover(id: String, handle: AppHandle) -> Result<Option<Boot>, Strin
 /// Let the user pick their own video for a game.
 #[tauri::command]
 async fn pick_video(id: String, handle: AppHandle) -> Result<Option<Boot>, String> {
+    if !covers::is_safe_id(&id) {
+        return Err("Invalid item id.".into());
+    }
     let file = handle
         .dialog()
         .file()
@@ -1751,6 +1774,9 @@ async fn pick_video(id: String, handle: AppHandle) -> Result<Option<Boot>, Strin
 
 #[tauri::command]
 fn reset_video(id: String, app: State<App>) -> Boot {
+    if !covers::is_safe_id(&id) {
+        return view(&app);
+    }
     let media = app.media();
     let base = covers::custom_base(&media, &id);
     for e in covers::VIDEO_EXTS {
@@ -1768,6 +1794,9 @@ fn reset_video(id: String, app: State<App>) -> Boot {
 /// Go back to the downloaded cover.
 #[tauri::command]
 fn reset_cover(id: String, app: State<App>) -> Boot {
+    if !covers::is_safe_id(&id) {
+        return view(&app);
+    }
     let media = app.media();
     let base = covers::custom_base(&media, &id);
     for e in covers::CUSTOM_EXTS {
@@ -2081,8 +2110,16 @@ fn play_stream(token: Option<String>, key: String, title: String, info: Option<s
         done.store(true, std::sync::atomic::Ordering::Relaxed);
         let secs = started.elapsed().as_secs();
         let quick = started.elapsed() < std::time::Duration::from_secs(6);
+        // Redact stream URLs (which may contain debrid keys) from last-game.log on disk right after exit.
+        let raw_log = fs::read_to_string(&log).ok();
+        if let Some(ref text) = raw_log {
+            let clean = addons::redact(text, &src.url);
+            if clean != *text {
+                let _ = fs::write(&log, &clean);
+            }
+        }
         let error = (quick && (status.as_ref().map_or(true, |s| !s.success()) || secs < 3)).then(|| {
-            let reason = fs::read_to_string(&log).ok().and_then(|t| launch::log_reason(&t));
+            let reason = raw_log.as_deref().and_then(launch::log_reason);
             let mut msg = format!("{} closed right away, so the video didn't start. The source may not be ready yet (not cached on your debrid service) or the link may have expired: choose another source.", plan.emulator);
             if let Some(r) = reason {
                 msg.push_str("\n\nWhat it said:\n");
@@ -2281,13 +2318,34 @@ fn set_fullscreen(on: bool, handle: AppHandle) {
 // Serving covers to the interface: spine://localhost/covers/gba/x.png
 // ---------------------------------------------------------------------------
 
+/// Resolve a relative URL path inside `base`, refusing rooted paths, traversal, drive letters, and symlink escapes.
+fn safe_media_join(base: &Path, rel: &str, block_dotfiles: bool) -> Option<PathBuf> {
+    if rel.is_empty() || rel.starts_with(['/', '\\']) || rel.contains(['\\', ':', '\0']) {
+        return None;
+    }
+    let mut joined = base.to_path_buf();
+    for seg in rel.split('/') {
+        if seg.is_empty() || seg == "." || seg == ".." || (block_dotfiles && seg.starts_with('.')) {
+            return None;
+        }
+        joined.push(seg);
+    }
+    let canon_base = fs::canonicalize(base).ok()?;
+    let canon_path = fs::canonicalize(&joined).ok()?;
+    if !canon_path.starts_with(&canon_base) {
+        return None;
+    }
+    Some(canon_path)
+}
+
 /// Serve covers, videos, and custom theme assets to the interface.
 ///   spine://localhost/covers/gba/x.png   a file under the media folder
 ///   spine://localhost/video/<game id>    that game's video, wherever it lives
 ///   spine://localhost/themes/<id>/...    a safe static file under the themes folder
 /// Videos honour HTTP Range requests so the player can stream and loop them.
 fn serve_media(media: &Path, themes: &Path, uri_path: &str, range: Option<&str>, video_of: &dyn Fn(&str) -> Option<PathBuf>) -> tauri::http::Response<Vec<u8>> {
-    let rel = percent_decode(uri_path.trim_start_matches('/'));
+    let raw = uri_path.strip_prefix('/').unwrap_or(uri_path);
+    let rel = percent_decode(raw);
     let resp = tauri::http::Response::builder().header("Access-Control-Allow-Origin", "*");
     let not_found = || tauri::http::Response::builder().status(404).body(Vec::new()).unwrap();
     let mut is_theme = false;
@@ -2302,16 +2360,16 @@ fn serve_media(media: &Path, themes: &Path, uri_path: &str, range: Option<&str>,
             None => return not_found(),
         }
     } else if let Some(sub) = rel.strip_prefix("themes/") {
-        if sub.is_empty() || sub.split(['/', '\\']).any(|p| p == ".." || p.contains(':') || p.starts_with('.')) {
-            return not_found();
-        }
         is_theme = true;
-        themes.join(sub)
-    } else {
-        if rel.split(['/', '\\']).any(|p| p == ".." || p.contains(':')) {
-            return not_found();
+        match safe_media_join(themes, sub, true) {
+            Some(p) => p,
+            None => return not_found(),
         }
-        media.join(&rel)
+    } else {
+        match safe_media_join(media, &rel, false) {
+            Some(p) => p,
+            None => return not_found(),
+        }
     };
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
     if is_theme && !spine_core::themes::is_safe_asset_ext(&ext) {
@@ -2339,14 +2397,18 @@ fn serve_media(media: &Path, themes: &Path, uri_path: &str, range: Option<&str>,
     };
     let Ok(meta) = fs::metadata(&path) else { return not_found() };
     let len = meta.len();
-    // Range: bytes=start-end
+    // Range: bytes=start-end (capped at 16 MiB per chunk to avoid huge allocations)
+    const MAX_RANGE_CHUNK: u64 = 16 * 1024 * 1024;
     if let Some((a, b)) = range.and_then(|r| r.strip_prefix("bytes=")).and_then(|r| r.split(',').next()).and_then(|r| r.split_once('-')) {
-        let (start, end) = match (a.trim().parse::<u64>().ok(), b.trim().parse::<u64>().ok()) {
+        let (start, mut end) = match (a.trim().parse::<u64>().ok(), b.trim().parse::<u64>().ok()) {
             (Some(s), Some(e)) => (s, e.min(len.saturating_sub(1))),
             (Some(s), None) => (s, (s + 4 * 1024 * 1024).min(len).saturating_sub(1)),
             (None, Some(n)) => (len.saturating_sub(n), len.saturating_sub(1)),
             _ => (0, len.saturating_sub(1)),
         };
+        if end.saturating_sub(start) >= MAX_RANGE_CHUNK {
+            end = start.saturating_add(MAX_RANGE_CHUNK - 1).min(len.saturating_sub(1));
+        }
         if start >= len || start > end {
             return tauri::http::Response::builder().status(416).header("Content-Range", format!("bytes */{len}")).body(Vec::new()).unwrap();
         }
@@ -2559,7 +2621,18 @@ fn main() {
     #[cfg(target_os = "linux")]
     linux::ensure_menu_entry();
     autostart::refresh();
-    let mut saved: Saved = fs::read_to_string(dir.join("spine-state.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    let state_path = dir.join("spine-state.json");
+    let mut saved: Saved = match fs::read_to_string(&state_path) {
+        Ok(t) => match serde_json::from_str(&t) {
+            Ok(s) => s,
+            Err(_) => {
+                // Preserve a corrupt state file so the next save doesn't silently destroy user data.
+                let _ = fs::copy(&state_path, dir.join("spine-state.json.corrupt"));
+                Saved::default()
+            }
+        },
+        Err(_) => Saved::default(),
+    };
     backfill_watched(&mut saved);
     let media = dir.join("media");
     let themes_dir = dir.join("themes");
@@ -2587,6 +2660,7 @@ fn main() {
             addons: Mutex::new(load_addons(&dir2)),
             sources: Mutex::new(BTreeMap::new()),
             links: Mutex::new(load_links(&dir2)),
+            save_lock: Mutex::new(()),
         })
         .register_uri_scheme_protocol("spine", move |ctx, req| {
             let range = req.headers().get("range").and_then(|v| v.to_str().ok()).map(String::from);
@@ -2661,10 +2735,21 @@ mod tests {
         fs::write(themes.join("demo/theme.css"), b"body { color: red; }").unwrap();
         fs::write(themes.join("demo/evil.js"), b"alert(1)").unwrap();
         let none = |_: &str| None;
+        let outside = dir.join("spine-serve-outside-secret.txt");
+        fs::write(&outside, b"secret").unwrap();
+        let abs_enc = format!("/{}", outside.to_string_lossy().replace('\\', "%5C").replace('/', "%2F"));
+        let root_rel = outside.to_string_lossy().trim_start_matches(|c: char| c.is_ascii_alphabetic() || c == ':').replace('\\', "%5C").replace('/', "%2F");
         assert_eq!(serve_media(&dir, &themes, "/../etc/passwd", None, &none).status(), 404);
         assert_eq!(serve_media(&dir, &themes, "/C:%5Cwindows", None, &none).status(), 404);
+        assert_eq!(serve_media(&dir, &themes, "/%2Fetc%2Fpasswd", None, &none).status(), 404);
+        assert_eq!(serve_media(&dir, &themes, "/%5CWindows%5Cwin.ini", None, &none).status(), 404);
+        assert_eq!(serve_media(&dir, &themes, "/themes/%2Fetc%2Fpasswd", None, &none).status(), 404);
+        assert_eq!(serve_media(&dir, &themes, "/%2e%2e/spine-serve-outside-secret.txt", None, &none).status(), 404);
+        assert_eq!(serve_media(&themes, &themes, &abs_enc, None, &none).status(), 404);
+        assert_eq!(serve_media(&themes, &themes, &format!("/{root_rel}"), None, &none).status(), 404);
         assert_eq!(serve_media(&dir, &themes, "/themes/demo/evil.js", None, &none).status(), 404);
         assert_eq!(serve_media(&dir, &themes, "/themes/../etc/passwd", None, &none).status(), 404);
+        let _ = fs::remove_file(&outside);
         let css = serve_media(&dir, &themes, "/themes/demo/theme.css", None, &none);
         assert_eq!(css.status(), 200);
         assert_eq!(css.headers()["content-type"], "text/css; charset=utf-8");

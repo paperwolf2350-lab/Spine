@@ -124,7 +124,7 @@ function tvHints(list) {
 
 function homeTv() {
   const { cons, i, con, at } = tvState();
-  const accent = settings().accent || TV_ACCENT;
+  const accent = safeColor(settings().accent, TV_ACCENT);
   const style = `--ta:${accent};--tink:${tvInk(accent)}`;
   if (S.tv.sec === 'watch') return tvWatch(style);
   if (!con) {
@@ -201,14 +201,16 @@ function tvWatchState() {
 }
 // Pick card k of row r (by position; tvWatchState then remembers its key).
 function tvwSet(r, k) { S.tv.w.row = r; S.tv.w[r] = k; S.tv.w[r + 'k'] = null; }
-const tvUrl = (x, u) => (x.local ? mediaUrl(u) : u);
+const tvUrl = (x, u) => (x.local ? mediaUrl(u) : safeUrl(u));
 
 function tvWatchHero(x) {
   if (!x) {
     return `<div class="tv-info"><span class="tv-sys">Watch</span><h1 class="tv-title">Nothing in progress</h1>
       <span class="tv-meta">Movies and shows you start show up here, ready to pick up again.</span></div>`;
   }
-  const art = x.art ? `<img class="tv-art" src="${tvUrl(x, x.art)}" alt="">` : x.blur ? `<img class="tv-art blur" src="${tvUrl(x, x.blur)}" alt="">` : '';
+  const artSrc = x.art ? tvUrl(x, x.art) : '';
+  const blurSrc = !artSrc && x.blur ? tvUrl(x, x.blur) : '';
+  const art = artSrc ? `<img class="tv-art" src="${esc(artSrc)}" alt="" referrerpolicy="no-referrer">` : blurSrc ? `<img class="tv-art blur" src="${esc(blurSrc)}" alt="" referrerpolicy="no-referrer">` : '';
   const bar = x.p && x.p.len ? `<div class="tv-prog"><span class="bar"><i style="width:${Math.round((100 * x.p.pos) / x.p.len)}%"></i></span><span>${esc(x.local ? (x.ep != null ? `${x.code} · ${tvLeft(x.p)}` : tvLeft(x.p)) : x.code)}</span></div>`
     : `<span class="tv-meta">${esc(x.code)}</span>`;
   const acts = x.local
@@ -218,14 +220,15 @@ function tvWatchHero(x) {
   return `<div class="tv-bg" aria-hidden="true">${art}<div class="tv-scrim"></div></div>
     <div class="tv-info">
       <div class="tv-labelrow"><span class="tv-sys">${esc(x.label)}</span><span class="tv-badge">${x.local ? 'Your files' : `Streaming${x.addonName ? ' · ' + esc(x.addonName) : ''}`}</span></div>
-      ${x.logo ? `<img class="tv-logo" src="${mediaUrl(x.logo)}" alt="${esc(x.title)}">` : `<h1 class="tv-title">${esc(x.title)}</h1>`}
+      ${x.logo ? `<img class="tv-logo" src="${esc(mediaUrl(x.logo))}" alt="${esc(x.title)}">` : `<h1 class="tv-title">${esc(x.title)}</h1>`}
       ${bar}
       <div class="tv-acts">${acts}</div>
     </div>`;
 }
 
 function tvWatchCard(x, k, sel) {
-  const pic = x.pic ? `<img src="${tvUrl(x, x.pic)}" alt="" loading="lazy" decoding="async">` : `<span class="ph" style="background:${PAL[hash(x.title) % PAL.length]}"></span>`;
+  const picSrc = x.pic ? tvUrl(x, x.pic) : '';
+  const pic = picSrc ? `<img src="${esc(picSrc)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : `<span class="ph" style="background:${PAL[hash(x.title) % PAL.length]}"></span>`;
   const pct = x.p && x.p.len ? Math.round((100 * x.p.pos) / x.p.len) : 0;
   return `<button class="tv-cwc${k === sel ? ' sel' : ''}" data-nav data-key="${esc(x.key)}" data-act="tvcw" data-row="${x.row}" data-k="${k}" aria-label="${esc(x.title)}, ${esc(x.code)}">
       ${pic}<span class="txt"><span class="t">${esc(x.title)}</span><span class="s">${esc(x.code)}</span></span>

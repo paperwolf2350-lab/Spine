@@ -130,14 +130,15 @@ pub fn parse_game(json: &Value) -> Option<GameInfo> {
 }
 
 pub fn info_path(media: &Path, game_id: &str) -> PathBuf {
-    let mut p = media.join("info");
-    for part in game_id.split('/') {
-        p.push(part);
-    }
-    p.with_extension("json")
+    crate::covers::safe_media_base(media, "info", game_id)
+        .unwrap_or_else(|| media.join("info").join("_invalid"))
+        .with_extension("json")
 }
 
 pub fn load_info(media: &Path, game_id: &str) -> Option<GameInfo> {
+    if !crate::covers::is_safe_id(game_id) {
+        return None;
+    }
     serde_json::from_str(&fs::read_to_string(info_path(media, game_id)).ok()?).ok()
 }
 

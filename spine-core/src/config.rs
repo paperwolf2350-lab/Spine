@@ -97,7 +97,13 @@ impl Credentials {
 
     /// Save all fields back to the file (keeps the explanatory comments).
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
-        let v = |o: &Option<String>| o.clone().unwrap_or_default();
+        let v = |o: &Option<String>| {
+            o.as_deref()
+                .unwrap_or("")
+                .chars()
+                .filter(|c| !matches!(c, '\r' | '\n' | '\0'))
+                .collect::<String>()
+        };
         let mut text = String::new();
         for line in TEMPLATE.replace("{USER}", "").lines() {
             let out = match line.split_once('=').map(|(k, _)| k.trim()) {
@@ -114,7 +120,14 @@ impl Credentials {
             text.push_str(&out);
             text.push_str("\r\n");
         }
-        fs::write(path, text)
+        let tmp = path.with_extension("txt.tmp");
+        fs::write(&tmp, &text)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600));
+        }
+        fs::rename(&tmp, path)
     }
 
     /// Write a blank template if the file doesn't exist yet.

@@ -470,6 +470,9 @@ pub fn special_still(media: &Path, id: &str, file: &str) -> PathBuf {
 
 /// Forget what TMDB said about one special, so it's looked up again.
 pub fn forget_special(media: &Path, id: &str, file: &str) {
+    if !covers::is_safe_id(id) {
+        return;
+    }
     if let Some(mut s) = load_seasons(media, id) {
         if s.specials.remove(file).is_some() {
             let p = seasons_path(media, id);
@@ -493,6 +496,9 @@ pub fn split_year(t: &str) -> (String, Option<String>) {
 /// banner, logo, episode names and pictures), so the next lookup starts over ("Fix match").
 /// The user's own cover stays.
 pub fn forget_show(media: &Path, id: &str) {
+    if !covers::is_safe_id(id) {
+        return;
+    }
     let _ = fs::remove_file(seasons_path(media, id));
     let _ = fs::remove_file(crate::screenscraper::info_path(media, id));
     let cover = covers::cover_base(media, id);
@@ -585,7 +591,7 @@ pub fn resolve(g: &Game, data: &Seasons, arc: &dyn Fn(&str) -> Option<ArcMap>) -
             let n = e.number?;
             if e.season.is_none() {
                 let m = arc(&e.group)?;
-                return Some((m.season, m.start + n - 1));
+                return Some((m.season, m.start.saturating_add(n).saturating_sub(1)));
             }
             let s = e.season?;
             if has(s, n) {
@@ -714,7 +720,7 @@ pub fn fetch_details(lib: &Library, media: &Path, key: &str, arc: &dyn Fn(&str, 
         }
         // Episode names and thumbnails for the seasons on disk.
         let Some(mut seasons) = saved else { continue };
-        let mut changed = false;
+        let mut changed = !seasons_path(media, &g.id).is_file();
         let has_arcs = g.episodes.iter().any(|e| e.season.is_none() && e.number.is_some());
         // Shows looked up before 0.6.1 don't have TMDB's season list yet.
         if seasons.list.is_empty() && has_arcs {
@@ -1069,6 +1075,11 @@ mod tests {
             assert!(!f.exists(), "{} should be gone", f.display());
         }
         assert!(own.exists());
+        // Unsafe ids must never escape or wipe the media directory.
+        forget_show(&media, "..");
+        forget_show(&media, "../..");
+        forget_show(&media, r"C:\Windows");
+        assert!(own.exists(), "unsafe forget_show id must not touch media");
         let _ = fs::remove_dir_all(&media);
     }
 }

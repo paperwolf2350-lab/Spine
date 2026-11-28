@@ -207,7 +207,7 @@ fn item_of(r: &Value, typ: &str, fallback_country: Option<&str>) -> Option<Item>
         poster: img(s(r, "poster_path"), "w342"),
         background: img(s(r, "backdrop_path"), "w1280"),
         logo: None,
-        year: date.filter(|d| d.len() >= 4).map(|d| d[..4].to_string()),
+        year: date.and_then(|d| d.get(..4).map(String::from)),
         description: s(r, "overview"),
         genres,
         rating,
@@ -330,10 +330,10 @@ pub fn parse_meta(json: &Value, typ: &str, tmdb_id: u64, episodes: Vec<Episode>)
     let votes = json["vote_count"].as_u64().unwrap_or(0);
     let rating = json["vote_average"].as_f64().filter(|x| *x > 0.0 && votes >= 5).map(|x| format!("{x:.1}"));
     let year = if typ == "movie" {
-        s(json, "release_date").filter(|d| d.len() >= 4).map(|d| d[..4].to_string())
+        s(json, "release_date").and_then(|d| d.get(..4).map(String::from))
     } else {
-        let start = s(json, "first_air_date").filter(|d| d.len() >= 4).map(|d| d[..4].to_string());
-        let end = s(json, "last_air_date").filter(|d| d.len() >= 4).map(|d| d[..4].to_string());
+        let start = s(json, "first_air_date").and_then(|d| d.get(..4).map(String::from));
+        let end = s(json, "last_air_date").and_then(|d| d.get(..4).map(String::from));
         let ended = matches!(s(json, "status").as_deref(), Some("Ended") | Some("Canceled"));
         match (start, end) {
             (Some(a), Some(b)) if ended && b != a => Some(format!("{a}–{b}")),

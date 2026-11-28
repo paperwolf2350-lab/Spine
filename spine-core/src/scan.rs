@@ -336,7 +336,7 @@ fn read_small(p: &Path) -> Option<String> {
 }
 
 fn is_vita_id(s: &str) -> bool {
-    s.len() == 9 && s[..4].chars().all(|c| c.is_ascii_uppercase()) && s[4..].chars().all(|c| c.is_ascii_digit())
+    s.is_ascii() && s.len() == 9 && s[..4].bytes().all(|b| b.is_ascii_uppercase()) && s[4..].bytes().all(|b| b.is_ascii_digit())
 }
 
 /// File names (lower case) referenced by a cue / gdi / m3u sheet.

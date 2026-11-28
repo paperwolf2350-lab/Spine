@@ -223,13 +223,16 @@ const THEMES = (() => {
 
       let cssText = '';
       for (const f of pack.fonts || []) {
-        const fam = String(f.family || '').replace(/['"\\]/g, '');
+        const fam = String(f.family || '').replace(/[^a-zA-Z0-9 _-]/g, '').trim();
         if (!fam || !f.path) continue;
         cssText += `@font-face { font-family: '${fam}'; src: url('${mediaUrl(f.path)}') format('${fontFormat(f.path)}'); font-display: swap; }\n`;
       }
       const vars = [];
       for (const [k, v] of Object.entries(pack.colors || {})) {
-        vars.push(`  --${k}: ${v};`);
+        if (!/^[a-z0-9_-]+$/i.test(k)) continue;
+        const val = String(v ?? '').trim();
+        if (!val || val.length > 160 || /[;{}<>\\\r\n]/.test(val) || /url\(|@import|expression\(/i.test(val)) continue;
+        vars.push(`  --${k}: ${val};`);
       }
       if (typeof ts.wallpaperDim === 'number') vars.push(`  --theme-wp-dim: ${Math.max(0, Math.min(0.95, ts.wallpaperDim))};`);
       if (typeof ts.wallpaperBlur === 'number') vars.push(`  --theme-wp-blur: ${Math.max(0, Math.min(40, ts.wallpaperBlur))}px;`);
@@ -243,6 +246,7 @@ const THEMES = (() => {
       if (varEl.textContent !== cssText) varEl.textContent = cssText;
 
       for (const opt of pack.options || []) {
+        if (!/^[a-z0-9_-]+$/i.test(String(opt.id || ''))) continue;
         const val = optionValue(pack, opt);
         const attrVal = optionType(opt) === 'toggle' ? (val ? 'on' : 'off') : String(val);
         root.setAttribute('data-opt-' + opt.id, attrVal);
@@ -405,10 +409,9 @@ const THEMES = (() => {
     }
     if (S.screen === 'stream' || S.screen === 'sdetail' || S.screen === 'sperson') return 'streaming';
     if (S.screen === 'home') {
-      if (tvOn() && typeof S_TV !== 'undefined') {
-        if (S_TV.tab === 'watch') return 'movies';
-        const row = typeof tvConsoles === 'function' ? tvConsoles() : [];
-        return row[S_TV.con]?.id || null;
+      if (tvOn() && S.tv) {
+        if (S.tv.sec === 'watch') return 'movies';
+        return S.tv.con || (typeof tvState === 'function' ? tvState().con?.id : null) || null;
       }
       if (waveOn() && S.wave?.cat) return S.wave.cat;
       if (bladesOn() && S.blade?.cat) return S.blade.cat;

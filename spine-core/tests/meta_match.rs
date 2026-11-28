@@ -2,6 +2,7 @@
 use std::path::Path;
 
 #[test]
+#[ignore = "requires local developer ROM fixtures in ../fixtures/Roms"]
 fn categories_for_real_library() {
     if !fixtures_present() {
         return; // the sample library is only on the developer\'s machine

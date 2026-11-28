@@ -19,9 +19,19 @@ function opener(g) {
   if (g.format === 'epic') return 'Epic Games';
   return OS_NAME;
 }
+const encodeSeg = (s) => encodeURIComponent(s).replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 const mediaUrl = (rel) => {
-  const [path, query] = rel.split('?');
-  return (window.__SPINE_MEDIA__ || MEDIA) + path.split('/').map(encodeURIComponent).join('/') + (query ? '?' + query : '');
+  const s = String(rel || '');
+  const qi = s.indexOf('?');
+  const path = qi >= 0 ? s.slice(0, qi) : s;
+  const rawQ = qi >= 0 ? s.slice(qi + 1) : '';
+  const query = rawQ
+    ? rawQ.split('&').filter(Boolean).map((kv) => {
+        const ei = kv.indexOf('=');
+        return ei >= 0 ? `${encodeSeg(kv.slice(0, ei))}=${encodeSeg(kv.slice(ei + 1))}` : encodeSeg(kv);
+      }).join('&')
+    : '';
+  return (window.__SPINE_MEDIA__ || MEDIA) + path.split('/').map(encodeSeg).join('/') + (query ? '?' + query : '');
 };
 
 // ---------------------------------------------------------------------------
@@ -55,6 +65,17 @@ const isFav = (id) => (S.boot?.favorites || []).includes(id);
 const PAL = ['#7A2E2E', '#2E4A7A', '#2E6B4F', '#6B3F7A', '#7A5A2E', '#2E6470', '#4A4A6B', '#7A2E5A', '#3F5A2E', '#8A3B1E'];
 const hash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const safeUrl = (u) => (typeof u === 'string' && /^https?:\/\//i.test(u.trim()) ? u.trim() : '');
+const safeColor = (c, fb = '') => (typeof c === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c.trim()) ? c.trim() : fb);
+// CSP-safe replacement for inline onerror="..." on images.
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement)) return;
+  const act = img.dataset.onerr;
+  if (act === 'remove') img.remove();
+  else if (act === 'hide') img.style.visibility = 'hidden';
+  else if (act === 'logo') { img.parentNode?.classList?.remove('haslogo'); img.replaceWith(document.createTextNode(img.alt || '')); }
+}, true);
 const fmtTime = (secs) => {
   if (!secs) return 'Never played';
   const h = Math.floor(secs / 3600), m = Math.round((secs % 3600) / 60);
@@ -267,7 +288,7 @@ function findGame(id) {
 const ICON = {
   download: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
   sort: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M14 6h7M14 12h5M14 18h3"/></svg>',
-  list: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="7" width="13" height="13" rx="2"/><path d="M8 3h10a2 2 0 0 1 2 2v10"/></svg>',
+  lists: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="7" width="13" height="13" rx="2"/><path d="M8 3h10a2 2 0 0 1 2 2v10"/></svg>',
   pencil: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
   plus: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   search: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
@@ -445,7 +466,7 @@ function home() {
     status = `Can't decide? Spine picks something from all ${sys.filter((x) => x.id !== 'movies' && x.id !== 'tv').reduce((n, x) => n + x.games.length, 0).toLocaleString()} games.`;
     cta = 'Surprise me';
   }
-  const cards = T.map((c, i) => `<button class="console ${i === sel ? 'sel' : ''} ${c.kind}" style="background:${c.color};--chip:${c.color}" data-nav data-key="con-${c.id}" data-act="tile" data-i="${i}" data-focus="selcon" aria-label="${esc(c.name)}${c.count != null ? ', ' + c.count + ' ' + things(c.sys, c.count) : c.label ? ', ' + c.label : ''}">
+  const cards = T.map((c, i) => `<button class="console ${i === sel ? 'sel' : ''} ${c.kind}" style="background:${c.color};--chip:${c.color}" data-nav data-key="con-${esc(c.id)}" data-act="tile" data-i="${i}" data-focus="selcon" aria-label="${esc(c.name)}${c.count != null ? ', ' + c.count + ' ' + things(c.sys, c.count) : c.label ? ', ' + c.label : ''}">
       ${sysIcon(tileIcon(c), i === sel ? 72 : 60)}<span><span class="short">${esc(c.short)}</span>${c.kind === 'sys' && c.name !== c.short ? `<span class="name">${esc(c.name)}</span>` : ''}<span class="count">${c.count != null ? c.count + ' ' + things(c.sys, c.count) : c.label || 'Random pick'}</span></span></button>`).join('');
 
   const lp = S.boot.last_played || {};
@@ -466,11 +487,11 @@ function home() {
     if (p?.watched && !canResume(p)) return null;
     return { ...x, line: canResume(p) ? `Resume · ${clock(p.pos)}${p.len ? ` of ${clock(p.len)}` : ''}` : 'Movie' };
   }).filter(Boolean).slice(0, 6);
-  const watchHtml = watching.length ? `<section class="row"><h3>Continue watching</h3><div class="recent">${watching.map(({ s: rs, g, line }) => `<button class="item" data-nav data-key="watch-${g.id}" data-act="open" data-id="${esc(g.id)}" data-from="home">
+  const watchHtml = watching.length ? `<section class="row"><h3>Continue watching</h3><div class="recent">${watching.map(({ s: rs, g, line }) => `<button class="item" data-nav data-key="watch-${esc(g.id)}" data-act="open" data-id="${esc(g.id)}" data-from="home">
         ${cover(g, rs, 'nofav')}<span style="min-width:0;display:flex;flex-direction:column;gap:3px"><span class="t">${esc(g.title)}</span>
         <span class="s">${esc(line)} · ${ago(lp[g.id])}</span></span></button>`).join('')}</div></section>` : '';
   const recentHtml = recent.length
-    ? `<div class="recent">${recent.map(({ s: rs, g }) => `<button class="item" data-nav data-key="recent-${g.id}" data-act="open" data-id="${esc(g.id)}" data-from="home">
+    ? `<div class="recent">${recent.map(({ s: rs, g }) => `<button class="item" data-nav data-key="recent-${esc(g.id)}" data-act="open" data-id="${esc(g.id)}" data-from="home">
         ${cover(g, rs, 'nofav')}<span style="min-width:0;display:flex;flex-direction:column;gap:3px"><span class="t">${esc(g.title)}</span>
         <span class="s">${esc(rs.short)} · ${fmtTime((S.boot.playtime || {})[g.id])} · ${ago(lp[g.id])}</span></span></button>`).join('')}</div>`
     : `<div class="empty-row">Games you play show up here.</div>`;
@@ -478,10 +499,10 @@ function home() {
   const monthAgo = Date.now() / 1000 - 30 * 86400;
   const newest = allItems().filter((x) => x.g.added > monthAgo).sort((a, b) => b.g.added - a.g.added).slice(0, 8);
   const freshHtml = newest.length ? `<section class="row"><h3>Recently added</h3><div class="tiles" style="grid-template-columns:repeat(8,minmax(0,1fr))">${newest.map(({ s: fs, g }) =>
-      `<button class="game" data-nav data-key="new-${g.id}" data-act="open" data-id="${esc(g.id)}" data-from="home">${cover(g, fs, 'nofav')}</button>`).join('')}</div></section>` : '';
+      `<button class="game" data-nav data-key="new-${esc(g.id)}" data-act="open" data-id="${esc(g.id)}" data-from="home">${cover(g, fs, 'nofav')}</button>`).join('')}</div></section>` : '';
   const favs = favItems().slice(0, 8);
   const favHtml = favs.length ? `<section class="row"><h3>Favorites</h3><div class="tiles" style="grid-template-columns:repeat(8,minmax(0,1fr))">${favs.map(({ s: fs, g }) =>
-      `<button class="game" data-nav data-key="fav-${g.id}" data-act="open" data-id="${esc(g.id)}" data-from="home">${cover(g, fs, 'nofav')}</button>`).join('')}</div></section>` : '';
+      `<button class="game" data-nav data-key="fav-${esc(g.id)}" data-act="open" data-id="${esc(g.id)}" data-from="home">${cover(g, fs, 'nofav')}</button>`).join('')}</div></section>` : '';
 
   // Ambient wall: the highlighted console's covers drifting slowly behind the header.
   const wallSrc = withCovers.length ? withCovers : [];
@@ -582,18 +603,18 @@ function games() {
 
   let body;
   if (!list.length) body = `<div class="nofav">${S.filter === 'fav' || s.kind === 'fav' ? `No favorites ${isColl ? '' : 'here '}yet. Open a game and press ${glyph('Y')} to add it.` : S.filter === 'new' ? "You've played everything here." : S.filter === 'multi' ? 'No multiplayer games found here (player counts come from ScreenScraper).' : 'Nothing here yet.'}</div>`;
-  else if (layout === 'list') body = `<div class="list">${list.map((g) => `<button class="game letter-anchor"${anchor(g)} data-nav data-key="g-${g.id}" data-act="open" data-id="${esc(g.id)}">
+  else if (layout === 'list') body = `<div class="list">${list.map((g) => `<button class="game letter-anchor"${anchor(g)} data-nav data-key="g-${esc(g.id)}" data-act="open" data-id="${esc(g.id)}">
       ${cover(g, so(g), 'nofav')}<span class="t">${esc(g.title)}</span><span class="c">${esc(sub(g))}</span><span class="c r">${esc(pt[g.id] ? fmtTime(pt[g.id]) : '')}</span>
       <span class="f">${isFav(g.id) ? ICON.heartA : ''}</span></button>`).join('')}</div>`;
-  else if (layout === 'cards') body = `<div class="cards">${list.map((g) => `<button class="game letter-anchor"${anchor(g)} data-nav data-key="g-${g.id}" data-act="open" data-id="${esc(g.id)}">
+  else if (layout === 'cards') body = `<div class="cards">${list.map((g) => `<button class="game letter-anchor"${anchor(g)} data-nav data-key="g-${esc(g.id)}" data-act="open" data-id="${esc(g.id)}">
       ${cover(g, so(g))}<span class="body"><span class="t">${esc(g.title)}</span><span class="s">${esc(sub(g))}</span>
       ${g.info?.description ? `<span class="d">${esc(g.info.description)}</span>` : `<span class="s">${esc(pt[g.id] ? fmtTime(pt[g.id]) + ' played' : (g.launcher || so(g).emulator))}</span>`}</span></button>`).join('')}</div>`;
   else if (layout === 'shelf') body = `<div class="shelf">${list.map((g) => {
       const h = hash(g.title), H = 180 + (h % 56), W = 46 + (h % 3) * 6;
-      return `<div class="slot letter-anchor"${anchor(g)}><button class="game" style="width:${W}px;height:${H}px;background:${PAL[h % PAL.length]}" data-nav data-key="g-${g.id}" data-act="open" data-id="${esc(g.id)}" aria-label="${esc(g.title)}">
+      return `<div class="slot letter-anchor"${anchor(g)}><button class="game" style="width:${W}px;height:${H}px;background:${PAL[h % PAL.length]}" data-nav data-key="g-${esc(g.id)}" data-act="open" data-id="${esc(g.id)}" aria-label="${esc(g.title)}">
         ${g.cover ? `<span class="cap"><img src="${mediaUrl(g.cover)}" alt="" loading="lazy"></span>` : ''}<span class="vt">${esc(g.title)}</span></button></div>`;
     }).join('')}</div>`;
-  else body = `<div class="tiles">${list.map((g) => `<button class="game letter-anchor"${anchor(g)} data-nav data-key="g-${g.id}" data-act="open" data-id="${esc(g.id)}">
+  else body = `<div class="tiles">${list.map((g) => `<button class="game letter-anchor"${anchor(g)} data-nav data-key="g-${esc(g.id)}" data-act="open" data-id="${esc(g.id)}">
       ${cover(g, so(g))}<span class="t">${esc(g.title)}</span>${isColl ? `<span style="font-size:13px;color:var(--muted)">${esc(so(g).short)}</span>` : ''}</button>`).join('')}</div>`;
 
   const lay = (k, label) => `<button class="${layout === k ? 'on' : ''}" data-nav data-key="lay-${k}" data-act="layout" data-l="${k}" aria-label="${label}" title="${label}">${ICON[k]}</button>`;
@@ -621,7 +642,7 @@ function games() {
 function moreRow(title, items, key) {
   if (!items.length) return '';
   return `<section class="morerow"><h3>${esc(title)}</h3><div class="strip">${items.map(({ s, g }) =>
-    `<button class="game" data-nav data-key="${key}-${g.id}" data-act="open" data-id="${esc(g.id)}" data-from="detail-${esc(S.game)}">${cover(g, s, 'nofav')}<span class="t">${esc(g.title)}</span><span class="s">${esc(s.short)}</span></button>`).join('')}</div></section>`;
+    `<button class="game" data-nav data-key="${esc(key)}-${esc(g.id)}" data-act="open" data-id="${esc(g.id)}" data-from="detail-${esc(S.game)}">${cover(g, s, 'nofav')}<span class="t">${esc(g.title)}</span><span class="s">${esc(s.short)}</span></button>`).join('')}</div></section>`;
 }
 
 function detail() {
@@ -708,7 +729,7 @@ function detail() {
           : `<button class="btn primary" data-nav data-key="play" data-act="play" data-id="${esc(g.id)}">${glyph('A')}Play</button>`}
         ${movie && !tvEps.length ? `<button class="btn ${mp?.watched ? 'on' : ''}" data-nav data-key="mwatched" data-act="watched" data-k="${esc(g.id)}" data-on="${mp?.watched ? 1 : 0}" aria-pressed="${!!mp?.watched}">${ICON.check} ${mp?.watched ? 'Watched' : 'Mark as watched'}</button>` : ''}
         <button class="btn" data-nav data-key="fav" data-act="fav" data-id="${esc(g.id)}">${glyph('Y')}${isFav(g.id) ? 'Remove favorite' : 'Favorite'}</button>
-        <button class="btn" data-nav data-key="addlist" data-act="lists" data-id="${esc(g.id)}">${ICON.list} ${Object.values(S.boot.collections || {}).some((l) => l.includes(g.id)) ? 'In your lists' : 'Add to list'}</button>
+        <button class="btn" data-nav data-key="addlist" data-act="lists" data-id="${esc(g.id)}">${ICON.lists} ${Object.values(S.boot.collections || {}).some((l) => l.includes(g.id)) ? 'In your lists' : 'Add to list'}</button>
         ${S.spun === g.id ? `<button class="btn" data-nav data-key="spin" data-act="random" data-scope="${esc(S.spinScope || 'all')}">${ICON.dice} Spin again</button>` : ''}
       </div>
       ${s.blocked && !g.launcher ? `<div class="warning"><b>Can't play yet:</b> ${esc(s.blocked)} ${needsMpv(s.blocked) ? `<button class="link" data-nav data-key="getemu" data-act="getmpv" ${S.mpvBusy ? 'disabled' : ''}>${S.mpvBusy ? esc(S.mpvBusy) : 'Get mpv now'}</button>` : ''}${s.download ? `<button class="link" data-nav data-key="getemu" data-act="openurl" data-u="${esc(s.download)}">${s.download.includes('flathub.org') ? 'Get it from Flathub' : 'Open the download page'}</button> <span class="note">${s.download.includes('flathub.org') ? 'Install it from your software center (Discover, GNOME Software) or Flathub, then reopen Spine.' : movie ? 'Install it the normal way, then reopen Spine.' : 'Put it in your Emulators folder, and Spine finds it next time it starts.'}</span>` : ''}</div>` : ''}
@@ -784,8 +805,8 @@ function settingsPanel() {
   const row = (t, d, ctrl) => `<div class="set-row"><div class="set-info"><span class="set-t">${t}</span>${d ? `<span class="set-d">${d}</span>` : ''}</div><div class="set-ctrl">${ctrl}</div></div>`;
   const stackRow = (t, d, bodyHtml) => `<div class="set-row stack"><div class="set-info"><span class="set-t">${t}</span>${d ? `<span class="set-d">${d}</span>` : ''}</div>${bodyHtml}</div>`;
   const tog = (key, act, on, valAttr, label) => `<button class="toggle ${on ? 'on' : ''}" role="switch" aria-checked="${on ? 'true' : 'false'}" aria-label="${esc(label)}" data-nav data-key="${key}" data-act="${act}"${valAttr ? ` data-v="${valAttr}"` : ''}></button>`;
-  const seg = (key, act, list, cur) => `<div class="set-seg">${list.map(([v, l]) => `<button class="${cur === v ? 'on' : ''}" data-nav data-key="${key}-${v}" data-act="${act}" data-v="${v}">${l}</button>`).join('')}</div>`;
-  const chips = (key, act, list, cur) => list.map(([v, l]) => `<button class="chip ${cur === v ? 'on' : ''}" data-nav data-key="${key}-${v}" data-act="${act}" data-v="${v}">${l}</button>`).join('');
+  const seg = (key, act, list, cur) => `<div class="set-seg">${list.map(([v, l]) => `<button class="${cur === v ? 'on' : ''}" data-nav data-key="${esc(key)}-${esc(v)}" data-act="${act}" data-v="${esc(v)}">${esc(l)}</button>`).join('')}</div>`;
+  const chips = (key, act, list, cur) => list.map(([v, l]) => `<button class="chip ${cur === v ? 'on' : ''}" data-nav data-key="${esc(key)}-${esc(v)}" data-act="${act}" data-v="${esc(v)}">${esc(l)}</button>`).join('');
   const grp = (k, note, bodyHtml) => sec('', stackRow(k, note, bodyHtml));
   const rootRows = (list, rm, key) => !(list || []).length ? '' : `<div class="roots">${(list || []).map((r, i) => `<div class="root ${r.online ? '' : 'off'}"><span class="dot"></span><span class="rp">${esc(r.path)}</span><span class="rs">${r.online ? 'Connected' : 'Not connected'}</span>
         <button class="btn small" data-nav data-key="${key}-${i}" data-act="${rm}" data-p="${esc(r.path)}">Remove</button></div>`).join('')}</div>`;
@@ -811,8 +832,8 @@ function settingsPanel() {
     const themeTile = (id, label, bg, card, dot, previewUrl) => {
       const on = activeThemeId === id;
       const mini = previewUrl
-        ? `<div class="th-mini"><img src="${previewUrl}" alt=""></div>`
-        : `<div class="th-mini" style="background:${bg}"><span class="th-mini-card" style="background:${card}"></span><span class="th-mini-dot" style="background:${dot}"></span></div>`;
+        ? `<div class="th-mini"><img src="${esc(previewUrl)}" alt=""></div>`
+        : `<div class="th-mini" style="background:${safeColor(bg, '#1a1d26')}"><span class="th-mini-card" style="background:${safeColor(card, '#262b38')}"></span><span class="th-mini-dot" style="background:${safeColor(dot, '#c8431f')}"></span></div>`;
       return `<button class="th-tile ${on ? 'on' : ''}" data-nav data-key="th-${esc(id)}" data-act="theme" data-t="${esc(id)}">${mini}<span class="th-tile-row"><span class="th-tile-name">${esc(label)}</span>${on ? '<span class="th-tile-check">✓</span>' : ''}</span></button>`;
     };
     const themeTiles = [
@@ -822,7 +843,7 @@ function settingsPanel() {
       }),
       ...visualPacks.map((p) => {
         const b = BUILTIN_THEME_PREVIEW[p.base] || BUILTIN_THEME_PREVIEW.midnight;
-        return themeTile(p.id, p.name, p.colors?.bg || b.bg, p.colors?.surface || b.card, p.colors?.accent || b.dot, p.preview ? mediaUrl(p.preview) : null);
+        return themeTile(p.id, p.name, safeColor(p.colors?.bg, b.bg), safeColor(p.colors?.surface, b.card), safeColor(p.colors?.accent, b.dot), p.preview ? mediaUrl(p.preview) : null);
       }),
     ].join('');
 
@@ -1302,7 +1323,7 @@ function showPanel() {
     <span class="note">Spine looks this ${tv ? 'show' : 'movie'} up on TMDB by its ${tv ? 'folder' : 'file'} name${g.show_query ? ' (you changed it)' : ''}. If the poster or details${tv ? ' or episode names' : ''} are wrong or missing, type its English title as TMDB lists it (add the year, like "(2010)", if there are several) and search again. Everything is fetched fresh; your own cover${tv ? ', watched marks and season picks stay' : ' and watched mark stay'}.</span>
     <div class="grp"><span class="k">${esc(g.title)}</span>
       ${now ? `<span class="note">Now matched to: ${esc(now)}</span>` : '<span class="note">Not found on TMDB yet.</span>'}
-      <label class="field"><span>Search TMDB for</span><input type="text" id="showq" data-nav data-key="showq" value="${esc(g.show_query || g.title)}" autocomplete="off" spellcheck="false"></label>
+      <label class="field"><span>Search TMDB for</span><input type="text" id="showq" data-nav data-key="showq" data-enter="setshow" value="${esc(g.show_query || g.title)}" autocomplete="off" spellcheck="false"></label>
       <div class="opts"><button class="btn primary" data-nav data-key="showgo" data-act="setshow">Search again</button>
       ${g.show_query ? `<button class="btn" data-nav data-key="showreset" data-act="setshow" data-reset="1">Use the ${tv ? 'folder' : 'file'} name</button>` : ''}</div></div>
   </aside></div>`;
@@ -1313,7 +1334,7 @@ function emulatorPanel() {
   const found = findGame(S.emu.id);
   if (!found) return '';
   const opts = S.emu.options;
-  const row = (key, label, note, on) => `<button class="choice ${on ? 'on' : ''}" data-nav data-key="emu-${key || 'default'}" data-act="setemu" data-k="${esc(key || '')}">
+  const row = (key, label, note, on) => `<button class="choice ${on ? 'on' : ''}" data-nav data-key="emu-${esc(key || 'default')}" data-act="setemu" data-k="${esc(key || '')}">
       <span class="t">${esc(label)}</span><span class="n">${esc(note)}</span></button>`;
   return `<div class="panel" data-act="closepanel"><aside class="sheet" role="dialog" aria-label="Choose emulator">
     <h2>Emulator for ${esc(found.g.title)}</h2>
@@ -1328,11 +1349,11 @@ function emulatorPanel() {
 // ---- Updates from Spine's GitHub releases
 function updateNote() {
   const u = S.update;
-  const cur = `You have Spine ${S.version || ''}.`;
+  const cur = `You have Spine ${esc(S.version || '')}.`;
   if (!u) return cur;
-  if (u.busy) return u.busy;
-  if (u.error) return `${cur} ${u.error}`;
-  if (u.available) return `Spine ${u.latest} is ready. Spine downloads it, checks it, and restarts.${u.notes ? `<span class="relnotes">${u.notes.split('\n').filter(Boolean).slice(0, 5).map((l) => `<span>• ${esc(l)}</span>`).join('')}</span>` : ''}`;
+  if (u.busy) return esc(u.busy);
+  if (u.error) return `${cur} ${esc(u.error)}`;
+  if (u.available) return `Spine ${esc(u.latest)} is ready. Spine downloads it, checks it, and restarts.${u.notes ? `<span class="relnotes">${u.notes.split('\n').filter(Boolean).slice(0, 5).map((l) => `<span>• ${esc(l)}</span>`).join('')}</span>` : ''}`;
   return `${cur} That's the newest.`;
 }
 async function checkUpdate(quiet) {
@@ -1443,7 +1464,7 @@ function listsPanel() {
     ${names.length ? `<div class="choices">${names.map((n, i) => { const on = S.boot.collections[n].includes(found.g.id); return `<button class="choice ${on ? 'on' : ''}" data-nav data-key="ls-${i}" data-act="togglelist" data-n="${esc(n)}">
       <span class="t">${esc(n)}</span><span class="n">${S.boot.collections[n].length} game${S.boot.collections[n].length === 1 ? '' : 's'}${on ? ' · in this list' : ''}</span></button>`; }).join('')}</div>` : ''}
     <div class="grp"><span class="k">New list</span>
-      <label class="field"><input type="text" id="nl-name" data-nav data-key="nl-name" data-act="newlist" placeholder="List name" maxlength="40" autocomplete="off" spellcheck="false"></label>
+      <label class="field"><input type="text" id="nl-name" data-nav data-key="nl-name" data-enter="newlist" placeholder="List name" maxlength="40" autocomplete="off" spellcheck="false"></label>
       <div class="opts"><button class="btn" data-nav data-key="nl-make" data-act="newlist">${ICON.plus} Make list and add</button></div></div>
   </aside></div>`;
 }
@@ -1463,11 +1484,11 @@ function editPanel() {
   return `<div class="panel" data-act="closepanel"><aside class="sheet wide" role="dialog" aria-label="Fix this game">
     <h2>Fix ${esc(g.title)}</h2>
     <div class="grp"><span class="k">Name</span><span class="note">Shown everywhere in Spine. ${g.renamed ? 'You named this one.' : 'Right now it comes from the file name.'}</span>
-      <label class="field"><input type="text" id="ed-name" data-nav data-key="ed-name" data-act="savename" value="${esc(g.title)}" autocomplete="off" spellcheck="false" maxlength="200"></label>
+      <label class="field"><input type="text" id="ed-name" data-nav data-key="ed-name" data-enter="savename" value="${esc(g.title)}" autocomplete="off" spellcheck="false" maxlength="200"></label>
       <div class="opts"><button class="btn" data-nav data-key="ed-save" data-act="savename">Save name</button>
       ${g.renamed ? `<button class="btn" data-nav data-key="ed-reset" data-act="resetname">Use the file's name</button>` : ''}</div></div>
     <div class="grp"><span class="k">Cover</span><span class="note">Search by name and pick the right one${libretroSys(s.id) ? ' (libretro lists every region and version)' : ''}.</span>
-      <label class="field"><input type="text" id="ed-q" data-nav data-key="ed-q" data-act="findcovers" value="${esc(E.query)}" autocomplete="off" spellcheck="false"></label>
+      <label class="field"><input type="text" id="ed-q" data-nav data-key="ed-q" data-enter="findcovers" value="${esc(E.query)}" autocomplete="off" spellcheck="false"></label>
       <div class="opts"><button class="btn" data-nav data-key="ed-find" data-act="findcovers">${ICON.search} Search covers</button></div>
       ${results}</div>
     <div class="grp"><span class="k">Hide</span><span class="note">For junk files, demos or duplicates. Nothing is deleted, and you can bring it back from Settings.</span>
@@ -1483,7 +1504,7 @@ function searchPanel() {
   const hits = q && !streamMode ? srchHits(q) : [];
   const ql = srchNorm(q);
   const res = streamMode ? streamPanelRes().replace('<div class="res">', `<div class="res">${!S.osk ? oskSugHTML() : ''}`) : `<div class="res">${q ? (() => { const cs = topCats(1).filter((c) => srchNorm(c.name).includes(ql)).slice(0, 10); return cs.length ? `<div class="cats" style="margin-bottom:22px">${cs.map((c) =>
-      `<button class="cat" data-nav data-key="scat-${esc(c.name)}" data-act="category" data-type="tag" data-v="${esc(c.name)}">${esc(c.name)} <span class="n">${c.count}</span></button>`).join('')}</div>` : ''; })() : ''}${!S.osk ? oskSugHTML() : ''}<div class="tiles">${hits.map(({ s, g }) => `<button class="game" data-nav data-key="h-${g.id}" data-act="open" data-id="${esc(g.id)}" data-from="search">
+      `<button class="cat" data-nav data-key="scat-${esc(c.name)}" data-act="category" data-type="tag" data-v="${esc(c.name)}">${esc(c.name)} <span class="n">${c.count}</span></button>`).join('')}</div>` : ''; })() : ''}${!S.osk ? oskSugHTML() : ''}<div class="tiles">${hits.map(({ s, g }) => `<button class="game" data-nav data-key="h-${esc(g.id)}" data-act="open" data-id="${esc(g.id)}" data-from="search">
       ${cover(g, s)}<span class="t">${esc(g.title)}</span><span style="font-size:13px;color:var(--muted)">${esc(s.short)}</span></button>`).join('')}</div>
       ${q && !hits.length ? '<div class="nofav">Nothing matches that.</div>' : ''}</div>`;
   const kb = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M9 15.5h6"/></svg>';
@@ -1861,6 +1882,7 @@ const ACT = {
     // Surprise me picks games; movies and shows come up through their own Random button.
     else if (scope === 'all') pool = systems().filter((s) => !isMovies(s)).flatMap((s) => s.games);
     else if (scope === 'favorites') pool = favItems().map((x) => x.g);
+    else if (scope.startsWith('coll:')) pool = collItems(scope.slice(5)).map((x) => x.g);
     else pool = systems().find((s) => s.id === scope)?.games || [];
     pool = pool.filter((g) => g.id !== S.spun);
     if (!pool.length) return toast('Nothing to pick from here yet.');
@@ -2704,6 +2726,7 @@ document.addEventListener('keydown', (e) => {
     if (typeof THEMES !== 'undefined') THEMES.safeReset();
     return;
   }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (oskKeydown(e)) return; // typing while the pop-up keyboard has focus (keys.js)
   const typing = e.target.tagName === 'INPUT';
   const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'A', Escape: 'B', PageUp: 'LB', PageDown: 'RB', F2: 'START' };

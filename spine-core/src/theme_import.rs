@@ -534,19 +534,40 @@ pub fn import_external_folder(themes_dir: &Path, src_dir: &Path) -> Result<Impor
     let mut sounds: BTreeMap<String, PathBuf> = BTreeMap::new();
     let mut preview: Option<PathBuf> = None;
 
+    // Helper: join a manifest-supplied relative path safely inside `root` (no `..`, absolute paths, or symlink escapes).
+    let canon_root = fs::canonicalize(&root).ok();
+    let safe_inside = |rel: &str| -> Option<PathBuf> {
+        let norm = rel.replace('\\', "/");
+        let clean = crate::themes::safe_rel(&norm)?;
+        let candidate = root.join(clean);
+        let meta = fs::symlink_metadata(&candidate).ok()?;
+        if meta.file_type().is_symlink() || !meta.is_file() {
+            return None;
+        }
+        if let Some(ref cr) = canon_root {
+            let cp = fs::canonicalize(&candidate).ok()?;
+            if !cp.starts_with(cr) {
+                return None;
+            }
+        }
+        Some(candidate)
+    };
+
     // 1. Daijisho index.json explicit wallpaper mapping
     if let Some(ref d) = daijisho {
         if let Some(ref def_wp) = d.default_wallpaper {
-            let p = root.join(def_wp);
-            if p.is_file() && WALLPAPER_EXTS.contains(&file_ext(&p).as_str()) {
-                wallpapers.insert("default".into(), p);
+            if let Some(p) = safe_inside(def_wp) {
+                if WALLPAPER_EXTS.contains(&file_ext(&p).as_str()) {
+                    wallpapers.insert("default".into(), p);
+                }
             }
         }
         for entry in &d.wallpaper_list {
-            let p = root.join(&entry.filename);
-            if p.is_file() && WALLPAPER_EXTS.contains(&file_ext(&p).as_str()) {
-                if let Some(id) = match_console_id(&entry.shortname) {
-                    wallpapers.entry(id).or_insert(p);
+            if let Some(p) = safe_inside(&entry.filename) {
+                if WALLPAPER_EXTS.contains(&file_ext(&p).as_str()) {
+                    if let Some(id) = match_console_id(&entry.shortname) {
+                        wallpapers.entry(id).or_insert(p);
+                    }
                 }
             }
         }
@@ -992,6 +1013,28 @@ pub fn import_any_zip(themes_dir: &Path, zip_path: &Path) -> Result<ImportReport
     res
 }
 
+/// Reject loopback, private LAN, and link-local hosts to prevent SSRF via theme URL import.
+fn is_blocked_host(host: &str) -> bool {
+    let h = host.trim().trim_matches(|c| c == '[' || c == ']').to_ascii_lowercase();
+    if h.is_empty() || h == "localhost" || h.ends_with(".localhost") || h.ends_with(".local") || h.contains('@') {
+        return true;
+    }
+    if let Ok(ip) = h.parse::<std::net::IpAddr>() {
+        return match ip {
+            std::net::IpAddr::V4(v4) => {
+                v4.is_loopback()
+                    || v4.is_private()
+                    || v4.is_link_local()
+                    || v4.is_unspecified()
+                    || v4.is_broadcast()
+                    || (v4.octets()[0] == 100 && (64..=127).contains(&v4.octets()[1]))
+            }
+            std::net::IpAddr::V6(v6) => v6.is_loopback() || v6.is_unspecified() || (v6.segments()[0] & 0xfe00) == 0xfc00 || (v6.segments()[0] & 0xffc0) == 0xfe80,
+        };
+    }
+    false
+}
+
 /// Turn a user-pasted link (GitHub repo, GitLab / git.es-de.org repo, Codeberg repo,
 /// or direct `.zip` link) into an ordered list of candidate `.zip` download URLs.
 pub fn candidate_zip_urls(raw: &str) -> Result<(Vec<String>, String), String> {
@@ -1002,7 +1045,7 @@ pub fn candidate_zip_urls(raw: &str) -> Result<(Vec<String>, String), String> {
     if trimmed.contains([' ', '\n', '\r', '"', '\'', '<', '>', '`']) {
         return Err("That doesn't look like a valid web link.".into());
     }
-    let normalized = if trimmed.starts_with("https://") || trimmed.starts_with("http://") {
+    let normalized = if trimmed.starts_with("https://") {
         trimmed.to_string()
     } else if trimmed.starts_with("github.com/") || trimmed.starts_with("gitlab.com/") || trimmed.starts_with("git.es-de.org/") || trimmed.starts_with("codeberg.org/") {
         format!("https://{trimmed}")
@@ -1011,6 +1054,15 @@ pub fn candidate_zip_urls(raw: &str) -> Result<(Vec<String>, String), String> {
     };
 
     let without_frag = normalized.split('#').next().unwrap_or(&normalized);
+    let authority = without_frag.strip_prefix("https://").and_then(|r| r.split(['/', '?']).next()).unwrap_or("");
+    let host_only = if authority.starts_with('[') {
+        authority.split(']').next().unwrap_or("")
+    } else {
+        authority.split(':').next().unwrap_or("")
+    };
+    if is_blocked_host(host_only) {
+        return Err("Local or private network links aren't allowed for theme downloads.".into());
+    }
     let path_no_query = without_frag.split('?').next().unwrap_or(without_frag);
     let low_no_query = path_no_query.to_ascii_lowercase();
 
@@ -1292,6 +1344,38 @@ mod tests {
         assert_eq!(lbl, "my-pack");
 
         assert!(candidate_zip_urls("file:///etc/passwd").is_err());
+        assert!(candidate_zip_urls("http://example.com/packs/my-pack.zip").is_err());
+        assert!(candidate_zip_urls("https://localhost/pack.zip").is_err());
+        assert!(candidate_zip_urls("https://127.0.0.1:8080/pack.zip").is_err());
+        assert!(candidate_zip_urls("https://192.168.1.5/pack.zip").is_err());
+        assert!(candidate_zip_urls("https://[::1]/pack.zip").is_err());
         assert!(candidate_zip_urls("not a url").is_err());
+    }
+
+    #[test]
+    fn daijisho_index_rejects_traversal_and_absolute_paths() {
+        let root = tmp("daijisho-traversal");
+        let pack_dir = root.join("pack");
+        let themes_dir = root.join("themes");
+        fs::create_dir_all(&pack_dir).unwrap();
+        let outside = root.join("secret.jpg");
+        fs::write(&outside, b"secret-image").unwrap();
+        fs::write(pack_dir.join("ok.jpg"), b"safe-image").unwrap();
+        let abs_str = outside.to_string_lossy().replace('\\', "\\\\");
+        fs::write(
+            pack_dir.join("index.json"),
+            format!(
+                r#"{{"name":"Evil Pack","defaultWallpaper":"../secret.jpg","wallpaperList":[{{"shortname":"snes","filename":"{abs_str}"}},{{"shortname":"gba","filename":"ok.jpg"}}]}}"#
+            ),
+        )
+        .unwrap();
+
+        let rep = import_external_folder(&themes_dir, &pack_dir).unwrap();
+        assert_eq!(rep.wallpapers, 1);
+        assert!(!rep.pack.wallpapers.contains_key("default"));
+        assert!(!rep.pack.wallpapers.contains_key("snes"));
+        assert!(rep.pack.wallpapers.contains_key("gba"));
+
+        let _ = fs::remove_dir_all(&root);
     }
 }
