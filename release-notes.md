@@ -1,4 +1,9 @@
 ## What's new
+- **Security hardening across themes, streaming, and game launches.** Added a strict Content Security Policy, escaped third-party addon/theme metadata in the interface, tightened media/theme path and URL checks, hardened Windows shortcut and controller loading, and ensured streaming debrid links are redacted from player logs and network errors.
+- **Safer theme imports, emulator updates, and state saves.** Failed theme imports no longer delete an existing theme with the same name, failed emulator swaps now roll back moved saves/BIOS/keys cleanly, and Spine serializes settings writes and backs up corrupted state files instead of silently resetting them.
+- **UI & TV-mode fixes.** Fixed per-console wallpapers in TV mode, clicking text inputs in Edit/Lists panels firing actions early, the Random button on custom lists, addon search getting stuck while typing, Liquid Glass bases when saving custom themes, and initial season saving for arc-only TV shows.
+
+From 0.45.0:
 - **Built-in TMDB streaming search, Cartoons & Anime catalogs.** When you have a TMDB API key saved under **Settings → Scrapers**, Streaming now includes dedicated **Cartoons** and **Anime** tabs under Shows (and **Animated** / **Anime** under Movies) plus clean TMDB-powered search that filters out posterless fan-clip and episode-stub noise. Titles resolve to IMDb IDs automatically so all your source addons, Favorites, and Continue watching work seamlessly, with TMDB metadata fallback if Cinemeta is missing a show or episode list.
 - **Cleaner Streaming search & filter bar.** The Streaming search overlay now prioritizes whichever Movies/Shows tab you're on, skips noisy Cinemeta search duplicates when TMDB is enabled (toggleable under **Settings → Streaming**), and removes the redundant **Anime only** filter chip now that Anime has its own dedicated tab.
 
